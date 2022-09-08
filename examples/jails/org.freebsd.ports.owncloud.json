@@ -1,4 +1,0 @@
-{
-	"Label": "org.freebsd.ports.owncloud",
-	"Packages": ["owncloud"],
-}

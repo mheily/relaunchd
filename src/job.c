@@ -24,7 +24,6 @@
 
 #ifdef __FreeBSD__
 #include <sys/param.h>
-#include <sys/jail.h>
 #endif
 
 #include "calendar.h"
@@ -381,17 +380,6 @@ reset_signal_handlers()
 static int
 start_child_process(const job_t job, const struct passwd *pwent, const struct group *grent)
 {
-#ifdef __FreeBSD__
-	if (job->jm->jail_name) {
-		log_debug("entering jail %s", job->jm->jail_name);
-		/* XXX-FIXME: hardcoded to JID #1, should lookup the JID from name */
-		if (jail_attach(1) < 0) {
-			log_errno("jail_attach(2)");
-			return -1;
-		}
-	}
-#endif
-
 #ifndef NOFORK
 	if (setsid() < 0) {
 		log_errno("setsid");

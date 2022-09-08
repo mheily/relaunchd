@@ -54,7 +54,6 @@ typedef struct job_manifest {
 	bool     run_at_load;
 	char	*working_directory;
 	char 	*root_directory;
-	char    *jail_name;
 
 	cvec_t	 environment_variables;
 

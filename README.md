@@ -31,7 +31,6 @@ The core functionality is working:
 
 There are some new features not found in the original launchd:
 * JSON is used instead of XML
-* you can launch programs that place themselves inside of a jail(8)
 * a wrapper library that allows programs to use socket activation without
   modifying the source code.
    
