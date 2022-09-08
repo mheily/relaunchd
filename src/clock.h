@@ -23,10 +23,6 @@
 
 #include "log.h"
 
-#if defined(__MACH__)
-#include "../vendor/PosixMachTiming/src/timing_mach.h"
-#endif
-
 /*
  * Provide a mock clock object that can be manipulated when running unit tests.
  */
