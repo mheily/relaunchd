@@ -123,7 +123,7 @@ static inline cvec_t setup_environment_variables(const job_t job, const struct p
 	cvec_t env = NULL;
 	char *curp, *buf = NULL;
 	char *logname_var = NULL, *user_var = NULL;
-	int i, uid;
+	int uid;
 	bool found[] = { false, false, false, false, false, false, false };
 
 	env = cvec_new();
@@ -139,7 +139,7 @@ static inline cvec_t setup_environment_variables(const job_t job, const struct p
 	/* Follow the crontab(5) convention of overriding LOGNAME and USER
 	 * and providing a default value for HOME, PATH, and SHELL */
 	log_debug("job %s has %zu env vars\n", job->jm->label, cvec_length(job->jm->environment_variables));
-	for (i = 0; i < cvec_length(job->jm->environment_variables); i += 2) {
+	for (size_t i = 0; i < cvec_length(job->jm->environment_variables); i += 2) {
 		curp = cvec_get(job->jm->environment_variables, i);
 		log_debug("evaluating %s", curp);
 		if (strcmp(curp, "LOGNAME") == 0) {

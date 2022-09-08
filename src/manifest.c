@@ -413,7 +413,7 @@ static int job_manifest_parse_sock_service_name(struct job_manifest_socket *sock
   if memory allocation fails */
 static int job_manifest_rectify(job_manifest_t job_manifest)
 {
-	int i, retval = -1;
+	int retval = -1;
 	cvec_t new_argv = NULL;
 	uid_t uid;
 	struct passwd *pwent;
@@ -456,7 +456,7 @@ static int job_manifest_rectify(job_manifest_t job_manifest)
 		new_argv = cvec_new();
 		if (!new_argv) goto out;
 		if (cvec_push(new_argv, job_manifest->program) < 0) goto out;
-		for (i = 0; i < cvec_length(job_manifest->program_arguments); i++) {
+		for (size_t i = 0; i < cvec_length(job_manifest->program_arguments); i++) {
 			if (cvec_push(new_argv, cvec_get(job_manifest->program_arguments, i)) < 0) goto out;
 		}
 		cvec_free(job_manifest->program_arguments);
