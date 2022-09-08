@@ -30,7 +30,6 @@
 #include <sys/event.h>
 #include <unistd.h>
 
-#include "config.h"
 #include "calendar.h"
 #include "log.h"
 #include "manager.h"
@@ -114,9 +113,10 @@ main(int argc, char *argv[])
 	create_pid_file();
 
 /* daemon(3) is deprecated on MacOS */
-//DISABLED: gcc hates these pragmas and will not compile
-//pragma clang diagnostic push
-//pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
 
 	if (options.daemon && daemon(0, 0) < 0) {
 		fprintf(stderr, "ERROR: Unable to daemonize\n");
@@ -126,7 +126,9 @@ main(int argc, char *argv[])
 		log_freopen(stdout);
 	}
 
-//pragma clang diagnostic pop
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 	pidfile_write(state.pfh);
 
