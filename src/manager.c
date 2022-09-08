@@ -25,8 +25,6 @@
 #include <sys/event.h>
 #include <sys/wait.h>
 
-#include "../config.h"
-
 #include "calendar.h"
 #include "log.h"
 #include "job.h"

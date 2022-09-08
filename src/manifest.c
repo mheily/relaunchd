@@ -314,7 +314,7 @@ static int job_manifest_parse_throttle_interval(job_manifest_t manifest, const u
 
 /** Parse a field within a crontab(5) specification */
 static int
-parse_cron_field(uint32_t *dst, const ucl_object_t *obj, const char *key, int64_t start, int64_t end)
+parse_cron_field(int32_t *dst, const ucl_object_t *obj, const char *key, int64_t start, int64_t end)
 {
 	const ucl_object_t *cur;
 	int64_t val;

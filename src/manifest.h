@@ -27,14 +27,14 @@
 #include "socket.h"
 
 /** A wildcard value in a crontab(5) specification */
-#define CRON_SPEC_WILDCARD UINT32_MAX
+#define CRON_SPEC_WILDCARD INT32_MAX
 
 struct cron_spec {
-	uint32_t minute;
-	uint32_t hour;
-	uint32_t day;
-	uint32_t weekday;
-	uint32_t month;
+	int32_t minute;
+	int32_t hour;
+	int32_t day;
+	int32_t weekday;
+	int32_t month;
 };
 
 typedef struct job_manifest {
