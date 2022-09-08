@@ -183,6 +183,9 @@ int job_manifest_socket_export(struct job_manifest_socket *jms, cvec_t env, size
 		return -1;
 	}
 
+    // FIXME: should we update env?
+    (void) env;
+
 	return 0;
 }
 

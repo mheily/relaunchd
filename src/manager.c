@@ -202,6 +202,7 @@ int manager_wake_job(job_t job)
 
 int manager_activate_job_by_fd(int fd)
 {
+    (void) fd;
 	return -1; //STUB
 }
 
