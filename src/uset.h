@@ -43,15 +43,14 @@ static inline uset_t uset_new(void (*destructor)(void *)) {
 }
 
 static inline int uset_add(uset_t us, void **item) {
-	int i;
 	void **new_items;
 
 	/* Find the first empty slot */
-	for (i = 0; i < us->allocated; i++) {
+	for (size_t i = 0; i < us->allocated; i++) {
 		if (us->items[i] == NULL) {
 			us->items[i] = *item;
 			if (us->length <= i) us->length = i + 1;
-			printf("added item %p to slot %d, length now %zu\n", item, i, us->length);
+			printf("added item %p to slot %zu, length now %zu\n", item, i, us->length);
 			return (0);
 		}
 	}
@@ -79,11 +78,9 @@ static inline void *uset_get(uset_t us, size_t index) {
 }
 
 static inline void uset_free(uset_t us) {
-	int i;
-
 	if (us == NULL) return;
 
-	for (i = 0; i < us->length; i++) {
+	for (size_t i = 0; i < us->length; i++) {
 		us->destructor(us->items[i]);
 	}
 	free(us->items);
