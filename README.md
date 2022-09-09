@@ -56,8 +56,10 @@ Some things will probably never be implemented:
 
 The basic commands to build and install the software are:
 ```
+	mkdir cmake-build-debug
+	cd cmake-build-debug
+	cmake ..
 	make
-	sudo make install
 ```
 
 ## Building under Linux
