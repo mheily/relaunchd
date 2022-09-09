@@ -2,9 +2,7 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_FLAGS_DEBUG   "-O0 -g3 -Wall -Wextra -Werror")
 set(CMAKE_C_FLAGS_RELEASE "-O3 -Wall")
 
-INCLUDE (CheckIncludeFiles)
-
-CHECK_INCLUDE_FILES(sys/limits.h, HAVE_SYS_LIMITS_H)
+check_include_files(sys/limits.h, HAVE_SYS_LIMITS_H)
 
 add_executable(launchd
         calendar.c calendar.h
@@ -29,5 +27,18 @@ ExternalProject_Get_property(libucl SOURCE_DIR)
 target_include_directories(launchd PRIVATE "${SOURCE_DIR}/include")
 ExternalProject_Get_property(libucl BINARY_DIR)
 target_link_libraries(launchd "${BINARY_DIR}/libucl.a")
+
+if(HAVE_SYS_EVENT_H)
+else()
+# TODO: Is there a better way to access the CMake variables in this external project?
+ExternalProject_Get_property(libkqueue SOURCE_DIR)
+target_include_directories(launchd PRIVATE "${SOURCE_DIR}/include")
+ExternalProject_Get_property(libkqueue BINARY_DIR)
+target_link_libraries(launchd "${BINARY_DIR}/libkqueue.a")
+target_link_libraries(launchd "pthread")
+endif()
+
+# for asprintf() in glibc
+add_compile_definitions(_GNU_SOURCE)
 
 add_compile_definitions(PKGSTATEDIR="/var/db/relaunchd")
