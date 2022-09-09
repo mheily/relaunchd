@@ -52,7 +52,7 @@ Some things will probably never be implemented:
 * Darwin-specific things - EnableTransactions
 * legacy keys - Disabled, OnDemand
 
-## Building (all platforms)
+## Building from source
 
 The basic commands to build and install the software are:
 ```
@@ -62,48 +62,8 @@ The basic commands to build and install the software are:
 	make
 ```
 
-## Building under Linux
-
-You can check the current build status by visiting the 
-[Travis CI dashboard](https://travis-ci.org/mheily/relaunchd/builds)
-
-There are a few extra steps when building on Linux:
-
-1. Download and install libkqueue. For Debian-based distributions, you can
-   simply run:
-
-	sudo apt-get install libkqueue-dev
-
-   Other distributions will require you to build from source, which is 
-   available at:
-
-	https://github.com/mheily/libkqueue/
-
-## Building under OpenBSD
-
-You will need to build libucl, which means installing GNU Autotools:
-```
-# pkg_add autoconf-2.69p1 automake-1.15 libtool
-```
-
-Run the configure script:
-```
-./configure
-```
-
-Since libucl will try to run autoconf/automake, you will need to provide
-the environment variables to make(1):
-```
-AUTOCONF_VERSION=2.69 AUTOMAKE_VERSION=1.15 make
-```
-
-
-## Building under NetBSD
-
-You will need to build libucl, which means installing GNU Autotools:
-```
-# pkg_add autoconf automake libtool pkg-config
-```
+You can check the current build status by visiting the
+[Travis CI dashboard](https://travis-ci.org/mheily/relaunchd/builds).
 
 ## Socket activation
 
@@ -187,12 +147,8 @@ to re-run the static analyzer.
 
 ## Contact Information
 
-For questions, comments, or other feedback about relaunchd, please join
-the email discussion list at:
-
-    https://groups.google.com/forum/#!forum/relaunchd-devel
-
-There is also a #relaunchd IRC channel on FreeNode.
+For questions, comments, or other feedback about relaunchd, 
+please open an issue on the GitHub page.
 
 ## Links
 
