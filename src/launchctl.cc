@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Mark Heily <mark@heily.com>
+ * Copyright (c) 2022 Mark Heily <mark@heily.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,18 +14,28 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef OPTIONS_H_
-#define OPTIONS_H_
+#include <iostream>
 
-#include <sys/syslimits.h>
+void printUsage() {
+    std::cout << "usage: ...\n";
+}
 
-struct launchd_options {
-	char	pidfile[PATH_MAX];	/* Path to the pid file */
-	char	pkgstatedir[PATH_MAX];	/* Top-level directory for state data */
-	char 	watchdir[PATH_MAX];	/* Directory to watch for new jobs */
-	char 	activedir[PATH_MAX];	/* Directory that holds info about active jobs */
-	bool 	daemon;
-	int	log_level;
-} options;
-
-#endif /* OPTIONS_H_ */
+int main(int argc, char *argv[]) {
+    if (argc <= 1) {
+        printUsage();
+        exit(1);
+    }
+    if (argc == 2 && strstr(argv[1], "help")) {
+        printUsage();
+        exit(0);
+    }
+    auto subcommand = std::string(argv[1]);
+    if (subcommand == "load") {
+        for (int i = 2; i < argc; i++) {
+            std::cout << argv[i] << "\n";
+        }
+    } else {
+        std::cout << "ERROR: Unsupported subcommand\n";
+        exit(2);
+    }
+}

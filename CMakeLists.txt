@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(relaunchd C)
+project(relaunchd)
 
 include(ExternalProject)
 include(CheckIncludeFiles)

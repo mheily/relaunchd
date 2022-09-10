@@ -42,3 +42,13 @@ endif()
 add_compile_definitions(_GNU_SOURCE)
 
 add_compile_definitions(PKGSTATEDIR="/var/db/relaunchd")
+
+#
+# launchctl
+#
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_FLAGS_DEBUG   "-O0 -g3 -Wall -Wextra")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra -Werror")
+
+add_executable(launchctl launchctl.cc util.h)
