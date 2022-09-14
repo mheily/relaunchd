@@ -22,7 +22,11 @@
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#ifdef __linux__
+#include <kqueue/sys/event.h>
+#else
 #include <sys/event.h>
+#endif
 #include <sys/wait.h>
 
 #include "calendar.h"

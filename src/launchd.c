@@ -27,7 +27,11 @@
 #include <syslog.h>
 #include "../vendor/FreeBSD/sys/queue.h"
 #include <sys/types.h>
+#ifdef __linux__
+#include <kqueue/sys/event.h>
+#else
 #include <sys/event.h>
+#endif
 #include <unistd.h>
 
 #include "calendar.h"
