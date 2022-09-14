@@ -25,7 +25,7 @@ int main(int argc, char *argv[]) {
         printUsage();
         exit(1);
     }
-    if (argc == 2 && strstr(argv[1], "help")) {
+    if (argc == 2 && std::string(argv[1]).rfind("help") != std::string::npos) {
         printUsage();
         exit(0);
     }
