@@ -22,20 +22,28 @@ add_executable(launchd
         util.h
         )
 
-# TODO: Is there a better way to access the CMake variables in this external project?
-ExternalProject_Get_property(libucl SOURCE_DIR)
-target_include_directories(launchd PRIVATE "${SOURCE_DIR}/include")
-ExternalProject_Get_property(libucl BINARY_DIR)
-target_link_libraries(launchd "${BINARY_DIR}/libucl.a")
+if (USE_PRIVATE_DEPENDENCIES)
+    # TODO: Is there a better way to access the CMake variables in this external project?
+    ExternalProject_Get_property(libucl SOURCE_DIR)
+    target_include_directories(launchd PRIVATE "${SOURCE_DIR}/include")
+    ExternalProject_Get_property(libucl BINARY_DIR)
+    target_link_libraries(launchd "${BINARY_DIR}/libucl.a")
+else()
+    target_link_libraries(launchd "-lucl")
+endif()
 
 if(HAVE_SYS_EVENT_H)
 else()
-# TODO: Is there a better way to access the CMake variables in this external project?
-ExternalProject_Get_property(libkqueue SOURCE_DIR)
-target_include_directories(launchd PRIVATE "${SOURCE_DIR}/include")
-ExternalProject_Get_property(libkqueue BINARY_DIR)
-target_link_libraries(launchd "${BINARY_DIR}/libkqueue.a")
-target_link_libraries(launchd "pthread")
+    if (USE_PRIVATE_DEPENDENCIES)
+        # TODO: Is there a better way to access the CMake variables in this external project?
+        ExternalProject_Get_property(libkqueue SOURCE_DIR)
+        target_include_directories(launchd PRIVATE "${SOURCE_DIR}/include")
+        ExternalProject_Get_property(libkqueue BINARY_DIR)
+        target_link_libraries(launchd "${BINARY_DIR}/libkqueue.a")
+    else()
+        target_link_libraries(launchd "-lkqueue")
+    endif()
+    target_link_libraries(launchd "pthread")
 endif()
 
 # for asprintf() in glibc
