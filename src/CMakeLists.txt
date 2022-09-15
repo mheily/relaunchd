@@ -49,14 +49,25 @@ endif()
 # for asprintf() in glibc
 add_compile_definitions(_GNU_SOURCE)
 
-set(PKGSTATEDIR "${CMAKE_INSTALL_PREFIX}/var/db/relaunchd")
+if ((CMAKE_INSTALL_PREFIX MATCHES "^/usr$") OR (CMAKE_INSTALL_PREFIX MATCHES "^/usr/local$"))
+    set(VARDIR "/var")
+    set(SYSCONFDIR "/etc")
+else()
+    set(VARDIR "${CMAKE_INSTALL_PREFIX}/var")
+    set(SYSCONFDIR "${CMAKE_INSTALL_PREFIX}/etc")
+endif()
+set(PKGSTATEDIR "${VARDIR}/db/relaunchd")
 
 configure_file(config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
 install(TARGETS launchd DESTINATION ${CMAKE_INSTALL_PREFIX}/sbin)
-INSTALL(CODE "FILE(MAKE_DIRECTORY \$ENV{DESTDIR}\/${PKGSTATEDIR})")
-INSTALL(CODE "FILE(MAKE_DIRECTORY \$ENV{DESTDIR}\/${CMAKE_INSTALL_PREFIX}/var/run)")
+
+configure_file(launchctl.in ${CMAKE_CURRENT_BINARY_DIR}/launchctl)
+
+install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/launchctl DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(CODE "FILE(MAKE_DIRECTORY \$ENV{DESTDIR}\/${PKGSTATEDIR})")
+install(CODE "FILE(MAKE_DIRECTORY \$ENV{DESTDIR}\/${VARDIR}/run)")
 
 #
 # launchctl

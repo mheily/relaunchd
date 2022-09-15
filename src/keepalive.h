@@ -17,13 +17,15 @@
 #ifndef RELAUNCHD_KEEPALIVE_H_
 #define RELAUNCHD_KEEPALIVE_H_
 
+#include "config.h"
+
 struct job;
 
 /**
  * Logic around automatically restarting jobs.
  */
 
-#define KEEPALIVEDIR "/var/db/launchd/cfg"
+#define KEEPALIVEDIR VARDIR "/db/launchd/cfg"
 
 /** One-time initialization at program startup */
 int keepalive_init(int kqfd);

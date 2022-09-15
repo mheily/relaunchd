@@ -64,7 +64,7 @@ void create_pid_file()
 	pid_t otherpid;
 
 	if (getuid() == 0) {
-		path_sprintf(&options.pidfile, "${PREFIX}/var/run/launchd.pid");
+		path_sprintf(&options.pidfile, VARDIR "/run/launchd.pid");
 	} else {
 		char statedir[PATH_MAX];
 

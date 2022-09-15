@@ -17,6 +17,7 @@
 #ifndef CONFIG_H_
 
 #define PREFIX      "${CMAKE_INSTALL_PREFIX}"
+#define VARDIR		"${VARDIR}"
 #define PKGSTATEDIR "${PKGSTATEDIR}"
 
 #define CONFIG_H_

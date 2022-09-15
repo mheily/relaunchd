@@ -3,6 +3,7 @@ project(relaunchd)
 
 include(ExternalProject)
 include(CheckIncludeFiles)
+include(GNUInstallDirs)
 
 option(USE_PRIVATE_DEPENDENCIES
     "Should we fetch, build and link to private copies of libucl and libkqueue?"

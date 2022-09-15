@@ -15,21 +15,19 @@
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
 
-# KLUDGE: hardcoded for Linux. This should be hooked into ./configure output somehow.
-#
 if [ `uname` = 'Linux' ] ; then
-	prefix="/usr"
-	sysconfdir="/etc"
+	prefix="${CMAKE_INSTALL_PREFIX}"
+	sysconfdir="${SYSCONFDIR}"
 else
 	prefix="/usr/local"
 	sysconfdir="$prefix/etc"
 fi
 
 if [ `id -u` -eq 0 ] ; then
-	pkgdatadir="/var/db/launchd"
-	pidfile="/var/run/launchd.pid"
-	agentdir="${sysconfdir}/launchd/agents"
-	daemondir="${sysconfdir}/launchd/daemons"
+	pkgdatadir="${VARDIR}/db/launchd"
+	pidfile="${VARDIR}/run/launchd.pid"
+	agentdir="$sysconfdir/launchd/agents"
+	daemondir="$sysconfdir/launchd/daemons"
 else
 	pkgdatadir="$HOME/.local/share/launchd/run"
 	pidfile="$pkgdatadir/launchd.pid"
@@ -55,25 +53,34 @@ if [ ! -f $pidfile ] ; then
 	fi
 fi
 
-for path in $*
+PATHS=""
+
+for path in $@
 do
-	if [ ! -e "$path" ] ; then
-		echo "ERROR: $path does not exist" > /dev/stderr
-		exit 1
-	fi
+	case $path in
+	-w|-F|-x)
+		;;
+	*)
+		if [ ! -e "$path" ] ; then
+			echo "ERROR: $path does not exist" > /dev/stderr
+			exit 1
+		fi
+		PATHS="${PATHS} \"$path\""
+		;;
+	esac
 done
 
 case $command in
 load)
-	filespec=`find $* -name '*.json'`
+	filespec=`find $PATHS -name '*.json'`
 	for path in $filespec ; do
-		cp $path $watchdir
+		cp -p $path $watchdir
 	done
 	kill -HUP `cat $pidfile`
 	;;
 
 unload)
-	filespec=`find $* -name '*.json'`
+	filespec=`find $PATHS -name '*.json'`
 	for path in $filespec ; do
 		label=`basename "$path" | sed 's/\.json$//'`
 		touch $watchdir/$label.unload
