@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include "config.h"
+
 #include "../vendor/FreeBSD/sys/queue.h"
 
 #include <dirent.h>
@@ -477,20 +479,20 @@ setup_job_dirs()
 	if (getuid() == 0) {
 		path_sprintf(&options.pkgstatedir, PKGSTATEDIR);
 	} else {
-		path_sprintf(&options.pkgstatedir, "%s/.launchd/run", getenv("HOME"));
+		path_sprintf(&options.pkgstatedir, "%s/.local/share/launchd/run", getenv("HOME"));
 	}
 
 	path_sprintf(&options.watchdir, "%s/new", options.pkgstatedir);
 	path_sprintf(&options.activedir, "%s/cur", options.pkgstatedir);
 
 	if (getuid() > 0) {
-		path_sprintf(&basedir, "%s/.launchd", getenv("HOME"));
+		path_sprintf(&basedir, "%s/.local/share/launchd", getenv("HOME"));
 		mkdir_idempotent(basedir, 0700);
 
-		path_sprintf(&buf, "%s/agents", &basedir);
+		path_sprintf(&buf, "%s/agents", basedir);
 		mkdir_idempotent(buf, 0700);
 
-		path_sprintf(&buf, "%s/run", &basedir);
+		path_sprintf(&buf, "%s/run", basedir);
 		mkdir_idempotent(buf, 0700);
 	}
 

@@ -50,10 +50,13 @@ endif()
 add_compile_definitions(_GNU_SOURCE)
 
 set(PKGSTATEDIR "${CMAKE_INSTALL_PREFIX}/var/db/relaunchd")
-add_compile_definitions(PKGSTATEDIR="${PKGSTATEDIR}")
-INSTALL(CODE "FILE(MAKE_DIRECTORY \$ENV{DESTDIR}\/${PKGSTATEDIR})")
+
+configure_file(config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
+include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
 install(TARGETS launchd DESTINATION ${CMAKE_INSTALL_PREFIX}/sbin)
+INSTALL(CODE "FILE(MAKE_DIRECTORY \$ENV{DESTDIR}\/${PKGSTATEDIR})")
+INSTALL(CODE "FILE(MAKE_DIRECTORY \$ENV{DESTDIR}\/${CMAKE_INSTALL_PREFIX}/var/run)")
 
 #
 # launchctl

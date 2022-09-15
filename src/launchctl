@@ -31,9 +31,9 @@ if [ `id -u` -eq 0 ] ; then
 	agentdir="${sysconfdir}/launchd/agents"
 	daemondir="${sysconfdir}/launchd/daemons"
 else
-	pkgdatadir="$HOME/.launchd/run"
+	pkgdatadir="$HOME/.local/share/launchd/run"
 	pidfile="$pkgdatadir/launchd.pid"
-	agentdir="$HOME/.launchd/agents"
+	agentdir="$HOME/.local/share/launchd/agents"
 	daemondir="" # N/A
 fi
 watchdir="$pkgdatadir/new"
