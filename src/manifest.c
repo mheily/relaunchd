@@ -45,6 +45,7 @@ static unsigned char* job_manifest_prepare_buf_for_file(const char *filename, si
 static int job_manifest_read_from_file(unsigned char *buf, size_t buf_size, const char *filename);
 static ucl_object_t* job_manifest_get_object(unsigned char *buf, size_t buf_size);
 
+static int job_manifest_parse_ignored(job_manifest_t, const ucl_object_t *);
 static int job_manifest_parse_child(job_manifest_t job_manifest, const ucl_object_t *tmp);
 static int job_manifest_parse_label(job_manifest_t manifest, const ucl_object_t *obj);
 static int job_manifest_parse_user_name(job_manifest_t manifest, const ucl_object_t *obj);
@@ -98,11 +99,11 @@ static const job_manifest_item_parser_t manifest_parser_map[] = {
 	{ "Umask",                 UCL_STRING,  job_manifest_parse_umask },
 	{ "KeepAlive",               UCL_BOOLEAN,  job_manifest_parse_keepalive },
 	{ "ThrottleInterval",      UCL_INT,   job_manifest_parse_throttle_interval },
+	{ "Disabled",              UCL_BOOLEAN,   job_manifest_parse_ignored },
 	/*
 	{ "inetdCompatibility",    SKIP_ITEM,   NULL },
 	{ "TimeOut",               SKIP_ITEM,   NULL },
 	{ "ExitTimeOut",           SKIP_ITEM,   NULL },
-	{ "Disabled",              SKIP_ITEM,   NULL },
 	{ "Debug",                 SKIP_ITEM,   NULL },
 	{ "WaitForDebugger",       SKIP_ITEM,   NULL },
 	{ "SoftResourceLimits",    SKIP_ITEM,   NULL },
@@ -126,6 +127,13 @@ static bool job_manifest_object_is_type(const ucl_object_t *obj, ucl_type_t type
 	if (ucl_object_type(obj) != type)
 		return false;
 	return true;
+}
+
+static int job_manifest_parse_ignored(job_manifest_t manifest, const ucl_object_t *obj)
+{
+	// quench warnings about unused arguments
+	(void) manifest, (void) obj;
+	return 0;
 }
 
 static int job_manifest_parse_cvec(cvec_t *dst, const ucl_object_t *obj)
