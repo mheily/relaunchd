@@ -49,7 +49,9 @@ endif()
 # for asprintf() in glibc
 add_compile_definitions(_GNU_SOURCE)
 
-add_compile_definitions(PKGSTATEDIR="${CMAKE_INSTALL_PREFIX}/var/db/relaunchd")
+set(PKGSTATEDIR "${CMAKE_INSTALL_PREFIX}/var/db/relaunchd")
+add_compile_definitions(PKGSTATEDIR="${PKGSTATEDIR}")
+INSTALL(CODE "FILE(MAKE_DIRECTORY \$ENV{DESTDIR}\/${PKGSTATEDIR})")
 
 install(TARGETS launchd DESTINATION ${CMAKE_INSTALL_PREFIX}/sbin)
 
