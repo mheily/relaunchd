@@ -8,31 +8,38 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall -Wextra")
 
 check_include_files(sys/limits.h, HAVE_SYS_LIMITS_H)
 
+add_library(launch STATIC 
+        channel.h channel.cc
+        log.c log.h
+        util.h
+        options.cc options.h)
+
 add_executable(launchd
         calendar.c calendar.h
+        channel.h
         cvec.h
         flopen.c
         keepalive.c keepalive.h
-        channel.cc channel.h
         job.c job.h
         launchd.c
-        log.c log.h
+        log.h
         manager.c manager.h
         manifest.c manifest.h
-        options.cc options.h
+        options.h
         pidfile.c pidfile.h
         rpc_server.cc rpc_server.h
         socket.c socket.h
         timer.c timer.h
         uset.h
         util.h)
+target_link_libraries(launchd launch pthread)
 
 if (USE_PRIVATE_DEPENDENCIES)
     # TODO: Is there a better way to access the CMake variables in this external project?
-    ExternalProject_Get_property(libucl LIBUCL_SOURCE_DIR)
-    target_include_directories(launchd PRIVATE "${LIBUCL_SOURCE_DIR}/include")
-    ExternalProject_Get_property(libucl LIBUCL_BINARY_DIR)
-    target_link_libraries(launchd "${LIBUCL_BINARY_DIR}/libucl.a")
+    ExternalProject_Get_property(libucl SOURCE_DIR)
+    include_directories(launchd "${SOURCE_DIR}/include")
+    ExternalProject_Get_property(libucl BINARY_DIR)
+    target_link_libraries(launchd "${BINARY_DIR}/libucl.a")
 else()
     target_link_libraries(launchd "-lucl")
 endif()
@@ -41,14 +48,15 @@ if(HAVE_SYS_EVENT_H)
 else()
     if (USE_PRIVATE_DEPENDENCIES)
         # TODO: Is there a better way to access the CMake variables in this external project?
-        ExternalProject_Get_property(libkqueue LIBKQUEUE_SOURCE_DIR)
-        include_directories(launchd PRIVATE "${LIBKQUEUE_SOURCE_DIR}/include")
-        ExternalProject_Get_property(libkqueue LIBKQUEUE_BINARY_DIR)
+        ExternalProject_Get_property(libkqueue SOURCE_DIR)
+        set(LIBKQUEUE_SOURCE_DIR ${SOURCE_DIR})
+        include_directories(launchd "${LIBKQUEUE_SOURCE_DIR}/include")
+        ExternalProject_Get_property(libkqueue BINARY_DIR)
+        set(LIBKQUEUE_BINARY_DIR ${BINARY_DIR})
         target_link_libraries(launchd "${LIBKQUEUE_BINARY_DIR}/libkqueue.a")
     else()
         target_link_libraries(launchd "-lkqueue")
     endif()
-    target_link_libraries(launchd "pthread")
 endif()
 
 # for asprintf() in glibc
@@ -68,9 +76,9 @@ include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
 install(TARGETS launchd DESTINATION ${CMAKE_INSTALL_PREFIX}/sbin)
 
-configure_file(launchctl.in ${CMAKE_CURRENT_BINARY_DIR}/launchctl)
+configure_file(launchctl.in ${CMAKE_CURRENT_BINARY_DIR}/launchctl.sh)
 
-install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/launchctl DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/launchctl.sh DESTINATION ${CMAKE_INSTALL_PREFIX}/bin RENAME launchctl)
 install(CODE "FILE(MAKE_DIRECTORY \$ENV{DESTDIR}\/${PKGSTATEDIR})")
 install(CODE "FILE(MAKE_DIRECTORY \$ENV{DESTDIR}\/${VARDIR}/run)")
 
@@ -79,12 +87,13 @@ install(CODE "FILE(MAKE_DIRECTORY \$ENV{DESTDIR}\/${VARDIR}/run)")
 #
 
 add_executable(launchctl
-        channel.h channel.cc
+        channel.h
         launchctl.cc
-        log.c log.h
+        log.h
         rpc_client.cc rpc_client.h
         util.h
-        options.cc options.h)
+        options.h)
+target_link_libraries(launchctl launch pthread)
 
 if(HAVE_SYS_EVENT_H)
 else()
@@ -94,5 +103,4 @@ else()
     else()
         target_link_libraries(launchctl "-lkqueue")
     endif()
-    target_link_libraries(launchctl "pthread")
 endif()
