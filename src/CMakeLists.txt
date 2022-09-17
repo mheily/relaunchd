@@ -13,6 +13,7 @@ add_executable(launchd
         cvec.h
         flopen.c
         keepalive.c keepalive.h
+        channel.cc channel.h
         job.c job.h
         launchd.c
         log.c log.h
@@ -20,11 +21,11 @@ add_executable(launchd
         manifest.c manifest.h
         options.cc options.h
         pidfile.c pidfile.h
+        rpc_server.cc rpc_server.h
         socket.c socket.h
         timer.c timer.h
         uset.h
-        util.h
-        )
+        util.h)
 
 # TODO: Is there a better way to access the CMake variables in this external project?
 ExternalProject_Get_property(libucl SOURCE_DIR)
@@ -51,6 +52,10 @@ add_compile_definitions(PKGSTATEDIR="/var/db/relaunchd")
 # launchctl
 #
 
-
-
-add_executable(launchctl launchctl.cc util.h)
+add_executable(launchctl
+        channel.h channel.cc
+        launchctl.cc
+        log.c log.h
+        rpc_client.cc rpc_client.h
+        util.h
+        options.cc options.h)
