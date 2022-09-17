@@ -49,7 +49,9 @@ int main(int argc, char *argv[]) {
         std::cout << rpc_list(&chan) << std::endl;
     } else if (subcommand == "load") {
         for (int i = 2; i < argc; i++) {
-            std::cout << argv[i] << "\n";
+            if (strcmp(argv[i], "-w") && strcmp(argv[i], "-F")) {
+                std::cout << argv[i] << "\n";
+            }
         }
     } else if (subcommand == "version") {
         std::cout << rpc_version(&chan) << std::endl;
