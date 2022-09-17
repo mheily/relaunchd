@@ -18,7 +18,7 @@ add_executable(launchd
         log.c log.h
         manager.c manager.h
         manifest.c manifest.h
-        options.h
+        options.cc options.h
         pidfile.c pidfile.h
         socket.c socket.h
         timer.c timer.h
