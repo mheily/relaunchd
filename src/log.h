@@ -14,8 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef LOG_H_
-#define LOG_H_
+#pragma once
 
 #include <errno.h>
 #include <stdio.h>
@@ -27,16 +26,16 @@ extern FILE *logfile;
 
 #define _log_all(level, format,...) do {				\
 	if (logfile != NULL) {						\
-		fprintf(stdout, "%s(%s:%d): "format"\n",		\
+		fprintf(stdout, "%s(%s:%d): " format "\n",		\
 			__func__, __FILE__, __LINE__, ## __VA_ARGS__);	\
 	} else {							\
-		syslog(level, "%s(%s:%d): "format"\n",			\
+		syslog(level, "%s(%s:%d): " format "\n",			\
 			__func__, __FILE__, __LINE__, ## __VA_ARGS__);	\
 	}								\
 } while (0)
 
-#define log_error(format,...) _log_all(LOG_ERR, "**ERROR** "format, ## __VA_ARGS__)
-#define log_warning(format,...) _log_all(LOG_WARNING, "WARNING: "format, ## __VA_ARGS__)
+#define log_error(format,...) _log_all(LOG_ERR, "**ERROR** " format, ## __VA_ARGS__)
+#define log_warning(format,...) _log_all(LOG_WARNING, "WARNING: " format, ## __VA_ARGS__)
 #define log_notice(format,...) _log_all(LOG_NOTICE, format, ## __VA_ARGS__)
 #define log_info(format,...) _log_all(LOG_INFO, format, ## __VA_ARGS__)
 #if !defined(NDEBUG)
@@ -60,5 +59,3 @@ void log_freopen(FILE *new_logfile);
 	_log_all(LOG_ERR, "**FATAL ERROR** " format, ## __VA_ARGS__); \
 	_crash((code)); \
 } while (0)
-
-#endif /* LOG_H_ */
