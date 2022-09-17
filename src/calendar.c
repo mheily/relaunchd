@@ -21,11 +21,7 @@
 #include <limits.h>
 #endif
 #include <sys/types.h>
-#ifdef __linux__
-#include <kqueue/sys/event.h>
-#else
 #include <sys/event.h>
-#endif
 #include <sys/time.h>
 #include <time.h>
 

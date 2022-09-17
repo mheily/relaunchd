@@ -56,6 +56,7 @@ else()
         target_link_libraries(launchd "${LIBKQUEUE_BINARY_DIR}/libkqueue.a")
     else()
         target_link_libraries(launchd "-lkqueue")
+        include_directories(launchd "-I/usr/include/kqueue") # TODO: can we get this from pkgconfig instead?
     endif()
 endif()
 

@@ -16,11 +16,7 @@
 
 #include <fcntl.h>
 #include <sys/types.h>
-#ifdef __linux__
-#include <kqueue/sys/event.h>
-#else
 #include <sys/event.h>
-#endif
 #include <limits.h>
 #include <unistd.h>
 

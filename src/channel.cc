@@ -21,11 +21,7 @@
 #include <sys/un.h>
 #include <stdlib.h>
 #include <unistd.h>
-#ifdef __linux__
-#include <kqueue/sys/event.h>
-#else
 #include <sys/event.h>
-#endif
 
 #include "log.h"
 #include "memory.h"
