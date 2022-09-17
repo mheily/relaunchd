@@ -42,8 +42,6 @@
 #include "uset.h"
 #include "util.h"
 
-struct launchd_options options;
-
 static struct {
 	struct pidfh *pfh;
 } state;

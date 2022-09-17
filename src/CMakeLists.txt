@@ -59,3 +59,13 @@ add_executable(launchctl
         rpc_client.cc rpc_client.h
         util.h
         options.cc options.h)
+
+if(HAVE_SYS_EVENT_H)
+else()
+    # TODO: Is there a better way to access the CMake variables in this external project?
+    ExternalProject_Get_property(libkqueue SOURCE_DIR)
+    target_include_directories(launchctl PRIVATE "${SOURCE_DIR}/include")
+    ExternalProject_Get_property(libkqueue BINARY_DIR)
+    target_link_libraries(launchctl "${BINARY_DIR}/libkqueue.a")
+    target_link_libraries(launchctl "pthread")
+endif()

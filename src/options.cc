@@ -17,6 +17,8 @@
 #include <string>
 #include <filesystem>
 
+#include <string.h> // for strdup
+
 #include "options.h"
 
 struct launchd_options options;

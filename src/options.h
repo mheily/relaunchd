@@ -17,7 +17,12 @@
 #ifndef OPTIONS_H_
 #define OPTIONS_H_
 
+// for PATH_MAX
+#if HAVE_SYS_LIMITS_H
 #include <sys/syslimits.h>
+#else
+#include <limits.h>
+#endif
 
 struct launchd_options {
 	char	pidfile[PATH_MAX];	/* Path to the pid file */
