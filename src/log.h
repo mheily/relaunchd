@@ -48,15 +48,17 @@ extern FILE *logfile;
 
 void log_freopen(FILE *new_logfile);
 
+#define _crash(code) abort
+
 /* Emulate the <err.h> macros but use our own logging facility */
 #define err(code, format, ...) do { \
-	log_errno("**FATAL ERROR** "format, ## __VA_ARGS__); \
-	exit((code)); \
+	log_errno("**FATAL ERROR** " format, ## __VA_ARGS__); \
+	_crash((code)); \
 } while (0)
 
 #define errx(code, format, ...) do { \
-	_log_all(LOG_ERR, "**FATAL ERROR** "format, ## __VA_ARGS__); \
-	exit((code)); \
+	_log_all(LOG_ERR, "**FATAL ERROR** " format, ## __VA_ARGS__); \
+	_crash((code)); \
 } while (0)
 
 #endif /* LOG_H_ */
