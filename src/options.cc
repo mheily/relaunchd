@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Mark Heily <mark@heily.com>
+ * Copyright (c) 2022 Mark Heily <mark@heily.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,35 +14,29 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef OPTIONS_H_
-#define OPTIONS_H_
+#include <string>
+#include <filesystem>
 
-// for PATH_MAX
-#if HAVE_SYS_LIMITS_H
-#include <sys/syslimits.h>
-#else
-#include <limits.h>
-#endif
+#include <string.h> // for strdup
 
-struct launchd_options {
-	char	pidfile[PATH_MAX];	/* Path to the pid file */
-	char	pkgstatedir[PATH_MAX];	/* Top-level directory for state data */
-	char 	watchdir[PATH_MAX];	/* Directory to watch for new jobs */
-	char 	activedir[PATH_MAX];	/* Directory that holds info about active jobs */
-	bool 	daemon;
-	int	log_level;
-};
+#include "options.h"
 
-extern struct launchd_options options;
+struct launchd_options options;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-char *rpc_get_socketpath();
-
-#ifdef __cplusplus
+char * rpc_get_socketpath() try {
+    std::string statedir;
+    const char *xdg_state_home = getenv("XDG_STATE_HOME");
+    if (xdg_state_home) {
+        statedir = std::string{xdg_state_home};
+    } else {
+        statedir = std::string{getenv("HOME")} + "/.local/state";
+    }
+    statedir += "/relaunchd";
+    std::filesystem::create_directories(statedir);
+    std::string socketpath = statedir + "/rpc.sock";
+    return strdup(socketpath.c_str());
+} catch(...) {
+    // log error
+    return nullptr;
 }
-#endif
 
-#endif /* OPTIONS_H_ */

@@ -14,7 +14,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <err.h>
 #include <iostream>
+
+#include "channel.h"
+#include "options.h"
+#include "rpc_client.h"
 
 void printUsage() {
     std::cout << "usage: ...\n";
@@ -29,13 +34,30 @@ int main(int argc, char *argv[]) {
         printUsage();
         exit(0);
     }
+
+    char *ipcsocketpath = rpc_get_socketpath();
+    struct ipc_channel chan = ipc_channel_create();
+    if (chan.error) {
+        errx(1, "chan_create");
+    }
+    if (ipc_channel_connect(&chan, ipcsocketpath)) {
+        errx(1, "connect");
+    }
+
     auto subcommand = std::string(argv[1]);
-    if (subcommand == "load") {
+    if (subcommand == "list") {
+        std::cout << rpc_list(&chan) << std::endl;
+    } else if (subcommand == "load") {
         for (int i = 2; i < argc; i++) {
             std::cout << argv[i] << "\n";
         }
+    } else if (subcommand == "version") {
+        std::cout << rpc_version(&chan) << std::endl;
     } else {
         std::cout << "ERROR: Unsupported subcommand\n";
+        ipc_channel_close(&chan);
         exit(2);
     }
+    free(ipcsocketpath);
+    exit(0);
 }

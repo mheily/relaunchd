@@ -2,6 +2,10 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_FLAGS_DEBUG   "${CMAKE_C_FLAGS_DEBUG} -g3 -Wall -Wextra -Werror")
 set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -Wall -Wextra")
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_FLAGS_DEBUG   "${CMAKE_CXX_FLAGS_DEBUG} -g3 -Wall -Wextra -Werror")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall -Wextra")
+
 check_include_files(sys/limits.h, HAVE_SYS_LIMITS_H)
 
 add_executable(launchd
@@ -9,25 +13,26 @@ add_executable(launchd
         cvec.h
         flopen.c
         keepalive.c keepalive.h
+        channel.cc channel.h
         job.c job.h
         launchd.c
         log.c log.h
         manager.c manager.h
         manifest.c manifest.h
-        options.h
+        options.cc options.h
         pidfile.c pidfile.h
+        rpc_server.cc rpc_server.h
         socket.c socket.h
         timer.c timer.h
         uset.h
-        util.h
-        )
+        util.h)
 
 if (USE_PRIVATE_DEPENDENCIES)
     # TODO: Is there a better way to access the CMake variables in this external project?
-    ExternalProject_Get_property(libucl SOURCE_DIR)
-    target_include_directories(launchd PRIVATE "${SOURCE_DIR}/include")
-    ExternalProject_Get_property(libucl BINARY_DIR)
-    target_link_libraries(launchd "${BINARY_DIR}/libucl.a")
+    ExternalProject_Get_property(libucl LIBUCL_SOURCE_DIR)
+    target_include_directories(launchd PRIVATE "${LIBUCL_SOURCE_DIR}/include")
+    ExternalProject_Get_property(libucl LIBUCL_BINARY_DIR)
+    target_link_libraries(launchd "${LIBUCL_BINARY_DIR}/libucl.a")
 else()
     target_link_libraries(launchd "-lucl")
 endif()
@@ -36,10 +41,10 @@ if(HAVE_SYS_EVENT_H)
 else()
     if (USE_PRIVATE_DEPENDENCIES)
         # TODO: Is there a better way to access the CMake variables in this external project?
-        ExternalProject_Get_property(libkqueue SOURCE_DIR)
-        target_include_directories(launchd PRIVATE "${SOURCE_DIR}/include")
-        ExternalProject_Get_property(libkqueue BINARY_DIR)
-        target_link_libraries(launchd "${BINARY_DIR}/libkqueue.a")
+        ExternalProject_Get_property(libkqueue LIBKQUEUE_SOURCE_DIR)
+        include_directories(launchd PRIVATE "${LIBKQUEUE_SOURCE_DIR}/include")
+        ExternalProject_Get_property(libkqueue LIBKQUEUE_BINARY_DIR)
+        target_link_libraries(launchd "${LIBKQUEUE_BINARY_DIR}/libkqueue.a")
     else()
         target_link_libraries(launchd "-lkqueue")
     endif()
@@ -73,8 +78,21 @@ install(CODE "FILE(MAKE_DIRECTORY \$ENV{DESTDIR}\/${VARDIR}/run)")
 # launchctl
 #
 
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_FLAGS_DEBUG   "${CMAKE_CXX_FLAGS_DEBUG} -g3 -Wall -Wextra -Werror")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall -Wextra")
+add_executable(launchctl
+        channel.h channel.cc
+        launchctl.cc
+        log.c log.h
+        rpc_client.cc rpc_client.h
+        util.h
+        options.cc options.h)
 
-add_executable(launchctl launchctl.cc util.h)
+if(HAVE_SYS_EVENT_H)
+else()
+    if (USE_PRIVATE_DEPENDENCIES)
+        # TODO: Is there a better way to access the CMake variables in this external project?
+        target_link_libraries(launchctl "${LIBKQUEUE_BINARY_DIR}/libkqueue.a")
+    else()
+        target_link_libraries(launchctl "-lkqueue")
+    endif()
+    target_link_libraries(launchctl "pthread")
+endif()

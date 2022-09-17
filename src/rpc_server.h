@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Mark Heily <mark@heily.com>
+ * Copyright (c) 2022 Mark Heily <mark@heily.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,35 +14,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef OPTIONS_H_
-#define OPTIONS_H_
+#pragma once
 
-// for PATH_MAX
-#if HAVE_SYS_LIMITS_H
-#include <sys/syslimits.h>
-#else
-#include <limits.h>
-#endif
-
-struct launchd_options {
-	char	pidfile[PATH_MAX];	/* Path to the pid file */
-	char	pkgstatedir[PATH_MAX];	/* Top-level directory for state data */
-	char 	watchdir[PATH_MAX];	/* Directory to watch for new jobs */
-	char 	activedir[PATH_MAX];	/* Directory that holds info about active jobs */
-	bool 	daemon;
-	int	log_level;
-};
-
-extern struct launchd_options options;
+#include "channel.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-char *rpc_get_socketpath();
+int rpc_init(int kqfd);
+
+int rpc_dispatch(struct ipc_channel *chan);
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* OPTIONS_H_ */

@@ -41,6 +41,8 @@
 #include "options.h"
 #include "timer.h"
 #include "util.h"
+#include "channel.h"
+#include "rpc_server.h"
 
 /* A list of signals that are meaningful to launchd(8) itself. */
 const int launchd_signals[] = {
@@ -48,6 +50,7 @@ const int launchd_signals[] = {
 };
 
 static void setup_job_dirs();
+static void setup_rpc_server();
 static void setup_signal_handlers();
 static void setup_logging();
 static void do_shutdown();
@@ -60,6 +63,9 @@ static LIST_HEAD(,job) jobs;			/* All active jobs */
 
 /* The kqueue descriptor used by main_loop() */
 static int main_kqfd = -1;
+
+/* The RPC server socket */
+struct ipc_channel chan;
 
 static job_manifest_t
 read_job(const char *filename)
@@ -340,23 +346,23 @@ manager_unload_all_jobs()
 	}
 }
 
-void manager_init(struct pidfh *pfh)
-{
-	pidfile_handle = pfh;
-	LIST_INIT(&jobs);
+void manager_init(struct pidfh *pfh) {
+    pidfile_handle = pfh;
+    LIST_INIT(&jobs);
 
-	if ((main_kqfd = kqueue()) < 0)
-		err(1, "kqueue(2)");
-	setup_logging();
-	setup_signal_handlers();
-	setup_socket_activation(main_kqfd);
-	setup_job_dirs();
-	if (keepalive_init(main_kqfd) < 0)
-		errx(1, "keepalive_init()");
-	if (setup_timers(main_kqfd) < 0)
-		errx(1, "setup_timers()");
-	if (calendar_init(main_kqfd) < 0)
-		errx(1, "calendar_init()");
+    if ((main_kqfd = kqueue()) < 0)
+        err(1, "kqueue(2)");
+    setup_logging();
+    setup_signal_handlers();
+    setup_socket_activation(main_kqfd);
+    setup_rpc_server();
+    setup_job_dirs();
+    if (keepalive_init(main_kqfd) < 0)
+        errx(1, "keepalive_init()");
+    if (setup_timers(main_kqfd) < 0)
+        errx(1, "setup_timers()");
+    if (calendar_init(main_kqfd) < 0)
+        errx(1, "calendar_init()");
 }
 
 void manager_update_jobs()
@@ -522,6 +528,29 @@ static void setup_signal_handlers()
 	}
 }
 
+
+static void setup_rpc_server()
+{
+    chan = ipc_channel_create();
+    if (chan.error) {
+        errx(1, "chan_create");
+    }
+    char *ipcsocketpath = rpc_get_socketpath();
+    if (!ipcsocketpath) {
+        errx(1, "rpc_get_socketpath");
+    }
+    if (ipc_channel_bind(&chan, ipcsocketpath)) {
+        errx(1, "bind");
+    }
+    if (ipc_channel_listen(&chan, 1024)) {
+        errx(1, "listen");
+    }
+    if (ipc_channel_notify(&chan, main_kqfd, (void(*)(void *))&rpc_dispatch)) {
+        err(1, "notify");
+    }
+    free(ipcsocketpath);
+}
+
 void
 manager_main_loop()
 {
@@ -566,7 +595,10 @@ manager_main_loop()
 			}
 		} else if (kev.filter == EVFILT_PROC) {
 			(void) manager_reap_child(kev.ident, kev.data);
-		} else if ((void *)kev.udata == &setup_socket_activation) {
+        } else if ((void *)kev.udata == &rpc_dispatch) {
+            (void) rpc_dispatch(&chan);
+            // fixme: distinguish between a bad request and a fatal internal error
+        } else if ((void *)kev.udata == &setup_socket_activation) {
 			if (socket_activation_handler() < 0)
 				errx(1, "socket_activation_handler()");
 		} else if ((void *)kev.udata == &setup_timers) {
