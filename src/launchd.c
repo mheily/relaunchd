@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include "config.h"
+
 #include <dirent.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -27,7 +29,11 @@
 #include <syslog.h>
 #include "../vendor/FreeBSD/sys/queue.h"
 #include <sys/types.h>
+#ifdef __linux__
+#include <kqueue/sys/event.h>
+#else
 #include <sys/event.h>
+#endif
 #include <unistd.h>
 
 #include "calendar.h"
@@ -56,13 +62,13 @@ void create_pid_file()
 	pid_t otherpid;
 
 	if (getuid() == 0) {
-		path_sprintf(&options.pidfile, "/var/run/launchd.pid");
+		path_sprintf(&options.pidfile, VARDIR "/run/launchd.pid");
 	} else {
 		char statedir[PATH_MAX];
 
-		path_sprintf(&statedir, "%s/.launchd", getenv("HOME"));
+		path_sprintf(&statedir, "%s/.local/share/launchd", getenv("HOME"));
 		mkdir_idempotent(statedir, 0700);
-		path_sprintf(&statedir, "%s/.launchd/run", getenv("HOME"));
+		path_sprintf(&statedir, "%s/.local/share/launchd/run", getenv("HOME"));
 		mkdir_idempotent(statedir, 0700);
 
 		path_sprintf(&options.pidfile, "%s/launchd.pid", statedir);

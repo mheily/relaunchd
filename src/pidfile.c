@@ -24,6 +24,8 @@
  * SUCH DAMAGE.
  */
 
+#include "config.h"
+
 #include <sys/cdefs.h>
 /* __FBSDID("$FreeBSD: releng/10.1/lib/libutil/pidfile.c 255007 2013-08-28 21:10:37Z jilles $"); */
 
@@ -115,7 +117,7 @@ pidfile_open(const char *path, mode_t mode, pid_t *pidptr)
 
 	if (path == NULL)
 		len = snprintf(pfh->pf_path, sizeof(pfh->pf_path),
-		    "/var/run/%s.pid", getprogname());
+		    VARDIR "/run/%s.pid", getprogname());
 	else
 		len = snprintf(pfh->pf_path, sizeof(pfh->pf_path),
 		    "%s", path);
