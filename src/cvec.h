@@ -35,7 +35,7 @@ static inline cvec_t cvec_new()
 {
 	cvec_t cv;
 
-	cv = calloc(1, sizeof(*cv));
+	cv = (cvec_t) calloc(1, sizeof(*cv));
 	if (cv == NULL) return NULL;
 	return cv;
 }
@@ -47,7 +47,7 @@ static inline int cvec_resize(cvec_t cv, const size_t new_size)
     (void) new_size; //XXX-FIXME misleading function
 
 	if (cv->allocated == cv->length) {
-		new_items = realloc(cv->items, cv->allocated + (50 * sizeof(char *)));
+		new_items = (char**) realloc(cv->items, cv->allocated + (50 * sizeof(char *)));
 		if (new_items == NULL) {
 			return (-1);
 		} else {

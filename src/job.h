@@ -32,19 +32,21 @@ typedef enum {
 	JOB_SCHEDULE_KEEPALIVE
 } job_schedule_t;
 
+enum job_state_e {
+    JOB_STATE_DEFINED,
+    JOB_STATE_LOADED,
+    JOB_STATE_WAITING,
+    JOB_STATE_RUNNING,
+    JOB_STATE_KILLED,
+    JOB_STATE_EXITED,
+};
+
 struct job {
 	LIST_ENTRY(job)	joblist_entry;
 	SLIST_ENTRY(job) start_interval_sle;
 	SLIST_ENTRY(job) watchdog_sle;
 	job_manifest_t jm;
-	enum {
-		JOB_STATE_DEFINED,
-		JOB_STATE_LOADED,
-		JOB_STATE_WAITING,
-		JOB_STATE_RUNNING,
-		JOB_STATE_KILLED,
-		JOB_STATE_EXITED,
-	} state;
+	enum job_state_e state;
 	pid_t pid;
 	int last_exit_status, term_signal;
 	time_t  next_scheduled_start;

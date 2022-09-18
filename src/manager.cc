@@ -518,7 +518,7 @@ static void setup_signal_handlers()
 		if (signal(launchd_signals[i], SIG_IGN) == SIG_ERR)
 			err(1, "signal(2): %d", launchd_signals[i]);
 		EV_SET(&kev, launchd_signals[i], EVFILT_SIGNAL, EV_ADD, 0, 0,
-				&setup_signal_handlers);
+               reinterpret_cast<void*>(&setup_signal_handlers));
 		if (kevent(main_kqfd, &kev, 1, NULL, 0, NULL) < 0)
 			err(1, "kevent(2)");
 	}
