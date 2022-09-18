@@ -18,7 +18,6 @@
 #include <grp.h>
 #include <pwd.h>
 #include <sys/types.h>
-#include <signal.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 
@@ -30,6 +29,7 @@
 #include "job.h"
 #include "log.h"
 #include "manager.h"
+#include "signal.h"
 #include "socket.h"
 #include "timer.h"
 #include "util.h"
@@ -355,7 +355,6 @@ err_out:
 static int 
 reset_signal_handlers()
 {
-	extern const int launchd_signals[];
 	int i;
 
 	/* TODO: convert everything to use sigaction instead of signal()

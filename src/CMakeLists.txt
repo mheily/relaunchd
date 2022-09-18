@@ -12,7 +12,7 @@ add_library(launch STATIC
         channel.h channel.cc
         log.c log.h
         util.h
-        options.cc options.h)
+        options.cc options.h signal.cc signal.h)
 
 add_executable(launchd
         calendar.c calendar.h

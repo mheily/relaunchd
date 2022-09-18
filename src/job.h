@@ -14,8 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef JOB_H_
-#define JOB_H_
+#pragma once
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <grp.h>
 #include <pwd.h>
@@ -66,4 +69,6 @@ job_is_runnable(job_t job)
 	return (job->state == JOB_STATE_LOADED && job->jm->run_at_load);
 }
 
-#endif /* JOB_H_ */
+#ifdef __cplusplus
+}
+#endif

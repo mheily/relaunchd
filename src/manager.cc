@@ -33,6 +33,7 @@
 #include "keepalive.h"
 #include "manager.h"
 #include "pidfile.h"
+#include "signal.h"
 #include "socket.h"
 #include "options.h"
 #include "timer.h"
@@ -40,10 +41,6 @@
 #include "channel.h"
 #include "rpc_server.h"
 
-/* A list of signals that are meaningful to launchd(8) itself. */
-const int launchd_signals[] = {
-	SIGHUP, SIGUSR1, SIGINT, SIGTERM, 0
-};
 
 static void setup_job_dirs();
 static void setup_rpc_server();

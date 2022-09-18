@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Mark Heily <mark@heily.com>
+ * Copyright (c) 2022 Mark Heily <mark@heily.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,21 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#pragma once
+#include "signal.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include <time.h>
-
-struct job;
-
-int calendar_init(int kqfd);
-int calendar_handler();
-int calendar_register_job(struct job *);
-int calendar_unregister_job(struct job *);
-
-#ifdef __cplusplus
-}
-#endif
+/* A list of signals that are meaningful to launchd(8) itself. */
+const int launchd_signals[] = {
+        SIGHUP, SIGUSR1, SIGINT, SIGTERM, 0
+};
