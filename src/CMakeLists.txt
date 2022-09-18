@@ -23,7 +23,7 @@ add_executable(launchd
         job.c job.h
         launchd.c
         log.h
-        manager.c manager.h
+        manager.cc manager.h
         manifest.c manifest.h
         options.h
         pidfile.c pidfile.h
