@@ -14,8 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef RELAUNCHD_TIMER_H_
-#define RELAUNCHD_TIMER_H_
+#pragma once
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct job;
 
@@ -24,4 +27,6 @@ int timer_handler();
 int timer_register_job(struct job *);
 int timer_unregister_job(struct job *);
 
-#endif /* RELAUNCHD_TIMER_H_ */
+#ifdef __cplusplus
+}
+#endif

@@ -33,6 +33,7 @@
 #include "keepalive.h"
 #include "manager.h"
 #include "pidfile.h"
+#include "signal.h"
 #include "socket.h"
 #include "options.h"
 #include "timer.h"
@@ -40,10 +41,6 @@
 #include "channel.h"
 #include "rpc_server.h"
 
-/* A list of signals that are meaningful to launchd(8) itself. */
-const int launchd_signals[] = {
-	SIGHUP, SIGUSR1, SIGINT, SIGTERM, 0
-};
 
 static void setup_job_dirs();
 static void setup_rpc_server();
@@ -518,7 +515,7 @@ static void setup_signal_handlers()
 		if (signal(launchd_signals[i], SIG_IGN) == SIG_ERR)
 			err(1, "signal(2): %d", launchd_signals[i]);
 		EV_SET(&kev, launchd_signals[i], EVFILT_SIGNAL, EV_ADD, 0, 0,
-				&setup_signal_handlers);
+               reinterpret_cast<void*>(&setup_signal_handlers));
 		if (kevent(main_kqfd, &kev, 1, NULL, 0, NULL) < 0)
 			err(1, "kevent(2)");
 	}

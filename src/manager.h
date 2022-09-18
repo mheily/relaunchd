@@ -14,8 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef MANAGER_H_
-#define MANAGER_H_
+#pragma once
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "job.h"
 #include "pidfile.h"
@@ -61,4 +64,6 @@ void manager_pid_event_delete(int pid);
 void manager_main_loop();
 void manager_unload_all_jobs();
 
-#endif /* MANAGER_H_ */
+#ifdef __cplusplus
+}
+#endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Mark Heily <mark@heily.com>
+ * Copyright (c) 2022 Mark Heily <mark@heily.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,19 +16,7 @@
 
 #pragma once
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <signal.h>
 
-#include <time.h>
+extern const int launchd_signals[];
 
-struct job;
-
-int calendar_init(int kqfd);
-int calendar_handler();
-int calendar_register_job(struct job *);
-int calendar_unregister_job(struct job *);
-
-#ifdef __cplusplus
-}
-#endif

@@ -12,7 +12,7 @@ add_library(launch STATIC
         channel.h channel.cc
         log.c log.h
         util.h
-        options.cc options.h)
+        options.cc options.h signal.cc signal.h)
 
 add_executable(launchd
         calendar.c calendar.h
@@ -23,7 +23,7 @@ add_executable(launchd
         job.c job.h
         launchd.c
         log.h
-        manager.c manager.h
+        manager.cc manager.h
         manifest.c manifest.h
         options.h
         pidfile.c pidfile.h
