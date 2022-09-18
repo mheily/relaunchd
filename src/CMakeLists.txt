@@ -36,28 +36,23 @@ target_link_libraries(launchd launch pthread)
 
 if (USE_PRIVATE_DEPENDENCIES)
     # TODO: Is there a better way to access the CMake variables in this external project?
+    # Answer: yes, you know where they get checked out w.r.t. the build dir (CMAKE_BINARY_DIR)
     ExternalProject_Get_property(libucl SOURCE_DIR)
-    include_directories(launchd "${SOURCE_DIR}/include")
+    # libucl is used only by launchd so add its header repository only to the launchd target
+    target_include_directories(launchd PRIVATE "${SOURCE_DIR}/include")
     ExternalProject_Get_property(libucl BINARY_DIR)
     target_link_libraries(launchd "${BINARY_DIR}/libucl.a")
 else()
-    target_link_libraries(launchd "-lucl")
+    target_link_options(launchd PRIVATE "${LibUCL_LIBRARY_LDFLAGS}")
+    target_link_libraries(launchd "${LibUCL_LIBRARIES}")
 endif()
 
 if(HAVE_SYS_EVENT_H)
 else()
-    if (USE_PRIVATE_DEPENDENCIES)
-        # TODO: Is there a better way to access the CMake variables in this external project?
-        ExternalProject_Get_property(libkqueue SOURCE_DIR)
-        set(LIBKQUEUE_SOURCE_DIR ${SOURCE_DIR})
-        include_directories(launchd "${LIBKQUEUE_SOURCE_DIR}/include")
-        ExternalProject_Get_property(libkqueue BINARY_DIR)
-        set(LIBKQUEUE_BINARY_DIR ${BINARY_DIR})
-        target_link_libraries(launchd "${LIBKQUEUE_BINARY_DIR}/libkqueue.a")
-    else()
-        target_link_libraries(launchd "-lkqueue")
-        include_directories(launchd "-I/usr/include/kqueue") # TODO: can we get this from pkgconfig instead?
-    endif()
+    target_link_libraries(launchd "${LibKQueue_LIBRARIES}")
+    # add the libkqueue header and library directories to all targets in this source directory:
+    include_directories("${LibKQueue_INCLUDE_DIR}")
+    add_link_options("${LibKQueue_LIBRARY_LDFLAGS}")
 endif()
 
 # for asprintf() in glibc
@@ -98,10 +93,5 @@ target_link_libraries(launchctl launch pthread)
 
 if(HAVE_SYS_EVENT_H)
 else()
-    if (USE_PRIVATE_DEPENDENCIES)
-        # TODO: Is there a better way to access the CMake variables in this external project?
-        target_link_libraries(launchctl "${LIBKQUEUE_BINARY_DIR}/libkqueue.a")
-    else()
-        target_link_libraries(launchctl "-lkqueue")
-    endif()
+    target_link_libraries(launchctl "${LibKQueue_LIBRARIES}")
 endif()
