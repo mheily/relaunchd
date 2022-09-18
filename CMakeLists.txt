@@ -32,6 +32,13 @@ else()
             GIT_TAG           v2.6.2
             INSTALL_COMMAND   ""
             )
+        ExternalProject_Get_property(libkqueue SOURCE_DIR)
+        ExternalProject_Get_property(libkqueue BINARY_DIR)
+        # set the variables that find_package() would set:
+        set(LibKQueue_INCLUDE_DIR ${SOURCE_DIR})
+        set(LibKQueue_LIBRARIES ${BINARY_DIR}/libkqueue.a)
+        # redundant:
+        set(LibKQueue_LIBRARY_LDFLAGS "")
     else()
         find_package(LibKQueue 2.6.2 REQUIRED)
     endif()
