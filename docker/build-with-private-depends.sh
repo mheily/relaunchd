@@ -1,12 +1,11 @@
 #!/bin/sh
 
+cd "$(dirname "$0")"
+
 tag="${1:-relaunchd-src:latest}"
 
-docker run -it $tag bash -ex -c '
-    cd /build
-    rm -rf cmake-build-debug
-    mkdir cmake-build-debug
-    cd cmake-build-debug
-    cmake ..
+docker run -v $(pwd)/..:/tmp/src:ro -it $tag bash -ex -c '
+    cd /tmp/build
+    cmake /tmp/src
     make
 '

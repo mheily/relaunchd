@@ -3,7 +3,7 @@
 tag="${1:-relaunchd-src:latest}"
 
 docker run -it $tag bash -ex -c '
-    cd /build
+    cd /tmp/build
     rm -rf cmake-build-debug
     mkdir cmake-build-debug
     cd cmake-build-debug
