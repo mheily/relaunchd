@@ -19,13 +19,59 @@
 
 #include "channel.h"
 #include "options.h"
-#include "rpc_client.h"
+
+namespace subcommand {
+
+    void load(Channel &chan, std::vector<std::string> &args) {
+        json msg = json::array();
+        msg.push_back("load");
+        msg.push_back(json::object({
+                                           {"OverrideDisabled", false},
+                                           {"Force",            false},
+                                           {"Paths",            json::array()},
+                                   }));
+        for (const auto &elem: args) {
+            if (elem == "-w") {
+                msg["OverrideDisabled"] = true;
+            } else if (elem == "-F") {
+                msg["Force"] = true;
+            } else {
+                msg["Paths"].emplace_back(elem);
+            }
+        }
+        chan.writeMessage(msg);
+        auto maybe_json = chan.readMessage();
+        // FIXME
+    }
+
+    void not_implemented(Channel &, std::vector<std::string> &) {
+        std::cerr << "ERROR: Not implemented yet" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    void version(Channel &chan, std::vector<std::string> &) {
+        chan.writeMessage(json::array({"version"}));
+        auto msg = chan.readMessage();
+        std::cout << msg.get<std::string>() << std::endl;
+    }
+};
 
 void printUsage() {
     std::cout << "usage: ...\n";
 }
 
 int main(int argc, char *argv[]) {
+    std::unordered_map<std::string, void (*)(Channel &, std::vector<std::string> &)> subcommands = {
+            {"disable",    subcommand::not_implemented},
+            {"enable",    subcommand::not_implemented},
+            {"kill",    subcommand::not_implemented},
+            {"list",    subcommand::not_implemented},
+            {"load",    subcommand::load},
+            {"print",    subcommand::not_implemented},
+            {"unload",    subcommand::not_implemented},
+            {"version", subcommand::version},
+    };
+
     if (argc <= 1) {
         printUsage();
         exit(1);
@@ -35,31 +81,17 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 
-    char *ipcsocketpath = rpc_get_socketpath();
-    struct ipc_channel chan = ipc_channel_create();
-    if (chan.error) {
-        errx(1, "chan_create");
-    }
-    if (ipc_channel_connect(&chan, ipcsocketpath)) {
-        errx(1, "connect");
-    }
 
+    Channel chan;
+    char *ipcsocketpath = rpc_get_socketpath();
+    chan.connect(std::string{ipcsocketpath});
+
+    std::vector<std::string> args(argv + 1, argv + argc);
     auto subcommand = std::string(argv[1]);
-    if (subcommand == "list") {
-        std::cout << rpc_list(&chan) << std::endl;
-    } else if (subcommand == "load") {
-        for (int i = 2; i < argc; i++) {
-            if (strcmp(argv[i], "-w") && strcmp(argv[i], "-F")) {
-                std::cout << argv[i] << "\n";
-            }
-        }
-    } else if (subcommand == "version") {
-        std::cout << rpc_version(&chan) << std::endl;
-    } else {
-        std::cout << "ERROR: Unsupported subcommand\n";
-        ipc_channel_close(&chan);
-        exit(2);
-    }
+    auto funcptr = subcommands.at(subcommand);
+    (*funcptr)(chan, args);
+
     free(ipcsocketpath);
+    chan.disconnect();
     exit(0);
 }

@@ -86,7 +86,6 @@ add_executable(launchctl
         channel.h
         launchctl.cc
         log.h
-        rpc_client.cc rpc_client.h
         util.h
         options.h)
 target_link_libraries(launchctl launch pthread)

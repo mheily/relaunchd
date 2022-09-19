@@ -58,7 +58,7 @@ static LIST_HEAD(,job) jobs;			/* All active jobs */
 static int main_kqfd = -1;
 
 /* The RPC server socket */
-struct ipc_channel chan;
+Channel chan;
 
 static job_manifest_t
 read_job(const char *filename)
@@ -524,23 +524,13 @@ static void setup_signal_handlers()
 
 static void setup_rpc_server()
 {
-    chan = ipc_channel_create();
-    if (chan.error) {
-        errx(1, "chan_create");
-    }
     char *ipcsocketpath = rpc_get_socketpath();
     if (!ipcsocketpath) {
         errx(1, "rpc_get_socketpath");
     }
-    if (ipc_channel_bind(&chan, ipcsocketpath)) {
-        errx(1, "bind");
-    }
-    if (ipc_channel_listen(&chan, 1024)) {
-        errx(1, "listen");
-    }
-    if (ipc_channel_notify(&chan, main_kqfd, (void(*)(void *))&rpc_dispatch)) {
-        err(1, "notify");
-    }
+    // FIXME: add try()
+    chan.bindAndListen(std::string{ipcsocketpath}, 1024);
+    chan.addEvent(main_kqfd, (void(*)(void *))&rpc_dispatch);
     free(ipcsocketpath);
 }
 
@@ -589,7 +579,7 @@ manager_main_loop()
 		} else if (kev.filter == EVFILT_PROC) {
 			(void) manager_reap_child(kev.ident, kev.data);
         } else if ((void *)kev.udata == &rpc_dispatch) {
-            (void) rpc_dispatch(&chan);
+            (void) rpc_dispatch(chan);
             // fixme: distinguish between a bad request and a fatal internal error
         } else if ((void *)kev.udata == &setup_socket_activation) {
 			if (socket_activation_handler() < 0)

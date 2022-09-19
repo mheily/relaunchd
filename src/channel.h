@@ -17,9 +17,6 @@
 /*
  * A "channel" is a bidirectional AF_LOCAL socket used for
  * inter-process communication.
- *
- * TODO: once this is pure C++, close the socket via the destructor
- *    and make this a class with methods.
  */
 
 #pragma once
@@ -31,10 +28,34 @@
 /* Maximum length of an IPC message */
 #define IPC_MAX_MSGLEN  32768U
 
-// needed by manager.c
+#ifdef __cplusplus
+#include <string>
+#include "../vendor/json.hpp"
+using json = nlohmann::json;
+
+class Channel {
+public:
+    Channel();
+    ~Channel();
+    void bindAndListen(const std::string &path, int backlog);
+    void accept();
+    int connect(const std::string &path);
+    void disconnect() noexcept;
+    json readMessage();
+    void writeMessage(const json &j);
+    void addEvent(int kqfd, void (*cb)(void *));
+
+private:
+    struct sockaddr_un addr;
+    int sockfd = -1;
+    int peerfd = -1; // the other side of the channel
+};
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 
 struct ipc_channel {
     char *path;

@@ -18,14 +18,6 @@
 
 #include "channel.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int rpc_init(int kqfd);
 
-int rpc_dispatch(struct ipc_channel *chan);
-
-#ifdef __cplusplus
-}
-#endif
+int rpc_dispatch(Channel &chan);
