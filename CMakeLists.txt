@@ -35,7 +35,7 @@ else()
         ExternalProject_Get_property(libkqueue SOURCE_DIR)
         ExternalProject_Get_property(libkqueue BINARY_DIR)
         # set the variables that find_package() would set:
-        set(LibKQueue_INCLUDE_DIR ${SOURCE_DIR})
+        set(LibKQueue_INCLUDE_DIR ${SOURCE_DIR}/include)
         set(LibKQueue_LIBRARIES ${BINARY_DIR}/libkqueue.a)
         # redundant:
         set(LibKQueue_LIBRARY_LDFLAGS "")
