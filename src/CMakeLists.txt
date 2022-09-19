@@ -13,6 +13,12 @@ add_library(launch STATIC
         log.c log.h
         util.h
         options.cc options.h signal.cc signal.h)
+if (CMAKE_SYSTEM_NAME MATCHES Linux)
+    # this makes adding libthread explicitly (below) redundant
+    # but adding just that library is not necessarily sufficient
+    # (go figure why...)
+    target_link_options(launch PUBLIC "-pthread")
+endif()
 
 add_executable(launchd
         calendar.c calendar.h
