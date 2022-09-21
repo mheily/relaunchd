@@ -38,47 +38,14 @@
 #include "manifest.h"
 #include "options.h"
 #include "job.h"
-#include "pidfile.h"
 #include "socket.h"
 #include "timer.h"
 #include "uset.h"
 #include "util.h"
 
-static struct {
-	struct pidfh *pfh;
-} state;
-
 void usage() 
 {
 	printf("todo: usage\n");
-}
-
-void create_pid_file()
-{
-	pid_t otherpid;
-
-	if (getuid() == 0) {
-		path_sprintf(&options.pidfile, VARDIR "/run/launchd.pid");
-	} else {
-		char statedir[PATH_MAX];
-
-		path_sprintf(&statedir, "%s/.local/share/launchd", getenv("HOME"));
-		mkdir_idempotent(statedir, 0700);
-		path_sprintf(&statedir, "%s/.local/share/launchd/run", getenv("HOME"));
-		mkdir_idempotent(statedir, 0700);
-
-		path_sprintf(&options.pidfile, "%s/launchd.pid", statedir);
-	}
-
-	state.pfh = pidfile_open(options.pidfile, 0600, &otherpid);
-	if (state.pfh == NULL) {
-		if (errno == EEXIST) {
-			fprintf(stderr, "WARNING: Daemon already running, pid: %jd.\n", (intmax_t) otherpid);
-		} else {
-			fprintf(stderr, "ERROR: Cannot open or create pidfile: %s\n", options.pidfile);
-		}
-		exit(EXIT_FAILURE);
-	}
 }
 
 #ifndef UNIT_TEST
@@ -110,8 +77,6 @@ main(int argc, char *argv[])
 			}
 	}
 
-	create_pid_file();
-
 /* daemon(3) is deprecated on MacOS */
 #ifdef __clang__
 #pragma clang diagnostic push
@@ -120,7 +85,6 @@ main(int argc, char *argv[])
 
 	if (options.daemon && daemon(0, 0) < 0) {
 		fprintf(stderr, "ERROR: Unable to daemonize\n");
-		pidfile_remove(state.pfh);
 		exit(EX_OSERR);
 	} else {
 		log_freopen(stdout);
@@ -130,10 +94,7 @@ main(int argc, char *argv[])
 #pragma clang diagnostic pop
 #endif
 
-	pidfile_write(state.pfh);
-
-	manager_init(state.pfh);
-	manager_update_jobs();
+	manager_init();
 	manager_main_loop();
 
 	/* NOTREACHED */

@@ -32,7 +32,6 @@ add_executable(launchd
         manager.cc manager.h
         manifest.c manifest.h
         options.h
-        pidfile.c pidfile.h
         rpc_server.cc rpc_server.h
         socket.c socket.h
         timer.c timer.h

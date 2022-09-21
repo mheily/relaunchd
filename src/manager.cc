@@ -32,7 +32,6 @@
 #include "job.h"
 #include "keepalive.h"
 #include "manager.h"
-#include "pidfile.h"
 #include "signal.h"
 #include "socket.h"
 #include "options.h"
@@ -48,7 +47,6 @@ static void setup_signal_handlers();
 static void setup_logging();
 static void do_shutdown();
 
-struct pidfh *pidfile_handle;
 extern struct launchd_options options;
 
 static LIST_HEAD(,job_manifest) pending; /* Jobs that have been submitted but not loaded */
@@ -71,9 +69,6 @@ read_job(const char *filename)
 		log_error("job_manifest_new()");
 		return NULL;
 	}
-
-	path_sprintf(&path, "%s/%s", options.watchdir, filename);
-	path_sprintf(&rename_to, "%s/%s", options.activedir, filename);
 
 	log_debug("loading %s", path);
 	if (job_manifest_read(jm, path) < 0) {
@@ -339,8 +334,7 @@ manager_unload_all_jobs()
 	}
 }
 
-void manager_init(struct pidfh *pfh) {
-    pidfile_handle = pfh;
+void manager_init() {
     LIST_INIT(&jobs);
 
     if ((main_kqfd = kqueue()) < 0)
@@ -607,7 +601,5 @@ static void setup_logging()
 
 static void do_shutdown()
 {
-	if (pidfile_handle)
-		pidfile_remove(pidfile_handle);
 }
 
