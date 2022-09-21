@@ -2,7 +2,7 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_FLAGS_DEBUG   "${CMAKE_C_FLAGS_DEBUG} -g3 -Wall -Wextra -Werror")
 set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -Wall -Wextra")
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS_DEBUG   "${CMAKE_CXX_FLAGS_DEBUG} -g3 -Wall -Wextra -Werror")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall -Wextra")
 
@@ -13,6 +13,12 @@ add_library(launch STATIC
         log.c log.h
         util.h
         options.cc options.h signal.cc signal.h)
+if (CMAKE_SYSTEM_NAME MATCHES Linux)
+    # this makes adding libthread explicitly (below) redundant
+    # but adding just that library is not necessarily sufficient
+    # (go figure why...)
+    target_link_options(launch PUBLIC "-pthread")
+endif()
 
 add_executable(launchd
         calendar.c calendar.h
