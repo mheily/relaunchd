@@ -26,8 +26,6 @@
 
 struct launchd_options {
 	char	pkgstatedir[PATH_MAX];	/* Top-level directory for state data */
-	char 	watchdir[PATH_MAX];	/* Directory to watch for new jobs */
-	char 	activedir[PATH_MAX];	/* Directory that holds info about active jobs */
 	bool 	daemon;
 	int	log_level;
 };

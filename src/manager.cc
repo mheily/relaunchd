@@ -58,10 +58,11 @@ static int main_kqfd = -1;
 /* The RPC server socket */
 Channel chan;
 
+#if 0
+// FIXME: hook to ipc
 static job_manifest_t
-read_job(const char *filename)
+read_job(const char *path)
 {
-	char path[PATH_MAX], rename_to[PATH_MAX];
 	job_manifest_t jm = NULL;
 
 	jm = job_manifest_new();
@@ -77,75 +78,11 @@ read_job(const char *filename)
 		return NULL;
 	}
 
-	if (rename(path, rename_to) != 0) {
-		log_errno("rename(2) of %s to %s", path, rename_to);
-		job_manifest_free(jm);
-		return NULL;
-	}
-
 	log_debug("defined job: %s", jm->label);
 
 	return jm;
 }
-
-static ssize_t poll_watchdir()
-{
-	DIR	*dirp;
-	struct dirent entry, *result;
-	job_manifest_t jm;
-	ssize_t found_jobs = 0;
-	char *ext;
-
-	if ((dirp = opendir(options.watchdir)) == NULL)
-		err(1, "opendir(3)");
-
-	while (dirp) {
-		if (readdir_r(dirp, &entry, &result) < 0)
-			err(1, "readdir_r(3)");
-		if (!result) break;
-		if (strcmp(entry.d_name, ".") == 0 || strcmp(entry.d_name, "..") == 0) {
-			continue;
-		}
-		ext = strrchr(entry.d_name, '.');
-		if (!ext) {
-			log_error("skipping %s: no file extension", entry.d_name);
-			continue;
-		}
-		if (strcmp(ext, ".json") == 0) {
-			jm = read_job(entry.d_name);
-			if (jm) {
-				LIST_INSERT_HEAD(&pending, jm, jm_le);
-				found_jobs++;
-			} else {
-				// note the failure?
-			}
-		} else if (strcmp(ext, ".unload") == 0) {
-			char *path;
-			if (asprintf(&path, "%s/%s", options.watchdir, entry.d_name) < 0) {
-				log_errno("asprintf");
-				continue;
-			}
-			if (unlink(path) < 0) {
-				log_errno("unlink(2) of %s", path);
-				free(path);
-				continue;
-			}
-			free(path);
-			char *dot = strrchr(entry.d_name, '.');
-			if (dot) {
-				*dot = '\0';
-			}
-			if (manager_unload_job(entry.d_name) < 0) {
-				log_error("unable to unload job: %s", entry.d_name);
-			}
-		} else {
-			log_error("skipping %s: unsupported file extension", entry.d_name);
-		}
-	}
-	if (closedir(dirp) < 0)
-		err(1, "closedir(3)");
-	return (found_jobs);
-}
+#endif
 
 void update_jobs(void)
 {
@@ -230,53 +167,7 @@ job_t manager_get_job_by_pid(pid_t pid)
 	return NULL;
 }
 
-int manager_write_status_file()
-{
-	char *path, *buf, *pid;
-	int fd;
-	ssize_t len;
-	job_t job;
-
-	/* FIXME: should write to a .new file, then rename() over the old file */
-	if (asprintf(&path, "%s/launchctl.list", options.pkgstatedir) < 0)
-		err(1, "asprintf(3)");
-	if ((fd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 0644)) < 0)
-		err(1, "open(2)");
-	if (asprintf(&buf, "%-8s %-8s %s\n", "PID", "Status", "Label") < 0)
-		err(1, "asprintf(3)");
-	len = strlen(buf) + 1;
-	if (write(fd, buf, len) < len)
-		err(1, "write(2)");
-	free(buf);
-	LIST_FOREACH(job, &jobs, joblist_entry) {
-		if (job->pid == 0) {
-			if ((pid = strdup("-")) == NULL)
-				err(1, "strdup(3)");
-		} else {
-			if (asprintf(&pid, "%d", job->pid) < 0)
-				err(1, "asprintf(3)");
-		}
-		if (asprintf(&buf, "%-8s %-8d %s\n", pid, job->last_exit_status, job->jm->label) < 0)
-			err(1, "asprintf(3)");
-		len = strlen(buf) + 1;
-		if (write(fd, buf, len) < len)
-			err(1, "write(2)");
-		free(buf);
-		free(pid);
-	}
-	if (close(fd) < 0)
-		err(1, "close(2)");
-	free(path);
-	return 0;
-}
-
 void manager_free_job(job_t job) {
-	char path[PATH_MAX];
-
-	path_sprintf(&path, "%s/%s.json", options.activedir, job->jm->label);
-	if (unlink(path) < 0) {
-		log_errno("unlink(2) of %s", path);
-	}
 	LIST_REMOVE(job, joblist_entry);
 	job_free(job);
 }
@@ -350,13 +241,6 @@ void manager_init() {
         errx(1, "setup_timers()");
     if (calendar_init(main_kqfd) < 0)
         errx(1, "calendar_init()");
-}
-
-void manager_update_jobs()
-{
-	if (poll_watchdir() > 0) {
-		update_jobs();
-	}
 }
 
 void
@@ -438,32 +322,7 @@ manager_reap_child(pid_t pid, int status)
 	return;
 }
 
-/* Delete everything in a given directory */
-static void
-delete_directory_entries(const char *path)
-{
-	DIR *dirp;
-	struct dirent *ent;
-
-	dirp = opendir(path);
-	if (!dirp) err(1, "opendir(3) of %s", path);
-
-	for (;;) {
-		errno = 0;
-		ent = readdir(dirp);
-		if (!ent)
-			break;
-
-		if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
-			continue;
-
-		log_debug("deleting manifest: %s/%s", path, ent->d_name);
-		if (unlinkat(dirfd(dirp), ent->d_name, 0) < 0)
-			err(1, "unlinkat(2)");
-	}
-	(void) closedir(dirp);
-}
-
+// FIXME: some of this no longer applies
 static void
 setup_job_dirs()
 {
@@ -474,9 +333,6 @@ setup_job_dirs()
 	} else {
 		path_sprintf(&options.pkgstatedir, "%s/.local/share/launchd/run", getenv("HOME"));
 	}
-
-	path_sprintf(&options.watchdir, "%s/new", options.pkgstatedir);
-	path_sprintf(&options.activedir, "%s/cur", options.pkgstatedir);
 
 	if (getuid() > 0) {
 		path_sprintf(&basedir, "%s/.local/share/launchd", getenv("HOME"));
@@ -489,15 +345,7 @@ setup_job_dirs()
 		mkdir_idempotent(buf, 0700);
 	}
 
-        mkdir_idempotent(options.activedir, 0700);
-        mkdir_idempotent(options.watchdir, 0700);
-
-	/* Clear any record of active jobs that may be leftover from a previous program crash */
-        path_sprintf(&buf, "%s", options.activedir);
-        delete_directory_entries(buf);
-
-        path_sprintf(&buf, "%s", options.watchdir);
-        delete_directory_entries(buf);
+	/* TODO: Clear any record of active jobs that may be leftover from a previous program crash */
 }
 
 static void setup_signal_handlers()
@@ -544,12 +392,6 @@ manager_main_loop()
 		/* TODO: refactor this to eliminate the use of switch() and just jump directly to the handler function */
 		if ((void *)kev.udata == &setup_signal_handlers) {
 			switch (kev.ident) {
-			case SIGHUP:
-				manager_update_jobs();
-				break;
-			case SIGUSR1:
-				manager_write_status_file();
-				break;
 			case SIGCHLD:
 				/* NOTE: undocumented use of kev.data to obtain
 				 * the status of the child. This should be reported to
