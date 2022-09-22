@@ -40,8 +40,6 @@
 #include "channel.h"
 #include "rpc_server.h"
 
-
-static void setup_job_dirs();
 static void setup_rpc_server();
 static void setup_signal_handlers();
 static void setup_logging();
@@ -234,7 +232,6 @@ void manager_init() {
     setup_signal_handlers();
     setup_socket_activation(main_kqfd);
     setup_rpc_server();
-    setup_job_dirs();
     if (keepalive_init(main_kqfd) < 0)
         errx(1, "keepalive_init()");
     if (setup_timers(main_kqfd) < 0)
@@ -320,32 +317,6 @@ manager_reap_child(pid_t pid, int status)
 		log_error("keepalive_add_job()");
 
 	return;
-}
-
-// FIXME: some of this no longer applies
-static void
-setup_job_dirs()
-{
-	char basedir[PATH_MAX], buf[PATH_MAX];
-
-	if (getuid() == 0) {
-		path_sprintf(&options.pkgstatedir, PKGSTATEDIR);
-	} else {
-		path_sprintf(&options.pkgstatedir, "%s/.local/share/launchd/run", getenv("HOME"));
-	}
-
-	if (getuid() > 0) {
-		path_sprintf(&basedir, "%s/.local/share/launchd", getenv("HOME"));
-		mkdir_idempotent(basedir, 0700);
-
-		path_sprintf(&buf, "%s/agents", basedir);
-		mkdir_idempotent(buf, 0700);
-
-		path_sprintf(&buf, "%s/run", basedir);
-		mkdir_idempotent(buf, 0700);
-	}
-
-	/* TODO: Clear any record of active jobs that may be leftover from a previous program crash */
 }
 
 static void setup_signal_handlers()
