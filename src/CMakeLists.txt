@@ -12,7 +12,11 @@ add_library(launch STATIC
         channel.h channel.cc
         log.c log.h
         util.h
-        options.cc options.h signal.cc signal.h)
+        options.cc options.h
+        signal.cc signal.h
+        state_file.cc state_file.hpp
+        )
+
 if (CMAKE_SYSTEM_NAME MATCHES Linux)
     # this makes adding libthread explicitly (below) redundant
     # but adding just that library is not necessarily sufficient

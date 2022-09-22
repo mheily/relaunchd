@@ -39,7 +39,9 @@
 #include "util.h"
 #include "channel.h"
 #include "rpc_server.h"
+#include "state_file.hpp"
 
+static std::unique_ptr<StateFile> STATE_FILE;
 static void setup_rpc_server();
 static void setup_signal_handlers();
 static void do_shutdown();
@@ -228,6 +230,7 @@ void manager_init() {
         log_debug("creating %s", statedir.c_str());
         std::filesystem::create_directories(statedir);
     }
+    STATE_FILE = std::make_unique<StateFile>(statedir + "/state.json", json::object());
 
     if ((main_kqfd = kqueue()) < 0)
         err(1, "kqueue(2)");
