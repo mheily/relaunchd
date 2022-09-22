@@ -60,13 +60,13 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
-	options.daemon = true;
+    bool daemonize = true;
 	options.log_level = LOG_NOTICE;
 
 	while ((c = getopt(argc, argv, "fv")) != -1) {
 			switch (c) {
 			case 'f':
-					options.daemon = false;
+					daemonize = false;
 					break;
 			case 'v':
 					options.log_level = LOG_DEBUG;
@@ -83,7 +83,7 @@ main(int argc, char *argv[])
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #endif
 
-	if (options.daemon && daemon(0, 0) < 0) {
+	if (daemonize && daemon(0, 0) < 0) {
 		fprintf(stderr, "ERROR: Unable to daemonize\n");
 		exit(EX_OSERR);
 	} else {
