@@ -83,15 +83,13 @@ int main(int argc, char *argv[]) {
 
 
     Channel chan;
-    char *ipcsocketpath = rpc_get_socketpath();
-    chan.connect(std::string{ipcsocketpath});
+    chan.connect(getStateDir() + "/rpc.sock");
 
     std::vector<std::string> args(argv + 1, argv + argc);
     auto subcommand = std::string(argv[1]);
     auto funcptr = subcommands.at(subcommand);
     (*funcptr)(chan, args);
 
-    free(ipcsocketpath);
     chan.disconnect();
     exit(0);
 }

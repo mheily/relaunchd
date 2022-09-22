@@ -223,6 +223,12 @@ manager_unload_all_jobs()
 void manager_init() {
     LIST_INIT(&jobs);
 
+    auto statedir = getStateDir();
+    if (getuid() != 0 && !std::filesystem::exists(statedir)) {
+        log_debug("creating %s", statedir.c_str());
+        std::filesystem::create_directories(statedir);
+    }
+
     if ((main_kqfd = kqueue()) < 0)
         err(1, "kqueue(2)");
     setup_signal_handlers();
@@ -333,14 +339,9 @@ static void setup_signal_handlers()
 
 static void setup_rpc_server()
 {
-    char *ipcsocketpath = rpc_get_socketpath();
-    if (!ipcsocketpath) {
-        errx(1, "rpc_get_socketpath");
-    }
     // FIXME: add try()
-    chan.bindAndListen(std::string{ipcsocketpath}, 1024);
+    chan.bindAndListen(getStateDir() + "/rpc.sock", 1024);
     chan.addEvent(main_kqfd, (void(*)(void *))&rpc_dispatch);
-    free(ipcsocketpath);
 }
 
 void

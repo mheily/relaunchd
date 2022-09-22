@@ -16,10 +16,6 @@
 
 #pragma once
 
-char *rpc_get_socketpath();
+#include <string>
 
-#ifdef __cplusplus
-}
-#endif
-
-#endif /* OPTIONS_H_ */
+std::string getStateDir();

@@ -15,26 +15,26 @@
  */
 
 #include <string>
-#include <filesystem>
+#include <unistd.h>
 
-#include <string.h> // for strdup
-
+#include "config.h"
 #include "options.h"
 
-char * rpc_get_socketpath() try {
+std::string getStateDir() {
     std::string statedir;
-    const char *xdg_state_home = getenv("XDG_STATE_HOME");
-    if (xdg_state_home) {
-        statedir = std::string{xdg_state_home};
+    if (getuid() == 0) {
+        statedir = PKGSTATEDIR;
     } else {
-        statedir = std::string{getenv("HOME")} + "/.local/state";
+        // The subdirectory under $HOME where state for the user domains are stored
+        // Can be overridden by setting the $XDG_STATE_HOME variable
+        const char *xdg_state_home = getenv("XDG_STATE_HOME");
+        if (xdg_state_home) {
+            statedir = std::string{xdg_state_home};
+        } else {
+            statedir = std::string{getenv("HOME")} + "/.local/state";
+        }
+        statedir += "/relaunchd";
     }
-    statedir += "/relaunchd";
-    std::filesystem::create_directories(statedir);
-    std::string socketpath = statedir + "/rpc.sock";
-    return strdup(socketpath.c_str());
-} catch(...) {
-    // log error
-    return nullptr;
+    return statedir;
 }
 
