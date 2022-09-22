@@ -44,8 +44,6 @@ static void setup_rpc_server();
 static void setup_signal_handlers();
 static void do_shutdown();
 
-extern struct launchd_options options;
-
 static LIST_HEAD(,job_manifest) pending; /* Jobs that have been submitted but not loaded */
 static LIST_HEAD(,job) jobs;			/* All active jobs */
 

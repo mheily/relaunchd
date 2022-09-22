@@ -21,8 +21,6 @@
 
 #include "options.h"
 
-struct launchd_options options;
-
 char * rpc_get_socketpath() try {
     std::string statedir;
     const char *xdg_state_home = getenv("XDG_STATE_HOME");

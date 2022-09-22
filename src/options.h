@@ -14,25 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef OPTIONS_H_
-#define OPTIONS_H_
-
-// for PATH_MAX
-#if HAVE_SYS_LIMITS_H
-#include <sys/syslimits.h>
-#else
-#include <limits.h>
-#endif
-
-struct launchd_options {
-	char	pkgstatedir[PATH_MAX];	/* Top-level directory for state data */
-};
-
-extern struct launchd_options options;
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#pragma once
 
 char *rpc_get_socketpath();
 
