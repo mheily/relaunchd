@@ -14,34 +14,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "config.h"
 
-#include <dirent.h>
-#include <fcntl.h>
-#include <limits.h>
-#include <inttypes.h>
-#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sysexits.h>
 #include <syslog.h>
-#include "../vendor/FreeBSD/sys/queue.h"
-#include <sys/types.h>
-#include <sys/event.h>
 #include <unistd.h>
 
-#include "calendar.h"
 #include "log.h"
 #include "manager.h"
-#include "manifest.h"
-#include "options.h"
-#include "job.h"
-#include "socket.h"
-#include "timer.h"
-#include "uset.h"
-#include "util.h"
 
 void usage() 
 {
@@ -61,7 +43,7 @@ main(int argc, char *argv[])
 	}
 
     bool daemonize = true;
-	options.log_level = LOG_NOTICE;
+	int logmask = LOG_NOTICE;
 
 	while ((c = getopt(argc, argv, "fv")) != -1) {
 			switch (c) {
@@ -69,13 +51,16 @@ main(int argc, char *argv[])
 					daemonize = false;
 					break;
 			case 'v':
-					options.log_level = LOG_DEBUG;
+					logmask = LOG_DEBUG;
 					break;
 			default:
 					usage();
 					break;
 			}
 	}
+
+    openlog("launchd", LOG_PID | LOG_NDELAY, LOG_DAEMON);
+    setlogmask(logmask);
 
 /* daemon(3) is deprecated on MacOS */
 #ifdef __clang__

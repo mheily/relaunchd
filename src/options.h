@@ -26,7 +26,6 @@
 
 struct launchd_options {
 	char	pkgstatedir[PATH_MAX];	/* Top-level directory for state data */
-	int	log_level;
 };
 
 extern struct launchd_options options;

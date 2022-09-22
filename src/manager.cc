@@ -42,7 +42,6 @@
 
 static void setup_rpc_server();
 static void setup_signal_handlers();
-static void setup_logging();
 static void do_shutdown();
 
 extern struct launchd_options options;
@@ -228,7 +227,6 @@ void manager_init() {
 
     if ((main_kqfd = kqueue()) < 0)
         err(1, "kqueue(2)");
-    setup_logging();
     setup_signal_handlers();
     setup_socket_activation(main_kqfd);
     setup_rpc_server();
@@ -403,13 +401,6 @@ manager_main_loop()
 			log_warning("spurious wakeup, no known handlers");
 		}
 	}
-}
-
-static void setup_logging()
-{
-#ifndef UNIT_TEST
-	openlog("launchd", LOG_PID | LOG_NDELAY, LOG_DAEMON);
-#endif
 }
 
 static void do_shutdown()
