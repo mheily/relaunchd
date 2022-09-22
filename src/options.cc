@@ -38,3 +38,22 @@ std::string getStateDir() {
     return statedir;
 }
 
+
+std::string getConfigDir() {
+    std::string configdir;
+    if (getuid() == 0) {
+        return "/etc/relaunchd"; // TODO: add to config.h
+    } else {
+        // The subdirectory under $HOME where configuration for the user domains are stored
+        // Can be overridden by setting the $XDG_CONFIG_HOME variable
+        const char *xdg_config_home = getenv("XDG_CONFIG_HOME");
+        if (xdg_config_home) {
+            configdir = std::string{xdg_config_home};
+        } else {
+            configdir = std::string{getenv("HOME")} + "/.local/config";
+        }
+        configdir += "/relaunchd";
+    }
+    return configdir;
+}
+
