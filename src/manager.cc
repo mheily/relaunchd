@@ -16,6 +16,8 @@
 
 #include "config.h"
 
+#include <iostream>
+
 #include "../vendor/FreeBSD/sys/queue.h"
 
 #include <dirent.h>
@@ -41,6 +43,8 @@
 #include "rpc_server.h"
 #include "state_file.hpp"
 
+using json = nlohmann::json;
+
 static std::unique_ptr<StateFile> STATE_FILE;
 static void setup_rpc_server();
 static void setup_signal_handlers();
@@ -55,31 +59,6 @@ static int main_kqfd = -1;
 /* The RPC server socket */
 Channel chan;
 
-#if 0
-// FIXME: hook to ipc
-static job_manifest_t
-read_job(const char *path)
-{
-	job_manifest_t jm = NULL;
-
-	jm = job_manifest_new();
-	if (!jm) {
-		log_error("job_manifest_new()");
-		return NULL;
-	}
-
-	log_debug("loading %s", path);
-	if (job_manifest_read(jm, path) < 0) {
-		log_error("parse error");
-		job_manifest_free(jm);
-		return NULL;
-	}
-
-	log_debug("defined job: %s", jm->label);
-
-	return jm;
-}
-#endif
 
 void update_jobs(void)
 {
@@ -403,6 +382,71 @@ manager_main_loop()
 			log_warning("spurious wakeup, no known handlers");
 		}
 	}
+}
+
+int manager_load_manifest(const std::filesystem::path &path) {
+    job_manifest_t jm = NULL;
+
+    jm = job_manifest_new();
+    if (!jm) {
+        log_error("job_manifest_new()");
+        return -1;
+    }
+
+    log_debug("loading %s", path.c_str());
+    if (job_manifest_read(jm, path.c_str()) < 0) {
+        log_error("parse error");
+        job_manifest_free(jm);
+        return -1;
+    }
+
+    log_debug("defined job: %s", jm->label);
+
+    /* Check for duplicate jobs */
+    if (manager_get_job_by_label(jm->label)) {
+        log_error("tried to load a duplicate job with label %s", jm->label);
+        job_manifest_free(jm);
+        return -1;
+    }
+    job_t job = job_new(jm);
+    if (!job) {
+        job_manifest_free(jm);
+        return -1;
+    }
+
+    (void) job_load(job); // FIXME failure handling?
+    log_debug("loaded job: %s", job->jm->label);
+
+    LIST_INSERT_HEAD(&jobs, job, joblist_entry);
+
+    if (job_is_runnable(job)) {
+        log_debug("running job %s from state %d", job->jm->label, job->state);
+        (void) job_run(job); // FIXME failure handling?
+    }
+
+    return 0;
+}
+
+json manager_list_jobs() {
+    job_t job;
+    auto result = json::array();
+    LIST_FOREACH(job, &jobs, joblist_entry) {
+        std::string pid = (job->pid == 0) ? "-" : std::to_string(job->pid);
+        if (job->pid == 0) {
+            pid = "-";
+        } else {
+            pid = std::to_string(job->pid);
+        }
+        result.emplace_back(
+                json::object(
+                        {
+                                {"Label",          std::string{job->jm->label}},
+                                {"PID",            std::move(pid)},
+                                {"LastExitStatus", job->last_exit_status},
+                        }
+                ));
+    }
+    return result;
 }
 
 static void do_shutdown()

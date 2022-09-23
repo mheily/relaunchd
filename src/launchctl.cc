@@ -22,23 +22,41 @@
 
 namespace subcommand {
 
+    void list(Channel &chan, std::vector<std::string> &) {
+        // FIXME: parse options
+        chan.writeMessage(json::array({"list",}));
+        auto msg = chan.readMessage();
+        printf("%-8s %-8s %s\n", "PID", "Status", "Label");
+        for (const auto &row: msg) {
+            auto pid = row["PID"].get<std::string>();
+            auto exit_status = row["LastExitStatus"].get<int>();
+            auto label = row["Label"].get<std::string>();
+            printf("%-8s %-8d %s\n", pid.c_str(), exit_status, label.c_str());
+        }
+    }
+
     void load(Channel &chan, std::vector<std::string> &args) {
-        json msg = json::array();
-        msg.push_back("load");
-        msg.push_back(json::object({
-                                           {"OverrideDisabled", false},
-                                           {"Force",            false},
-                                           {"Paths",            json::array()},
-                                   }));
+        auto kwargs = json::object(
+                {
+                        {"OverrideDisabled", false},
+                        {"Force",            false},
+                        {"Paths",            json::array()},
+                });
         for (const auto &elem: args) {
             if (elem == "-w") {
-                msg["OverrideDisabled"] = true;
+                kwargs["OverrideDisabled"] = true;
             } else if (elem == "-F") {
-                msg["Force"] = true;
+                kwargs["Force"] = true;
             } else {
-                msg["Paths"].emplace_back(elem);
+                auto path = std::filesystem::path(elem);
+                if (!std::filesystem::exists(path)) {
+                    // TODO: make this more informative to the user
+                    throw std::runtime_error("path does not exist");
+                }
+                kwargs["Paths"].push_back(std::filesystem::canonical(path));
             }
         }
+        json msg = json::array({"load", kwargs});
         chan.writeMessage(msg);
         auto maybe_json = chan.readMessage();
         // FIXME
@@ -65,7 +83,7 @@ int main(int argc, char *argv[]) {
             {"disable",    subcommand::not_implemented},
             {"enable",    subcommand::not_implemented},
             {"kill",    subcommand::not_implemented},
-            {"list",    subcommand::not_implemented},
+            {"list",    subcommand::list},
             {"load",    subcommand::load},
             {"print",    subcommand::not_implemented},
             {"unload",    subcommand::not_implemented},
@@ -81,11 +99,10 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 
-
     Channel chan;
     chan.connect(getStateDir() + "/rpc.sock");
 
-    std::vector<std::string> args(argv + 1, argv + argc);
+    std::vector<std::string> args(argv + 2, argv + argc);
     auto subcommand = std::string(argv[1]);
     auto funcptr = subcommands.at(subcommand);
     (*funcptr)(chan, args);

@@ -64,3 +64,13 @@ void manager_unload_all_jobs();
 #ifdef __cplusplus
 }
 #endif
+
+#ifdef __cplusplus
+//
+// C++ code here
+//
+#include <filesystem>
+#include "../vendor/json.hpp"
+int manager_load_manifest(const std::filesystem::path &path);
+nlohmann::json manager_list_jobs();
+#endif

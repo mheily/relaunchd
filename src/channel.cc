@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/event.h>
+#include <sys/socket.h>
 
 #include <string>
 #include <system_error>
@@ -235,6 +236,12 @@ void Channel::accept() {
         return; // false ?
     }
     // TODO: setsockopt to make nonblocking, set buffer size
+    int set = 1;
+    if (setsockopt(result, SOL_SOCKET, SO_NOSIGPIPE, (void *)&set, sizeof(set))) {
+        log_error("setsockopt(2): %s", strerror(errno));
+        close(result);
+        return; // false?
+    }
     // TODO: fcntl to set o_cloexec
     peerfd = result;
 }

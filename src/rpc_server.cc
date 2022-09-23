@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <iostream>
 #include <stdexcept>
 #include <string>
 
@@ -23,14 +24,36 @@
 
 #include "rpc_server.h"
 #include "log.h"
+#include "manager.h"
 
 
-//static void _rpc_op_list(int sockfd) {
-//    static const char *res = "hello world\n";
-//    if (_rpc_write(sockfd, res, strlen(res) + 1)) {
-//        // log error
-//    }
-//}
+static void _rpc_op_list(Channel &chan, const json &) {
+    // FIXME: handle Label argument
+    auto msg = manager_list_jobs();
+    chan.writeMessage(msg);
+}
+
+static void _rpc_op_load(Channel &chan, const json &args) {
+    // FIXME: handle Force and OverrideDisabled arguments
+    for (const auto &path : args[1]["Paths"]) {
+        if (!std::filesystem::exists(path)) {
+            chan.writeMessage("ERROR-TODO");
+            return;
+        }
+        if (std::filesystem::is_directory(path)) {
+            using std::filesystem::directory_iterator;
+            for (const auto &file: directory_iterator(path)) {
+                log_debug("loading %s", file.path().c_str());
+                manager_load_manifest(file.path());
+            }
+        } else {
+            std::filesystem::path p{path.get<std::string>()};
+            manager_load_manifest(p);
+        }
+    }
+
+    chan.writeMessage("OK");
+}
 
 static void _rpc_op_version(Channel &chan, const json &) {
     chan.writeMessage("relaunchd version unknown"); // FIXME get version number
@@ -39,16 +62,18 @@ static void _rpc_op_version(Channel &chan, const json &) {
 // FIXME: needs a lot more error checking
 int rpc_dispatch(Channel &chan) {
     static const std::unordered_map<std::string, void(*)(Channel &chan, const json &j)> handlers = {
+            {"list", _rpc_op_list},
+            {"load", _rpc_op_load},
             {"version", _rpc_op_version},
     };
     chan.accept();
-    auto msg = chan.readMessage();
     try {
+        auto msg = chan.readMessage();
         auto method = msg.at(0).get<std::string>();
         auto funcptr = handlers.at(method);
         (*funcptr)(chan, msg);
-    } catch (...) {
-        log_error("dispatch failed");
+    } catch (const std::exception &exc) {
+        log_error("dispatch failed: %s", exc.what());
     }
 
     chan.disconnect();
