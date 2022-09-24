@@ -16,10 +16,6 @@
 
 #pragma once
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <time.h>
 
 struct job;
@@ -29,6 +25,3 @@ int calendar_handler();
 int calendar_register_job(struct job *);
 int calendar_unregister_job(struct job *);
 
-#ifdef __cplusplus
-}
-#endif

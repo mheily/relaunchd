@@ -16,10 +16,6 @@
 
 #pragma once
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <grp.h>
 #include <pwd.h>
 #include <sys/types.h>
@@ -67,7 +63,3 @@ job_is_runnable(job_t job)
 {
 	return (job->state == JOB_STATE_LOADED && job->jm->run_at_load);
 }
-
-#ifdef __cplusplus
-}
-#endif

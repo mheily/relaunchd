@@ -16,10 +16,6 @@
 
 #pragma once
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "config.h"
 
 struct job;
@@ -41,7 +37,3 @@ void keepalive_remove_job(struct job *job);
 
 /** Handle the wakeup event, possibly restarting jobs */
 void keepalive_wake_handler(void);
-
-#ifdef __cplusplus
-}
-#endif

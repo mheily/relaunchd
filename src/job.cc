@@ -125,6 +125,7 @@ static inline cvec_t setup_environment_variables(const job_t job, const struct p
 	char *logname_var = NULL, *user_var = NULL;
 	int uid;
 	bool found[] = { false, false, false, false, false, false, false };
+    size_t offset = 0;
 
 	env = cvec_new();
 	if (!env) goto err_out;
@@ -206,9 +207,9 @@ job_has_no_environment:
 		char *path;
 
 		if (uid == 0) {
-			path = "PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin:/usr/local/sbin";
+			path = (char*)"PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin:/usr/local/sbin";
 		} else {
-			path = "PATH=/usr/bin:/bin:/usr/local/bin";
+			path = (char*)"PATH=/usr/bin:/bin:/usr/local/bin";
 		}
 		if (cvec_push(env, path) < 0) goto err_out;
 	}
@@ -228,7 +229,6 @@ job_has_no_environment:
 	if (add_standard_environment_variables(env) < 0)
 		goto err_out;
 
-	size_t offset = 0;
 	SLIST_FOREACH(jms, &job->jm->sockets, entry) {
 		job_manifest_socket_export(jms, env, offset++);
 	}
@@ -431,7 +431,7 @@ job_t job_new(job_manifest_t jm)
 {
 	job_t j;
 
-	j = calloc(1, sizeof(*j));
+	j = static_cast<job_t>(calloc(1, sizeof(*j)));
 	if (!j) return NULL;
 	j->jm = jm;
 	j->state = JOB_STATE_DEFINED;

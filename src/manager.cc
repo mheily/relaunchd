@@ -58,47 +58,7 @@ static int main_kqfd = -1;
 Channel chan;
 
 
-void update_jobs(void)
-{
-	job_manifest_t jm, jm_tmp;
-	job_t job, job_tmp;
-	LIST_HEAD(,job) joblist;
 
-	LIST_INIT(&joblist);
-
-	/* Pass #1: load all jobs */
-	LIST_FOREACH_SAFE(jm, &pending, jm_le, jm_tmp) {
-		job = job_new(jm);
-		if (!job)
-			errx(1, "job_new()");
-
-		/* Check for duplicate jobs */
-		if (manager_get_job_by_label(jm->label)) {
-			log_error("tried to load a duplicate job with label %s", jm->label);
-			job_free(job);
-			continue;
-		}
-
-		LIST_INSERT_HEAD(&joblist, job, joblist_entry);
-		(void) job_load(job); // FIXME failure handling?
-		log_debug("loaded job: %s", job->jm->label);
-	}
-	LIST_INIT(&pending);
-
-	/* Pass #2: run all loaded jobs */
-	LIST_FOREACH(job, &joblist, joblist_entry) {
-		if (job_is_runnable(job)) {
-			log_debug("running job %s from state %d", job->jm->label, job->state);
-			(void) job_run(job); // FIXME failure handling?
-		}
-	}
-
-	/* Pass #3: move all new jobs to the main jobs list */
-	LIST_FOREACH_SAFE(job, &joblist, joblist_entry, job_tmp) {
-		LIST_REMOVE(job, joblist_entry);
-		LIST_INSERT_HEAD(&jobs, job, joblist_entry);
-	}
-}
 
 int manager_wake_job(job_t job)
 {

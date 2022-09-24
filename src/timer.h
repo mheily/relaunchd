@@ -16,17 +16,9 @@
 
 #pragma once
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct job;
 
 int setup_timers(int kqfd);
 int timer_handler();
 int timer_register_job(struct job *);
 int timer_unregister_job(struct job *);
-
-#ifdef __cplusplus
-}
-#endif

@@ -28,7 +28,6 @@
 /* Maximum length of an IPC message */
 #define IPC_MAX_MSGLEN  32768U
 
-#ifdef __cplusplus
 #include <string>
 #include "../vendor/json.hpp"
 using json = nlohmann::json;
@@ -50,30 +49,3 @@ private:
     int sockfd = -1;
     int peerfd = -1; // the other side of the channel
 };
-#endif
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-
-struct ipc_channel {
-    char *path;
-    struct sockaddr_un addr;
-    int sockfd;
-    int error;
-};
-
-struct ipc_channel ipc_channel_create();
-void ipc_channel_close(struct ipc_channel *chan);
-int ipc_channel_bind(struct ipc_channel *chan, const char *path);
-int ipc_channel_listen(struct ipc_channel *chan, int backlog);
-int ipc_channel_connect(struct ipc_channel *chan, const char *path);
-int ipc_channel_accept(struct ipc_channel *chan);
-int ipc_channel_notify(struct ipc_channel *chan, int kqfd, void (*cb)(void *));
-ssize_t ipc_channel_read(struct iovec msg, int sockfd);
-int ipc_channel_write(int sockfd, struct iovec msg);
-
-#ifdef __cplusplus
-}
-#endif
