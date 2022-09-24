@@ -45,8 +45,7 @@ enum job_state_e {
 };
 
 struct job {
-	LIST_ENTRY(job)	joblist_entry;
-	SLIST_ENTRY(job) start_interval_sle;
+    SLIST_ENTRY(job) start_interval_sle;
 	SLIST_ENTRY(job) watchdog_sle;
 	job_manifest_t jm;
 	enum job_state_e state;

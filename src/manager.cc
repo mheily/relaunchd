@@ -17,8 +17,7 @@
 #include "config.h"
 
 #include <iostream>
-
-#include "../vendor/FreeBSD/sys/queue.h"
+#include <unordered_map>
 
 #include <dirent.h>
 #include <fcntl.h>
@@ -50,8 +49,7 @@ static void setup_rpc_server();
 static void setup_signal_handlers();
 static void do_shutdown();
 
-static LIST_HEAD(,job_manifest) pending; /* Jobs that have been submitted but not loaded */
-static LIST_HEAD(,job) jobs;			/* All active jobs */
+static std::unordered_map<std::string,job_t> services;
 
 /* The kqueue descriptor used by main_loop() */
 static int main_kqfd = -1;
@@ -121,89 +119,71 @@ int manager_activate_job_by_fd(int fd)
 
 job_t manager_get_job_by_label(const char *label)
 {
-	job_t job;
-
-	LIST_FOREACH(job, &jobs, joblist_entry) {
-		if (strcmp(label, job->jm->label) == 0) {
-			return job;
-		}
-	}
-	return NULL;
+    auto it = services.find(label);
+    if (it != services.end()) {
+        return it->second;
+    } else {
+        return NULL;
+    }
 }
 
 job_t manager_get_job_by_pid(pid_t pid)
 {
-	job_t job;
-
-	LIST_FOREACH(job, &jobs, joblist_entry) {
-		if (job->pid == pid) {
-			return job;
-		}
-	}
+    for (const auto & [label, service] : services) {
+        if (service->pid == pid) {
+            return service;
+        }
+    }
 	return NULL;
 }
 
 void manager_free_job(job_t job) {
-	LIST_REMOVE(job, joblist_entry);
 	job_free(job);
 }
 
 int manager_unload_job(const char *label)
 {
-	job_t job, job_tmp, job_cur;
-	int retval = -1;
-	char *path = NULL;
-
-	job = NULL;
-	LIST_FOREACH_SAFE(job_cur, &jobs, joblist_entry, job_tmp) {
-		if (strcmp(job_cur->jm->label, label) == 0) {
-			job = job_cur;
-			break;
-		}
-	}
-
-	if (!job) {
-		log_error("job not found: %s", label);
-		goto out;
-	}
+    auto it = services.find(label);
+    if (it == services.end()) {
+        log_error("job not found: %s", label);
+        return -1;
+    }
+    auto job = it->second;
 
 	if (job_unload(job) < 0) {
-		goto out;
+        log_error("failed to unload job: %s", label);
+        return -1;
 	}
 
 	log_debug("job %s unloaded", label);
 
-	if (job->state == JOB_STATE_DEFINED) {
-		manager_free_job(job);
-	}
+    services.erase(it);
 
-	retval = 0;
-
-out:
-	free(path);
-	return retval;
+    if (job->schedule == JOB_SCHEDULE_CALENDAR) {
+        calendar_unregister_job(job);
+    }
+    manager_free_job(job);
+    return 0;
 }
 
 void
 manager_unload_all_jobs()
 {
-	job_t job;
-	job_t job_tmp;
-
 	log_debug("unloading all jobs");
-	LIST_FOREACH_SAFE(job, &jobs, joblist_entry, job_tmp) {
-		if (job_unload(job) < 0) {
-			log_error("job unload failed: %s", job->jm->label);
-		} else {
-			log_debug("job %s unloaded", job->jm->label);
-		}
-		manager_free_job(job);
-	}
+    auto it = services.begin();
+    while (it != services.end()) {
+        auto job = it->second;
+        if (job_unload(job) < 0) {
+            log_error("job unload failed: %s", job->jm->label);
+        } else {
+            log_debug("job %s unloaded", job->jm->label);
+        }
+        it = services.erase(it);
+        manager_free_job(job);
+    }
 }
 
 void manager_init() {
-    LIST_INIT(&jobs);
-
     auto statedir = getStateDir();
     if (getuid() != 0 && !std::filesystem::exists(statedir)) {
         log_debug("creating %s", statedir.c_str());
@@ -403,7 +383,7 @@ int manager_load_manifest(const std::filesystem::path &path) {
     log_debug("defined job: %s", jm->label);
 
     /* Check for duplicate jobs */
-    if (manager_get_job_by_label(jm->label)) {
+    if (services.count(jm->label)) {
         log_error("tried to load a duplicate job with label %s", jm->label);
         job_manifest_free(jm);
         return -1;
@@ -417,7 +397,7 @@ int manager_load_manifest(const std::filesystem::path &path) {
     (void) job_load(job); // FIXME failure handling?
     log_debug("loaded job: %s", job->jm->label);
 
-    LIST_INSERT_HEAD(&jobs, job, joblist_entry);
+    services[jm->label] = job;
 
     if (job_is_runnable(job)) {
         log_debug("running job %s from state %d", job->jm->label, job->state);
@@ -428,9 +408,8 @@ int manager_load_manifest(const std::filesystem::path &path) {
 }
 
 json manager_list_jobs() {
-    job_t job;
     auto result = json::array();
-    LIST_FOREACH(job, &jobs, joblist_entry) {
+    for (const auto & [label, job] : services) {
         std::string pid = (job->pid == 0) ? "-" : std::to_string(job->pid);
         if (job->pid == 0) {
             pid = "-";
