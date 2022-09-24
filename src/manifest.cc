@@ -541,7 +541,7 @@ job_manifest_t job_manifest_new(void)
 {
 	job_manifest_t job_manifest;
 
-	job_manifest = calloc(1, sizeof(*job_manifest));
+	job_manifest = static_cast<job_manifest_t>(calloc(1, sizeof(*job_manifest)));
 
 	if (!job_manifest)
 		return (NULL);
@@ -600,7 +600,7 @@ static unsigned char* job_manifest_prepare_buf_for_file(const char *filename, si
 	 * reported by Valgrind. It would be better to fix this someplace else.
 	 */
 	*buf_size = sb.st_size + 1;
-	buf = calloc(*buf_size + 1, sizeof(unsigned char));
+	buf = static_cast<unsigned char *>(calloc(*buf_size + 1, sizeof(unsigned char)));
 
 	return buf;
 }
