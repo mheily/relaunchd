@@ -34,7 +34,7 @@ add_executable(launchd
         launchd.c
         log.h
         manager.cc manager.h
-        manifest.c manifest.h
+        manifest.cc manifest.h
         options.h
         rpc_server.cc rpc_server.h
         socket.c socket.h
