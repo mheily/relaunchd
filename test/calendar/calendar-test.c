@@ -24,7 +24,7 @@
 #include <sys/event.h>
 #include <unistd.h>
 
-#include "../../src/calendar.c"
+#include "../../src/calendar.cc"
 
 static int test_kqfd;
 

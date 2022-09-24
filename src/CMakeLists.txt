@@ -10,7 +10,7 @@ check_include_files(sys/limits.h, HAVE_SYS_LIMITS_H)
 
 add_library(launch STATIC 
         channel.h channel.cc
-        log.c log.h
+        log.cc log.h
         util.h
         options.cc options.h
         signal.cc signal.h
@@ -25,20 +25,20 @@ if (CMAKE_SYSTEM_NAME MATCHES Linux)
 endif()
 
 add_executable(launchd
-        calendar.c calendar.h
+        calendar.cc calendar.h
         channel.h
         cvec.h
         flopen.c
-        keepalive.c keepalive.h
-        job.c job.h
-        launchd.c
+        keepalive.cc keepalive.h
+        job.cc job.h
+        launchd.cc
         log.h
         manager.cc manager.h
         manifest.cc manifest.h
         options.h
         rpc_server.cc rpc_server.h
-        socket.c socket.h
-        timer.c timer.h
+        socket.cc socket.h
+        timer.cc timer.h
         uset.h
         util.h)
 target_link_libraries(launchd launch pthread)
