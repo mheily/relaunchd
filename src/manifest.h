@@ -38,8 +38,6 @@ struct cron_spec {
 };
 
 typedef struct job_manifest {
-	LIST_ENTRY(job_manifest) jm_le;
-
 	char    *label;
 
 	char    *user_name;
@@ -80,7 +78,6 @@ typedef struct job_manifest {
 
 	// TODO: ResourceLimits, HopefullyExits*, inetd, LowPriorityIO, LaunchOnlyOnce
 	SLIST_HEAD(,job_manifest_socket) sockets;
-	int32_t refcount;
 } *job_manifest_t;
 
 job_manifest_t job_manifest_new(void);
