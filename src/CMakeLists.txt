@@ -64,9 +64,6 @@ include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
 install(TARGETS launchd DESTINATION ${CMAKE_INSTALL_PREFIX}/sbin)
 
-configure_file(launchctl.in ${CMAKE_CURRENT_BINARY_DIR}/launchctl.sh)
-
-install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/launchctl.sh DESTINATION ${CMAKE_INSTALL_PREFIX}/bin RENAME launchctl)
 install(CODE "FILE(MAKE_DIRECTORY \$ENV{DESTDIR}\/${PKGSTATEDIR})")
 install(CODE "FILE(MAKE_DIRECTORY \$ENV{DESTDIR}\/${VARDIR}/run)")
 
@@ -80,9 +77,12 @@ add_executable(launchctl
         log.h
         util.h
         options.h)
+
 target_link_libraries(launchctl launch pthread)
 
 if(HAVE_SYS_EVENT_H)
 else()
     target_link_libraries(launchctl "${LibKQueue_LIBRARIES}")
 endif()
+
+install(TARGETS launchctl DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
