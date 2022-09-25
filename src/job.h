@@ -16,13 +16,18 @@
 
 #pragma once
 
+#include <filesystem>
+
 #include <grp.h>
 #include <pwd.h>
 #include <sys/types.h>
-#include "../vendor/FreeBSD/sys/queue.h"
 #include <unistd.h>
 
+#include "../vendor/json.hpp"
+using json = nlohmann::json;
+
 #include "manifest.h"
+#include "log.h"
 
 typedef enum {
 	JOB_SCHEDULE_NONE = 0,
@@ -40,26 +45,26 @@ enum job_state_e {
     JOB_STATE_EXITED,
 };
 
-struct job {
-    SLIST_ENTRY(job) start_interval_sle;
-	SLIST_ENTRY(job) watchdog_sle;
-	job_manifest_t jm;
-	enum job_state_e state;
-	pid_t pid;
-	int last_exit_status, term_signal;
-	time_t  next_scheduled_start;
-	job_schedule_t schedule;
+struct Job {
+    Job(std::optional<std::filesystem::path> manifest_path_, Manifest manifest_);
+    std::optional<std::filesystem::path> manifest_path;
+    Manifest manifest;
+    enum job_state_e state;
+    pid_t pid;
+    int last_exit_status, term_signal;
+    // NOTE: moved this into calendar/timer internal: time_t  next_scheduled_start;
+    job_schedule_t schedule;
+
+    void dump() const {
+        log_debug("job dump: label=%s state=%d", manifest.label.c_str(), state);
+    }
+
+    void run();
+
+    void load();
+
+    void unload();
+private:
+    job_schedule_t _set_schedule();
 };
-typedef struct job *job_t;
 
-job_t	job_new(job_manifest_t jm);
-void	job_free(job_t job);
-int	job_load(job_t job);
-int	job_unload(job_t job);
-int	job_run(job_t job);
-
-static inline int
-job_is_runnable(job_t job)
-{
-	return (job->state == JOB_STATE_LOADED && job->jm->run_at_load);
-}

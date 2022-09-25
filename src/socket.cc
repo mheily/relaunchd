@@ -166,7 +166,7 @@ int job_manifest_socket_get_port(struct job_manifest_socket *jms)
 	return 0;
 }
 
-int job_manifest_socket_export(struct job_manifest_socket *jms, cvec_t env, size_t offset)
+int job_manifest_socket_export(struct job_manifest_socket *jms, size_t offset)
 {
 	int new_sd = offset + 3;
 
@@ -183,8 +183,7 @@ int job_manifest_socket_export(struct job_manifest_socket *jms, cvec_t env, size
 		return -1;
 	}
 
-    // FIXME: should we update env?
-    (void) env;
+    // FIXME: should we update environment?
 
 	return 0;
 }
@@ -205,6 +204,9 @@ void setup_socket_activation(int kqfd)
 
 int socket_activation_handler()
 {
+    return 0;
+    // FIXME
+#if 0
 	job_t job;
 	struct kevent kev;
 
@@ -221,7 +223,8 @@ int socket_activation_handler()
 	}
 
 	job = (job_t) (kev.udata);
-	log_debug("job %s starting due to socket activation", job->jm->label);
+	log_debug("job %s starting due to socket activation", job.manifest.label.c_str());
 
 	return (manager_wake_job(job));
+#endif
 }

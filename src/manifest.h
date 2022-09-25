@@ -15,74 +15,78 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef _MANIFEST_H_
-#define _MANIFEST_H_
+#pragma once
+
+#include <optional>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <sys/stat.h>
-#include "../vendor/FreeBSD/sys/queue.h"
-#include "cvec.h"
-#include "socket.h"
 
-/** A wildcard value in a crontab(5) specification */
-#define CRON_SPEC_WILDCARD INT32_MAX
+namespace manifest {
+    /** A wildcard value in a crontab(5) specification */
+    #define CRON_SPEC_WILDCARD INT32_MAX
 
-struct cron_spec {
-	int32_t minute;
-	int32_t hour;
-	int32_t day;
-	int32_t weekday;
-	int32_t month;
-};
+    struct cron_spec {
+        int32_t minute;
+        int32_t hour;
+        int32_t day;
+        int32_t weekday;
+        int32_t month;
+    };
 
-typedef struct job_manifest {
-	char    *label;
+    struct Manifest {
+        std::string label;
 
-	char    *user_name;
-	char    *group_name;
+        std::optional<std::string> user_name;
+        std::optional<std::string> group_name;
 
-	bool     job_is_agent; /* Temporary hack to detect agents v.s. daemons */
+        std::optional<std::string> program;
+        std::vector<std::string> program_arguments;
+        bool job_is_agent;
+        bool enable_globbing;
+        bool run_at_load;
+        std::optional<std::string> working_directory;
+        std::optional<std::string> root_directory;
 
-	char	*program;
-	cvec_t 	 program_arguments;
+        std::unordered_map<std::string, std::string> environment_variables;
 
-	bool	 enable_globbing;
-	bool     run_at_load;
-	char	*working_directory;
-	char 	*root_directory;
+        std::optional<std::string> umask = "022";
+        uint32_t timeout;
+        uint32_t exit_timeout = 20;
+        uint32_t start_interval;
+        uint32_t throttle_interval = 10;
+        uint32_t nice;
+        bool init_groups = true;
+        std::vector<std::string> watch_paths;
+        std::vector<std::string> queue_directories;
+        bool start_on_mount;
+        std::string stdin_path = "/dev/null";
+        std::string stdout_path = "/dev/null";
+        std::string stderr_path = "/dev/null";
+        bool abandon_process_group;
+        std::optional<struct cron_spec> calendar_interval;
+        struct {
+            bool always; /* Equivalent to setting { "KeepAlive": true } */
+            /* TODO: various other conditions */
+        } keep_alive;
 
-	cvec_t	 environment_variables;
+        // TODO: ResourceLimits, HopefullyExits*, inetd, LowPriorityIO, LaunchOnlyOnce
+        //SLIST_HEAD(,job_manifest_socket) sockets;
 
-	mode_t   umask;
-	uint32_t timeout;
-	uint32_t exit_timeout;
-	uint32_t start_interval;
-	uint32_t throttle_interval;
-	uint32_t nice;
-	bool	 init_groups;
-	cvec_t	 watch_paths;
-	cvec_t	 queue_directories;
-	bool	 start_on_mount;
-	char	*stdin_path;
-	char	*stdout_path;
-	char    *stderr_path;
-	bool	 abandon_process_group;
-	bool     start_calendar_interval;
-	struct cron_spec calendar_interval;
-	struct {
-		bool always; /* Equivalent to setting { "KeepAlive": true } */
-		/* TODO: various other conditions */
-	} keep_alive;
+        void rectify();
+        bool validate();
+//        mode_t getUmask() {
+//            // FIXME: something like
+//            //result = sscanf(umask, "%hi", (unsigned short *) &manifest->umask);
+//        }
+    };
 
-	// TODO: ResourceLimits, HopefullyExits*, inetd, LowPriorityIO, LaunchOnlyOnce
-	SLIST_HEAD(,job_manifest_socket) sockets;
-} *job_manifest_t;
+    void from_json(const json& j, Manifest& m);
+}
 
-job_manifest_t job_manifest_new(void);
-void job_manifest_free(job_manifest_t job_manifest);
-int job_manifest_read(job_manifest_t job_manifest, const char *filename);
-int job_manifest_parse(job_manifest_t job_manifest, unsigned char *buf, size_t bufsize);
-
-#endif /* _MANIFEST_H_ */
+using Manifest = manifest::Manifest;

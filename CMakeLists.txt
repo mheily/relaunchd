@@ -9,18 +9,8 @@ include(CheckIncludeFiles)
 include(GNUInstallDirs)
 
 option(USE_PRIVATE_DEPENDENCIES
-    "Should we fetch, build and link to private copies of libucl and libkqueue?"
+    "Should we fetch, build and link to a private copy of libkqueue?"
     ON)
-
-if (USE_PRIVATE_DEPENDENCIES)
-    ExternalProject_Add(libucl
-        GIT_REPOSITORY    https://github.com/vstakhov/libucl.git
-        GIT_TAG           0.8.1
-        INSTALL_COMMAND   ""
-        )
-else()
-    find_package(LibUCL 0.8.1 REQUIRED)
-endif()
 
 CHECK_INCLUDE_FILES(sys/event.h HAVE_SYS_EVENT_H)
 

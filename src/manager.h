@@ -29,14 +29,14 @@ int manager_activate_job_by_fd(int fd);
  *
  * @return the job, or NULL if there are no matching jobs
  */
-job_t manager_get_job_by_pid(pid_t pid);
+Job & manager_get_job_by_pid(pid_t pid);
 
 /**
  * Given a label, find the associated job
  *
  * @return the job, or NULL if there are no matching jobs
  */
-job_t manager_get_job_by_label(const char *label);
+Job & manager_get_job_by_label(const std::string &label);
 
 /**
  * Unload a job with a given <label>
@@ -44,14 +44,9 @@ job_t manager_get_job_by_label(const char *label);
 int manager_unload_job(const char *label);
 
 /**
- * Remove the job from the joblist and free it.
- */
-void manager_free_job(job_t job);
-
-/**
  * Wake up a job that has been waiting for an external event.
  */
-int manager_wake_job(job_t job);
+int manager_wake_job(Job &job);
 
 void manager_init();
 void manager_reap_child(pid_t pid, int status);

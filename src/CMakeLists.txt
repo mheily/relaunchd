@@ -27,8 +27,6 @@ endif()
 add_executable(launchd
         calendar.cc calendar.h
         channel.h
-        cvec.h
-        flopen.c
         keepalive.cc keepalive.h
         job.cc job.h
         launchd.cc
@@ -37,24 +35,9 @@ add_executable(launchd
         manifest.cc manifest.h
         options.h
         rpc_server.cc rpc_server.h
-        socket.cc socket.h
         timer.cc timer.h
-        uset.h
         util.h)
 target_link_libraries(launchd launch pthread)
-
-if (USE_PRIVATE_DEPENDENCIES)
-    # TODO: Is there a better way to access the CMake variables in this external project?
-    # Answer: yes, you know where they get checked out w.r.t. the build dir (CMAKE_BINARY_DIR)
-    ExternalProject_Get_property(libucl SOURCE_DIR)
-    # libucl is used only by launchd so add its header repository only to the launchd target
-    target_include_directories(launchd PRIVATE "${SOURCE_DIR}/include")
-    ExternalProject_Get_property(libucl BINARY_DIR)
-    target_link_libraries(launchd "${BINARY_DIR}/libucl.a")
-else()
-    target_link_options(launchd PRIVATE "${LibUCL_LIBRARY_LDFLAGS}")
-    target_link_libraries(launchd "${LibUCL_LIBRARIES}")
-endif()
 
 if(HAVE_SYS_EVENT_H)
 else()

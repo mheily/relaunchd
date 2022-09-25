@@ -30,25 +30,19 @@
 #include "log.h"
 #include "manager.h"
 #include "signal.h"
-#include "socket.h"
 #include "timer.h"
-#include "util.h"
 
-extern void keepalive_remove_job(struct job *job);
+extern void keepalive_remove_job(const Job &job);
 
 static int reset_signal_handlers();
 
-static void job_dump(job_t job) {
-	log_debug("job dump: label=%s state=%d", job->jm->label, job->state);
-}
-
-static int apply_resource_limits(const job_t job) {
+static int apply_resource_limits(const Job & job) {
 	//TODO - SoftResourceLimits, HardResourceLimits
 	//TODO - LowPriorityIO
 
-	if (job->jm->nice != 0) {
-		if (setpriority(PRIO_PROCESS, 0, job->jm->nice) < 0) {
-			log_errno("setpriority(2) to nice=%d", job->jm->nice);
+	if (job.manifest.nice != 0) {
+		if (setpriority(PRIO_PROCESS, 0, job.manifest.nice) < 0) {
+			log_errno("setpriority(2) to nice=%d", job.manifest.nice);
 			return (-1);
 		}
 	}
@@ -56,25 +50,29 @@ static int apply_resource_limits(const job_t job) {
 	return (0);
 }
 
-static inline int modify_credentials(job_t const job, const struct passwd *pwent, const struct group *grent)
+static inline int modify_credentials(const Job & job, const struct passwd *pwent, const struct group *grent)
 {
 	if (getuid() != 0) return (0);
 
 	log_debug("setting credentials: uid=%d gid=%d", pwent->pw_uid, grent->gr_gid);
 
-	if (initgroups(job->jm->user_name, grent->gr_gid) < 0) {
-		log_errno("initgroups");
-		return (-1);
-	}
+    if (job.manifest.init_groups && job.manifest.user_name) {
+        if (initgroups(job.manifest.user_name.value().c_str(), grent->gr_gid) < 0) {
+            log_errno("initgroups");
+            return (-1);
+        }
+    }
 	if (setgid(grent->gr_gid) < 0) {
 		log_errno("setgid");
 		return (-1);
 	}
 #ifndef __GLIBC__
-	if (setlogin(job->jm->user_name) < 0) {
-		log_errno("setlogin");
-		return (-1);
-	}
+	if (job.manifest.user_name) {
+        if (setlogin(job.manifest.user_name.value().c_str()) < 0) {
+            log_errno("setlogin");
+            return (-1);
+        }
+    }
 #endif
 	if (setuid(pwent->pw_uid) < 0) {
 		log_errno("setuid");
@@ -89,8 +87,8 @@ static inline int modify_credentials(job_t const job, const struct passwd *pwent
  * TODO: should cache these getenv() calls, so we don't do this dance for every
  * job invocation.
  */
-static int
-add_standard_environment_variables(cvec_t env)
+static void
+add_standard_environment_variables(std::vector<std::string> envvar)
 {
 	static const char *keys[] = { 
 		"DISPLAY",
@@ -101,83 +99,22 @@ add_standard_environment_variables(cvec_t env)
 		"TZ",
 		NULL };
 	const char **key = NULL, *envp = NULL;
-	char *buf = NULL;
 
 	for (key = keys; *key != NULL; key++) {
 		if ((envp = getenv(*key))) {
-			if (asprintf(&buf, "%s=%s", *key, envp) < 0) goto err_out;
-			if (cvec_push(env, buf) < 0) goto err_out;
+            auto keyval = std::string{*key} + "=" + std::string{envp};
+            envvar.emplace_back(keyval);
 		}
 	}
-
-	return 0;
-
-err_out:
-	free(buf);
-	return -1;
 }
 
-static inline cvec_t setup_environment_variables(const job_t job, const struct passwd *pwent)
+static std::vector<std::string> setup_environment_variables(const Job & job, const struct passwd *pwent)
 {
-	struct job_manifest_socket *jms;
-	cvec_t env = NULL;
-	char *curp, *buf = NULL;
-	char *logname_var = NULL, *user_var = NULL;
-	int uid;
-	bool found[] = { false, false, false, false, false, false, false };
-    size_t offset = 0;
-
-	env = cvec_new();
-	if (!env) goto err_out;
-
-	if (asprintf(&logname_var, "LOGNAME=%s", job->jm->user_name) < 0) goto err_out;
-	if (asprintf(&user_var, "USER=%s", job->jm->user_name) < 0) goto err_out;
-
-	if (!job->jm->environment_variables)
-		goto job_has_no_environment;
-
-	/* Convert the flat array into an array of key=value pairs */
-	/* Follow the crontab(5) convention of overriding LOGNAME and USER
-	 * and providing a default value for HOME, PATH, and SHELL */
-	log_debug("job %s has %zu env vars\n", job->jm->label, cvec_length(job->jm->environment_variables));
-	for (size_t i = 0; i < cvec_length(job->jm->environment_variables); i += 2) {
-		curp = cvec_get(job->jm->environment_variables, i);
-		log_debug("evaluating %s", curp);
-		if (strcmp(curp, "LOGNAME") == 0) {
-			found[0] = true;
-			if (cvec_push(env, logname_var) < 0) goto err_out;
-		} else if (strcmp(curp, "USER") == 0) {
-			found[1] = true;
-			if (cvec_push(env, user_var) < 0) goto err_out;
-		} else if (strcmp(curp, "HOME") == 0) {
-			found[2] = true;
-		} else if (strcmp(curp, "PATH") == 0) {
-			found[3] = true;
-		} else if (strcmp(curp, "SHELL") == 0) {
-			found[4] = true;
-		} else if (strcmp(curp, "TMPDIR") == 0) {
-			found[5] = true;
-		} else if (strcmp(curp, "PWD") == 0) {
-			found[6] = true;
-		} else {
-			char *keypair;
-			char *value;
-			value = cvec_get(job->jm->environment_variables, i + 1);
-			if (!value)
-				goto err_out;
-			if (asprintf(&keypair, "%s=%s", curp, value) < 0)
-				goto err_out;
-			if (cvec_push(env, keypair) < 0) {
-				free(keypair);
-				goto err_out;
-			}
-			log_debug("set keypair: %s", keypair);
-			free(keypair);
-		}
-	}
-
-	/* TODO: refactor this to avoid goto and split out root env v.s. non-root env*/
-job_has_no_environment:
+    std::vector<std::string> result;
+    for (const auto &[key, val] : job.manifest.environment_variables) {
+        std::string kv = std::string{key}.append("=").append(val);
+        result.emplace_back(std::move(kv));
+    }
 
 	/* KLUDGE: when running as root, assume we are a system daemon and avoid adding any
 	 * 	session-related variables.
@@ -185,51 +122,36 @@ job_has_no_environment:
 	 *
 	 * The removal of these variables conforms to daemon(8) behavior on FreeBSD.
 	 */
-	uid = getuid();
+    if (pwent->pw_uid > 0) {
+        if (!job.manifest.environment_variables.count("LOGNAME")) {
+            result.emplace_back(std::string{"LOGNAME="} + std::string{pwent->pw_name});
+        }
+        if (!job.manifest.environment_variables.count("USER")) {
+            result.emplace_back(std::string{"USER="} + std::string{pwent->pw_name});
+        }
+        if (!job.manifest.environment_variables.count("HOME")) {
+            result.emplace_back(std::string{"HOME="} + std::string{pwent->pw_dir});
+        }
+        if (!job.manifest.environment_variables.count("PATH")) {
+            result.emplace_back(std::string{"PATH=/usr/bin:/bin:/usr/local/bin"});
+        }
+        if (!job.manifest.environment_variables.count("SHELL")) {
+            result.emplace_back(std::string{"HOME="} + std::string{pwent->pw_shell});
+        }
+        if (!job.manifest.environment_variables.count("TMPDIR")) {
+            result.emplace_back(std::string{"TMPDIR=/tmp"});
+        }
+        if (!job.manifest.environment_variables.count("PWD")) {
+            // FIXME: should this be WorkingDirectory instead?
+            result.emplace_back(std::string{"PWD=/"});
+        }
+    }
 
-	if (uid && !found[0]) {
-		if (cvec_push(env, logname_var) < 0) goto err_out;
-	}
-	if (uid && !found[1]) {
-		if (cvec_push(env, user_var) < 0) goto err_out;
-	}
-	if (!found[2]) {
-		if (uid == 0) {
-			if (cvec_push(env, "HOME=/") < 0) goto err_out;
-		} else {
-			if (asprintf(&buf, "HOME=%s", pwent->pw_dir) < 0) goto err_out;
-			if (cvec_push(env, buf) < 0) goto err_out;
-			free(buf);
-			buf = NULL;
-		}
-	}
-	if (!found[3]) {
-		char *path;
+	add_standard_environment_variables(result);
 
-		if (uid == 0) {
-			path = (char*)"PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin:/usr/local/sbin";
-		} else {
-			path = (char*)"PATH=/usr/bin:/bin:/usr/local/bin";
-		}
-		if (cvec_push(env, path) < 0) goto err_out;
-	}
-	if (uid && !found[4]) {
-		if (asprintf(&buf, "SHELL=%s", pwent->pw_shell) < 0) goto err_out;
-		if (cvec_push(env, buf) < 0) goto err_out;
-		free(buf);
-		buf = NULL;
-	}
-	if (uid && !found[5]) {
-		if (cvec_push(env, "TMPDIR=/tmp") < 0) goto err_out;
-	}
-	if (!found[6]) {
-		if (cvec_push(env, "PWD=/") < 0) goto err_out;
-	}
-
-	if (add_standard_environment_variables(env) < 0)
-		goto err_out;
-
-	SLIST_FOREACH(jms, &job->jm->sockets, entry) {
+#if 0
+    // FIXME
+	SLIST_FOREACH(jms, &job.manifest.sockets, entry) {
 		job_manifest_socket_export(jms, env, offset++);
 	}
 	if (offset > 0) {
@@ -243,42 +165,47 @@ job_has_no_environment:
 		free(buf);
 		buf = NULL;
 	}
+#endif
 
-	return (env);
-
-err_out:
-	free(logname_var);
-	free(user_var);
-	free(buf);
-	cvec_free(env);
-	return NULL;
+	return result;
 }
 
 static inline int
-exec_job(const job_t job, const struct passwd *pwent) 
+exec_job(const Job & job, const struct passwd *pwent)
 {
 	int rv;
 	char *path;
 	char **argv, **envp;
-	cvec_t final_env;
 
-	final_env = setup_environment_variables(job, pwent);
-	if (final_env == NULL) {
-		log_error("unable to set environment vars");
-		return (-1);
-	}
-	envp = cvec_to_array(final_env);
+	auto final_env = setup_environment_variables(job, pwent);
+	envp = static_cast<char **>(calloc(final_env.size() + 1, sizeof(char *)));
+    if (!envp) {
+        throw std::bad_alloc();
+    }
+    for (size_t i = 0; i < final_env.size(); i++) {
+        envp[i] = const_cast<char*>(final_env[i].c_str());
+    }
 
-	argv = cvec_to_array(job->jm->program_arguments);
-	if (job->jm->program) {
-		path = job->jm->program;
+    argv = static_cast<char **>(calloc(job.manifest.program_arguments.size() + 1, sizeof(char *)));
+    if (!argv) {
+        throw std::bad_alloc();
+    }
+    for (size_t i = 0; i < job.manifest.program_arguments.size(); i++) {
+        argv[i] = const_cast<char*>(job.manifest.program_arguments[i].c_str());
+    }
+	if (job.manifest.program) {
+		path = (char*)job.manifest.program.value().c_str();
 	} else {
 		path = argv[0];
 	}
-	if (job->jm->enable_globbing) {
+    if (!path) {
+        throw std::logic_error("path cannot be empty");
+    }
+	if (job.manifest.enable_globbing) {
 		//TODO: globbing
 	}
 	log_debug("exec: %s", path);
+
 #if DEBUG
 	log_debug("argv[]:");
 	for (char **item = argv; *item; item++) {
@@ -299,52 +226,50 @@ exec_job(const job_t job, const struct passwd *pwent)
     	}
 	log_notice("executed job");
 
-	cvec_free(final_env);
+    free(argv);
+    free(envp);
 	return (0);
 
 err_out:
-	cvec_free(final_env);
+    free(argv);
+    free(envp);
 	return -1;
 }
 
 static inline int
-redirect_stdio(job_t job)
+redirect_stdio(const Job & job)
 {
 	int fd;
 
-	if (job->jm->stdin_path) {
-		log_debug("setting stdin path to %s", job->jm->stdin_path);
-		fd = open(job->jm->stdin_path, O_RDONLY);
-		if (fd < 0) goto err_out;
-		if (dup2(fd, STDIN_FILENO) < 0) {
-			log_errno("dup2(2)");
-			(void) close(fd);
-			goto err_out;
-		}
-		if (close(fd) < 0) goto err_out;
-	}
-	if (job->jm->stdout_path) {
-		log_debug("setting stdout path to %s", job->jm->stdout_path);
-		fd = open(job->jm->stdout_path, O_CREAT | O_WRONLY, 0600);
-		if (fd < 0) goto err_out;
-		if (dup2(fd, STDOUT_FILENO) < 0) {
-			log_errno("dup2(2)");
-			(void) close(fd);
-			goto err_out;
-		}
-		if (close(fd) < 0) goto err_out;
-	}
-	if (job->jm->stderr_path) {
-		log_debug("setting stderr path to %s", job->jm->stderr_path);
-		fd = open(job->jm->stderr_path, O_CREAT | O_WRONLY, 0600);
-		if (fd < 0) goto err_out;
-		if (dup2(fd, STDERR_FILENO) < 0) {
-			log_errno("dup2(2)");
-			(void) close(fd);
-			goto err_out;
-		}
-		if (close(fd) < 0) goto err_out;
-	}
+    log_debug("setting stdin path to %s", job.manifest.stdin_path.c_str());
+    fd = open(job.manifest.stdin_path.c_str(), O_RDONLY);
+    if (fd < 0) goto err_out;
+    if (dup2(fd, STDIN_FILENO) < 0) {
+        log_errno("dup2(2)");
+        (void) close(fd);
+        goto err_out;
+    }
+    if (close(fd) < 0) goto err_out;
+
+    log_debug("setting stdout path to %s", job.manifest.stdout_path.c_str());
+    fd = open(job.manifest.stdout_path.c_str(), O_CREAT | O_WRONLY, 0600);
+    if (fd < 0) goto err_out;
+    if (dup2(fd, STDOUT_FILENO) < 0) {
+        log_errno("dup2(2)");
+        (void) close(fd);
+        goto err_out;
+    }
+    if (close(fd) < 0) goto err_out;
+
+    log_debug("setting stderr path to %s", job.manifest.stderr_path.c_str());
+    fd = open(job.manifest.stderr_path.c_str(), O_CREAT | O_WRONLY, 0600);
+    if (fd < 0) goto err_out;
+    if (dup2(fd, STDERR_FILENO) < 0) {
+        log_errno("dup2(2)");
+        (void) close(fd);
+        goto err_out;
+    }
+    if (close(fd) < 0) goto err_out;
 
 	return 0;
 
@@ -377,7 +302,7 @@ reset_signal_handlers()
 }
 
 static int
-start_child_process(const job_t job, const struct passwd *pwent, const struct group *grent)
+start_child_process(const Job job, const struct passwd *pwent, const struct group *grent)
 {
 #ifndef NOFORK
 	if (setsid() < 0) {
@@ -393,24 +318,29 @@ start_child_process(const job_t job, const struct passwd *pwent, const struct gr
 		log_error("unable to apply resource limits");
 		goto err_out;
 	}
-	if (job->jm->working_directory) {
-		if (chdir(job->jm->working_directory) < 0) {
-			log_error("unable to chdir to %s", job->jm->working_directory);
+	if (job.manifest.working_directory) {
+        auto dir = job.manifest.working_directory.value().c_str();
+		if (chdir(dir) < 0) {
+			log_error("unable to chdir to %s", dir);
 			goto err_out;
 		}
 	}
-	if (job->jm->root_directory && getuid() == 0) {
-		if (chroot(job->jm->root_directory) < 0) {
-			log_error("unable to chroot to %s", job->jm->root_directory);
+	if (job.manifest.root_directory && getuid() == 0) {
+        auto dir = job.manifest.root_directory.value().c_str();
+        if (chroot(dir) < 0) {
+			log_error("unable to chroot to %s", dir);
 			goto err_out;
 		}
 	}
-	if (modify_credentials(job, pwent, grent) < 0) {
+	if (getuid() == 0 && modify_credentials(job, pwent, grent) < 0) {
 		log_error("unable to modify credentials");
 		goto err_out;
 	}
-	(void) umask(job->jm->umask);
-	if (redirect_stdio(job) < 0) {
+
+    // FIXME: convert umask to octal
+    //(void) umask(job.manifest.umask);
+
+    if (redirect_stdio(job) < 0) {
 		log_error("unable to redirect stdio");
 		goto err_out;
 	}
@@ -423,135 +353,131 @@ start_child_process(const job_t job, const struct passwd *pwent, const struct gr
 	return (0);
 
 err_out:
-	log_error("job %s failed to start; see previous log message for details", job->jm->label);
+	log_error("job %s failed to start; see previous log message for details", job.manifest.label.c_str());
 	return (-1);
 }
 
-job_t job_new(job_manifest_t jm)
-{
-	job_t j;
-
-	j = static_cast<job_t>(calloc(1, sizeof(*j)));
-	if (!j) return NULL;
-	j->jm = jm;
-	j->state = JOB_STATE_DEFINED;
-	if (jm->start_interval > 0) {
-		j->schedule = JOB_SCHEDULE_PERIODIC;
-	} else if (jm->start_calendar_interval) {
-		j->schedule = JOB_SCHEDULE_CALENDAR;
-	} else {
-		j->schedule = JOB_SCHEDULE_NONE;
-	}
-	return (j);
-}
-
-void job_free(job_t job)
-{
-	if (job == NULL) return;
-	free(job->jm);
-	free(job);
-}
-
-int job_load(job_t job)
-{
-	struct job_manifest_socket *jms;
-
+void Job::load() {
 	/* TODO: This is the place to setup on-demand watches for the following keys:
 			WatchPaths
 			QueueDirectories
 	*/
-	if (!SLIST_EMPTY(&job->jm->sockets)) {
-		SLIST_FOREACH(jms, &job->jm->sockets, entry) {
+// FIXME: sockets
+#if 0
+    struct job_manifest_socket *jms;
+
+	if (!SLIST_EMPTY(&job.manifest.sockets)) {
+		SLIST_FOREACH(jms, &job.manifest.sockets, entry) {
 			if (job_manifest_socket_open(job, jms) < 0) {
 				log_error("failed to open socket");
 				return (-1);
 			}
 		}
-		log_debug("job %s sockets created", job->jm->label);
+		log_debug("job %s sockets created", job.manifest.label.c_str());
 		job->state = JOB_STATE_WAITING;
 		return (0);
 	}
+#endif
 
-	if (job->schedule == JOB_SCHEDULE_PERIODIC) {
-		if (timer_register_job(job) < 0) {
-			log_error("failed to register the timer for job");
-			return -1;
-		}
-	} else if (job->schedule == JOB_SCHEDULE_CALENDAR) {
-		if (calendar_register_job(job) < 0) {
+	if (schedule == JOB_SCHEDULE_PERIODIC) {
+		timer_register_job(*this);
+	} else if (schedule == JOB_SCHEDULE_CALENDAR) {
+		if (calendar_register_job(*this) < 0) {
 			log_error("failed to register the calendar job");
-			return -1;
+            throw std::runtime_error("calendar_register_job");
 		}
 	}
 
-	job->state = JOB_STATE_LOADED;
-	log_debug("loaded %s", job->jm->label);
-	job_dump(job);
-	return (0);
+	state = JOB_STATE_LOADED;
+	log_debug("loaded %s", manifest.label.c_str());
+	dump();
 }
 
-int job_unload(job_t job)
-{
-	if (job->state == JOB_STATE_RUNNING) {
-		log_debug("sending SIGTERM to process group %d", job->pid);
-		if (kill(-1 * job->pid, SIGTERM) < 0) {
-			log_errno("killpg(2) of pid %d", job->pid);
+void Job::unload() {
+	if (state == JOB_STATE_RUNNING) {
+		log_debug("sending SIGTERM to process group %d", pid);
+		if (kill(-1 * pid, SIGTERM) < 0) {
+			log_errno("killpg(2) of pid %d", pid);
 			/* not sure how to handle the error, we still want to clean up */
 		}
-		job->state = JOB_STATE_KILLED;
+		state = JOB_STATE_KILLED;
 		//TODO: start a timer to send a SIGKILL if it doesn't die gracefully
 	} else {
 		//TODO: update the timer interval in timer.c?
-		job->state = JOB_STATE_DEFINED;
+		state = JOB_STATE_DEFINED;
 	}
 
-	keepalive_remove_job(job);
-
-	return 0;
+    // FIXME: other submodules need removing too
+	keepalive_remove_job(*this);
+    if (schedule == JOB_SCHEDULE_CALENDAR) {
+        calendar_unregister_job(*this);
+    }
 }
 
-int job_run(job_t job)
-{
-	struct job_manifest_socket *jms;
-	struct passwd *pwent;
-	struct group *grent;
-	pid_t pid;
+void Job::run() {
+    struct passwd *pwent = NULL;
+	struct group *grent = NULL;
 
-	if ((pwent = getpwnam(job->jm->user_name)) == NULL) {
-		log_errno("getpwnam");
-		return (-1);
+    if (manifest.user_name) {
+        pwent = ::getpwnam(manifest.user_name.value().c_str());
+    } else {
+        pwent = ::getpwuid(getuid());
+    }
+	if (!pwent) {
+        throw std::system_error(errno, std::system_category(), "no pwent");
 	}
 
-	if ((grent = getgrnam(job->jm->group_name)) == NULL) {
-		log_errno("getgrnam");
-		return (-1);
+    if (manifest.group_name) {
+        grent = ::getgrnam(manifest.group_name.value().c_str());
+    } else {
+        grent = ::getgrgid(getgid());
+    }
+	if (!grent) {
+        throw std::system_error(errno, std::system_category(), "no grent");
 	}
 
 	// temporary for debugging
 #ifdef NOFORK
-	/* These are unused */
-	(void) pid;
-	(void) jms;
-
-	(void) start_child_process(job, pwent, grent);
+	(void) start_child_process(*this, pwent, grent);
 #else
 	pid = fork();
 	if (pid < 0) {
-		return (-1);
+        throw std::system_error(errno, std::system_category(), "fork(2)");
 	} else if (pid == 0) {
-		if (start_child_process(job, pwent, grent) < 0) {
+		if (start_child_process(*this, pwent, grent) < 0) {
 			//TODO: report failures to the parent
 			exit(124);
 		}
 	} else {
 		manager_pid_event_add(pid);
-		log_debug("job %s started with pid %d", job->jm->label, pid);
-		job->pid = pid;
-		job->state = JOB_STATE_RUNNING;
-		SLIST_FOREACH(jms, &job->jm->sockets, entry) {
-			job_manifest_socket_close(jms);
-		}
+		log_debug("job %s started with pid %d", manifest.label.c_str(), pid);
+		state = JOB_STATE_RUNNING;
+        // FIXME: sockets
+        ///struct job_manifest_socket *jms;
+//		SLIST_FOREACH(jms, &job.manifest.sockets, entry) {
+//			job_manifest_socket_close(jms);
+//		}
 	}
-#endif
-	return (0);
+#endif /* NOFORK */
 }
+
+job_schedule_t Job::_set_schedule() {
+    if (manifest.start_interval > 0) {
+        return JOB_SCHEDULE_PERIODIC;
+    } else if (manifest.calendar_interval) {
+        return JOB_SCHEDULE_CALENDAR;
+    } else {
+        return JOB_SCHEDULE_NONE;
+    }
+}
+
+Job::Job(std::optional<std::filesystem::path> manifest_path_, Manifest manifest_) :
+        manifest_path(manifest_path_),
+        manifest(manifest_),
+        state(JOB_STATE_DEFINED),
+        pid(0),
+        last_exit_status(0),
+        term_signal(0),
+        schedule(_set_schedule()){}
+
+

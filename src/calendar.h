@@ -16,12 +16,10 @@
 
 #pragma once
 
-#include <time.h>
-
-struct job;
+#include "job.h"
 
 int calendar_init(int kqfd);
 int calendar_handler();
-int calendar_register_job(struct job *);
-int calendar_unregister_job(struct job *);
+int calendar_register_job(Job &);
+int calendar_unregister_job(Job &);
 

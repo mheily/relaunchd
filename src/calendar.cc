@@ -14,7 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "../vendor/FreeBSD/sys/queue.h"
+#include <unordered_map>
+
 #if HAVE_SYS_LIMITS_H
 #include <sys/limits.h>
 #else
@@ -34,12 +35,13 @@
 /* The main kqueue descriptor used by launchd */
 static int parent_kqfd;
 
-static SLIST_HEAD(, job) calendar_list;
+// key: label, val: next_scheduled_start
+static std::unordered_map<std::string, time_t> calendar_jobs;
 
 static time_t next_wakeup = 0;
 
 static inline time_t
-find_next_time(const struct cron_spec *cron, const struct tm *now)
+find_next_time(const struct manifest::cron_spec *cron, const struct tm *now)
 {
 	uint32_t hour, minute;
 
@@ -59,9 +61,9 @@ find_next_time(const struct cron_spec *cron, const struct tm *now)
 }
 
 static inline time_t
-schedule_calendar_job(job_t job)
+schedule_calendar_job(Job &job)
 {
-	const struct cron_spec *cron = &job->jm->calendar_interval;
+	const struct manifest::cron_spec *cron = &job.manifest.calendar_interval.value();
 	time_t t0 = current_time();
 	struct tm tm;
 	time_t result;
@@ -98,53 +100,56 @@ schedule_calendar_job(job_t job)
 	/* KLUDGE: this is ugly, b/c the manifest did not actually set StartInterval.
 	 * We should really have a job_t field for this instead.
 	 */
-	job->jm->start_interval = result;
+    Manifest &tmp = const_cast<Manifest&>(job.manifest);
+	tmp.start_interval = result;
 
-	log_debug("job %s scheduled to run in %ld minutes", job->jm->label, (long)result);
+	log_debug("job %s scheduled to run in %ld minutes", job.manifest.label.c_str(), (long)result);
 
 	return current_time() + (60 * result);
 }
 
-static inline void update_job_interval(job_t job)
+static inline void update_job_interval(Job &job)
 {
-	job->next_scheduled_start = schedule_calendar_job(job);
-	log_debug("job %s will start after T=%lu", job->jm->label, (unsigned long)job->next_scheduled_start);
+    auto next_scheduled_start = schedule_calendar_job(job);
+	calendar_jobs.at(job.manifest.label) = next_scheduled_start;
+	log_debug("job %s will start after T=%lu", job.manifest.label.c_str(), (unsigned long)next_scheduled_start);
 }
 
 int calendar_init(int kqfd)
 {
 	parent_kqfd = kqfd;
-	SLIST_INIT(&calendar_list);
 	return 0;
 }
 
-int calendar_register_job(struct job *job)
+int calendar_register_job(Job &job)
 {
-	//TODO: keep the list sorted
-	SLIST_INSERT_HEAD(&calendar_list, job, start_interval_sle);
+    if (job.schedule != JOB_SCHEDULE_CALENDAR) {
+        throw std::logic_error("wrong job type");
+    }
+    // FIXME: some duplicate effort here
+    auto next_scheduled_start = schedule_calendar_job(job);
+    calendar_jobs.insert({job.manifest.label, next_scheduled_start});
 	update_job_interval(job);
 	return 0;
 }
 
-int calendar_unregister_job(struct job *job)
+int calendar_unregister_job(Job &job)
 {
-	if (job->schedule == JOB_SCHEDULE_NONE)
-		return -1;
-
-	SLIST_REMOVE(&calendar_list, job, job, start_interval_sle);
-	//update_min_interval();
+	if (job.schedule != JOB_SCHEDULE_CALENDAR) {
+        throw std::logic_error("wrong job type");
+    }
+    calendar_jobs.erase(job.manifest.label);
 	return 0;
 }
 
-int calendar_handler()
-{
-	job_t job;
+int calendar_handler() {
 	time_t now = current_time();
 
 	//log_debug("waking up after %u seconds", min_interval);
-	SLIST_FOREACH(job, &calendar_list, start_interval_sle) {
-		if (now >= job->next_scheduled_start) {
-			log_debug("job %s starting due to timer interval", job->jm->label);
+    for (const auto &[label, next_scheduled_start] : calendar_jobs) {
+		if (now >= next_scheduled_start) {
+			log_debug("job %s starting due to calendar time", label.c_str());
+            auto job = manager_get_job_by_label(label);
 			update_job_interval(job);
 			(void) manager_wake_job(job); //FIXME: error handling
 		}

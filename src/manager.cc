@@ -16,6 +16,7 @@
 
 #include "config.h"
 
+#include <fstream>
 #include <iostream>
 #include <unordered_map>
 
@@ -34,7 +35,6 @@
 #include "keepalive.h"
 #include "manager.h"
 #include "signal.h"
-#include "socket.h"
 #include "options.h"
 #include "timer.h"
 #include "util.h"
@@ -49,7 +49,7 @@ static void setup_rpc_server();
 static void setup_signal_handlers();
 static void do_shutdown();
 
-static std::unordered_map<std::string,job_t> services;
+static std::unordered_map<std::string, Job> services;
 
 /* The kqueue descriptor used by main_loop() */
 static int main_kqfd = -1;
@@ -60,15 +60,16 @@ Channel chan;
 
 
 
-int manager_wake_job(job_t job)
+int manager_wake_job(Job &job)
 {
-	if (job->state != JOB_STATE_WAITING) {
+	if (job.state != JOB_STATE_WAITING) {
 		log_error("tried to wake job %s that was not asleep (state=%d)",
-				job->jm->label, job->state);
+				job.manifest.label.c_str(), job.state);
 		return -1;
 	}
 
-	return job_run(job);
+    job.run();
+    return 0;
 }
 
 int manager_activate_job_by_fd(int fd)
@@ -77,28 +78,24 @@ int manager_activate_job_by_fd(int fd)
 	return -1; //STUB
 }
 
-job_t manager_get_job_by_label(const char *label)
+Job & manager_get_job_by_label(const std::string &label)
 {
     auto it = services.find(label);
     if (it != services.end()) {
         return it->second;
     } else {
-        return NULL;
+        throw std::range_error(label);
     }
 }
 
-job_t manager_get_job_by_pid(pid_t pid)
+Job & manager_get_job_by_pid(pid_t pid)
 {
-    for (const auto & [label, service] : services) {
-        if (service->pid == pid) {
-            return service;
+    for (auto & [label, job] : services) {
+        if (job.pid == pid) {
+            return job;
         }
     }
-	return NULL;
-}
-
-void manager_free_job(job_t job) {
-	job_free(job);
+    throw std::range_error(std::to_string(pid));
 }
 
 int manager_unload_job(const char *label)
@@ -110,19 +107,12 @@ int manager_unload_job(const char *label)
     }
     auto job = it->second;
 
-	if (job_unload(job) < 0) {
-        log_error("failed to unload job: %s", label);
-        return -1;
-	}
+    job.unload();
 
 	log_debug("job %s unloaded", label);
 
     services.erase(it);
 
-    if (job->schedule == JOB_SCHEDULE_CALENDAR) {
-        calendar_unregister_job(job);
-    }
-    manager_free_job(job);
     return 0;
 }
 
@@ -133,13 +123,13 @@ manager_unload_all_jobs()
     auto it = services.begin();
     while (it != services.end()) {
         auto job = it->second;
-        if (job_unload(job) < 0) {
-            log_error("job unload failed: %s", job->jm->label);
-        } else {
-            log_debug("job %s unloaded", job->jm->label);
+        try {
+            job.unload();
+        } catch (...) {
+            log_error("failed to unload %s: ignoring because all jobs are being unloaded",
+                      job.manifest.label.c_str());
         }
         it = services.erase(it);
-        manager_free_job(job);
     }
 }
 
@@ -154,7 +144,7 @@ void manager_init() {
     if ((main_kqfd = kqueue()) < 0)
         err(1, "kqueue(2)");
     setup_signal_handlers();
-    setup_socket_activation(main_kqfd);
+    //setup_socket_activation(main_kqfd);
     setup_rpc_server();
     if (keepalive_init(main_kqfd) < 0)
         errx(1, "keepalive_init()");
@@ -193,8 +183,6 @@ manager_pid_event_delete(int pid)
 void 
 manager_reap_child(pid_t pid, int status)
 {
-	job_t job;
-
 // linux will need to do this in a loop after reading a signalfd and getting SIGCHLD
 #if 0
 	pid = waitpid(-1, &status, WNOHANG);
@@ -208,39 +196,39 @@ manager_reap_child(pid_t pid, int status)
 
 	manager_pid_event_delete(pid);
 
-	job = manager_get_job_by_pid(pid);
-	if (!job) {
-		log_error("child pid %d exited but no job found", pid);
-		return;
-	}
+    // fixme: check for range error exception
+	auto job = manager_get_job_by_pid(pid);
+//	if (!job) {
+//		log_error("child pid %d exited but no job found", pid);
+//		return;
+//	}
 
-	if (job->state == JOB_STATE_KILLED) {
+	if (job.state == JOB_STATE_KILLED) {
 		/* The job is unloaded, so nobody cares about the exit status */
-		manager_free_job(job);
 		return;
 	}
 
-	if (job->jm->start_interval > 0) {
-		job->state = JOB_STATE_WAITING;
+	if (job.manifest.start_interval > 0) {
+		job.state = JOB_STATE_WAITING;
 	} else {
-		job->state = JOB_STATE_EXITED;
+		job.state = JOB_STATE_EXITED;
 	}
 	if (WIFEXITED(status)) {
-		job->last_exit_status = WEXITSTATUS(status);
+		job.last_exit_status = WEXITSTATUS(status);
 	} else if (WIFSIGNALED(status)) {
-		job->last_exit_status = -1;
-		job->term_signal = WTERMSIG(status);
+		job.last_exit_status = -1;
+		job.term_signal = WTERMSIG(status);
 	} else {
 		log_error("unhandled exit status");
 	}
-	log_debug("job %d exited with status %d", job->pid,
-			job->last_exit_status);
-	job->pid = 0;
+	log_debug("job %d exited with status %d", job.pid,
+			job.last_exit_status);
+	job.pid = 0;
 
-	if (keepalive_add_job(job) < 0)
-		log_error("keepalive_add_job()");
-
-	return;
+    if (job.manifest.keep_alive.always) {
+        keepalive_add_job(job);
+    }
+    // FIXME: what about calendar and timer jobs?
 }
 
 static void setup_signal_handlers()
@@ -293,12 +281,12 @@ manager_main_loop()
 				log_notice("caught SIGINT, exiting");
 				manager_unload_all_jobs();
 				exit(1);
-				break;
+
 			case SIGTERM:
 				log_notice("caught SIGTERM, exiting");
 				do_shutdown();
 				exit(0);
-				break;
+
 			default:
 				log_error("caught unexpected signal");
 			}
@@ -307,9 +295,9 @@ manager_main_loop()
         } else if ((void *)kev.udata == &rpc_dispatch) {
             (void) rpc_dispatch(chan);
             // fixme: distinguish between a bad request and a fatal internal error
-        } else if ((void *)kev.udata == &setup_socket_activation) {
-			if (socket_activation_handler() < 0)
-				errx(1, "socket_activation_handler()");
+//        } else if ((void *)kev.udata == &setup_socket_activation) {
+//			if (socket_activation_handler() < 0)
+//				errx(1, "socket_activation_handler()");
 		} else if ((void *)kev.udata == &setup_timers) {
 			if (timer_handler() < 0)
 				errx(1, "timer_handler()");
@@ -325,43 +313,34 @@ manager_main_loop()
 }
 
 int manager_load_manifest(const std::filesystem::path &path) {
-    job_manifest_t jm = NULL;
-
-    jm = job_manifest_new();
-    if (!jm) {
-        log_error("job_manifest_new()");
-        return -1;
-    }
-
     log_debug("loading %s", path.c_str());
-    if (job_manifest_read(jm, path.c_str()) < 0) {
-        log_error("parse error");
-        job_manifest_free(jm);
+    std::ifstream ifs{path};
+    json obj = json::parse(ifs);
+
+    std::string label;
+    if (obj.contains("Label")) {
+        obj.at("Label").get_to(label);
+    } else {
+        log_error("manifest has no Label key");
         return -1;
     }
-
-    log_debug("defined job: %s", jm->label);
 
     /* Check for duplicate jobs */
-    if (services.count(jm->label)) {
-        log_error("tried to load a duplicate job with label %s", jm->label);
-        job_manifest_free(jm);
-        return -1;
-    }
-    job_t job = job_new(jm);
-    if (!job) {
-        job_manifest_free(jm);
+    if (services.count(label)) {
+        log_error("tried to load a duplicate job with label %s", label.c_str());
         return -1;
     }
 
-    (void) job_load(job); // FIXME failure handling?
-    log_debug("loaded job: %s", job->jm->label);
+    services.insert({label, Job{path, obj.get<manifest::Manifest>()}});
+    auto & job = services.at(label);
 
-    services[jm->label] = job;
+    log_debug("defined job: %s", label.c_str());
 
-    if (job_is_runnable(job)) {
-        log_debug("running job %s from state %d", job->jm->label, job->state);
-        (void) job_run(job); // FIXME failure handling?
+    job.load();
+    log_debug("loaded job: %s", job.manifest.label.c_str());
+
+    if (job.manifest.keep_alive.always || job.manifest.run_at_load) {
+        job.run();
     }
 
     return 0;
@@ -370,18 +349,18 @@ int manager_load_manifest(const std::filesystem::path &path) {
 json manager_list_jobs() {
     auto result = json::array();
     for (const auto & [label, job] : services) {
-        std::string pid = (job->pid == 0) ? "-" : std::to_string(job->pid);
-        if (job->pid == 0) {
+        std::string pid = (job.pid == 0) ? "-" : std::to_string(job.pid);
+        if (job.pid == 0) {
             pid = "-";
         } else {
-            pid = std::to_string(job->pid);
+            pid = std::to_string(job.pid);
         }
         result.emplace_back(
                 json::object(
                         {
-                                {"Label",          std::string{job->jm->label}},
+                                {"Label",          std::string{job.manifest.label}},
                                 {"PID",            std::move(pid)},
-                                {"LastExitStatus", job->last_exit_status},
+                                {"LastExitStatus", job.last_exit_status},
                         }
                 ));
     }

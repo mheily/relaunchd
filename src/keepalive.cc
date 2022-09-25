@@ -28,94 +28,71 @@
 /* The main kqueue descriptor used by launchd */
 static int parent_kqfd;
 
-struct watchdog {
-	job_t job;
+struct Watchdog {
+    Watchdog(const Job &job) {
+        label = job.manifest.label;
+        restart_after = current_time() + job.manifest.throttle_interval;
+    }
+
+	std::string label;
 	time_t restart_after; /* After this walltime, the job should be restarted */
-	SLIST_ENTRY(watchdog) watchdog_sle;
 };
-typedef struct watchdog * watchdog_t;
 
-static SLIST_HEAD(, watchdog) watchdog_list;
+static std::unordered_map<std::string, Watchdog> watchdog_list;
 
-static struct watchdog *watchdog_new(job_t job);
 static void update_wake_interval();
 
 int keepalive_init(int kqfd)
 {
 	parent_kqfd = kqfd;
-	SLIST_INIT(&watchdog_list);
 	return 0;
 }
 
-int keepalive_add_job(struct job *job)
+void keepalive_add_job(Job &job)
 {
-	if (job->jm->keep_alive.always) {
-		watchdog_t w = watchdog_new(job);
-		if (!w) return -1;
-		SLIST_INSERT_HEAD(&watchdog_list, w, watchdog_sle);
-		log_debug("job `%s' will be automatically restarted in %d seconds",
-				job->jm->label, job->jm->throttle_interval);
-		update_wake_interval();
-	}
-	return 0;
+	if (!job.manifest.keep_alive.always) {
+        throw std::logic_error("keepalive is disabled");
+    }
+    watchdog_list.insert({job.manifest.label, Watchdog{job}});
+    log_debug("job `%s' will be automatically restarted in %d seconds",
+            job.manifest.label.c_str(), job.manifest.throttle_interval);
+    update_wake_interval();
 }
 
-void keepalive_remove_job(struct job *job) {
-	watchdog_t cur;
-
-	SLIST_FOREACH(cur, &watchdog_list, watchdog_sle) {
-		if (cur->job == job) {
-			goto found;
-		}
-	}
-
-	return;
-
-found:
-	SLIST_REMOVE(&watchdog_list, cur, watchdog, watchdog_sle);
-	free(cur);
+void keepalive_remove_job(const Job &job) {
+    watchdog_list.erase(job.manifest.label);
 	update_wake_interval();
 }
 
 void keepalive_wake_handler(void)
 {
-	watchdog_t cur, tmp;
 	time_t now = current_time();
 
 	log_debug("watchdog handler running");
 	update_wake_interval();
 
-	SLIST_FOREACH_SAFE(cur, &watchdog_list, watchdog_sle, tmp) {
-		if (now >= cur->restart_after) {
-			if (cur->job->state != JOB_STATE_RUNNING) {
-				log_debug("job `%s' restarted due to KeepAlive mechanism", cur->job->jm->label);
-				job_run(cur->job);
-			}
-			SLIST_REMOVE(&watchdog_list, cur, watchdog, watchdog_sle);
-			free(cur);
+    for (auto it = watchdog_list.begin(); it != watchdog_list.end(); ++it) {
+        auto &watchdog = it->second;
+		if (now >= watchdog.restart_after) {
+
+            // FIXME: need to get job from manager
+
+//			if (cur->job->state != JOB_STATE_RUNNING) {
+//				log_debug("job `%s' restarted due to KeepAlive mechanism", cur->job->jm.label.c_str());
+//				job_run(cur->job);
+//			}
+
 		}
 	}
 }
 
-static struct watchdog *
-watchdog_new(job_t job)
-{
-	watchdog_t w = static_cast<watchdog_t>(malloc(sizeof(*w)));
-	if (w) {
-		w->job = job;
-		w->restart_after = current_time() + job->jm->throttle_interval;
-	}
-	return w;
-}
-
 static void update_wake_interval()
 {
-	watchdog_t w;
 	struct kevent kev;
-	int next_wake_time;
+	int next_wake_time;   // FIXME: using int creates a narrowing warning
 	static int interval = 0;
 
-	if (SLIST_EMPTY(&watchdog_list)) {
+	if (watchdog_list.empty()) {
 		EV_SET(&kev, JOB_SCHEDULE_KEEPALIVE, EVFILT_TIMER, EV_ADD | EV_DISABLE, 0, 0, reinterpret_cast<void *>(&keepalive_wake_handler));
 		if (kevent(parent_kqfd, &kev, 1, NULL, 0, NULL) < 0) {
 			err(1, "kevent(2)");
@@ -123,11 +100,10 @@ static void update_wake_interval()
 		log_debug("disabling keepalive polling; no more watchdogs");
 	} else {
 		next_wake_time = INT_MAX;
-		SLIST_FOREACH(w, &watchdog_list, watchdog_sle) {
-			if (!w) break;
-			if (w->restart_after < next_wake_time)
-				next_wake_time = w->restart_after;
-		}
+        for (auto &[label, watchdog] : watchdog_list) {
+            if (watchdog.restart_after < next_wake_time)
+                next_wake_time = watchdog.restart_after;
+        }
 		int time_delta = (next_wake_time - current_time()) * 1000;
 		if (time_delta <= 0)
 			time_delta = 10000;

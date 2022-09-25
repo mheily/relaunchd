@@ -16,9 +16,9 @@
 
 #pragma once
 
-struct job;
+#include "job.h"
 
 int setup_timers(int kqfd);
 int timer_handler();
-int timer_register_job(struct job *);
-int timer_unregister_job(struct job *);
+void timer_register_job(Job &);
+void timer_unregister_job(Job &);

@@ -65,7 +65,7 @@ static int test_calendar_interval_1()
         time_t now = time(NULL);
         struct tm *tm = localtime(&now);
 	if ((tm->tm_min + 5) <= 59) {
-		job->jm->calendar_interval.minute = tm->tm_min + 5;
+		job->jm.calendar_interval.minute = tm->tm_min + 5;
 	} else {
 		//FIXME: need to wrap time around to the next hour/day
 		printf("SKIP -- this test needs time wrapping support");

@@ -17,6 +17,7 @@
 #pragma once
 
 #include "config.h"
+#include "job.h"
 
 struct job;
 
@@ -30,10 +31,10 @@ struct job;
 int keepalive_init(int kqfd);
 
 /** Check if a job should be restarted after it exists. */
-int keepalive_add_job(struct job *job);
+void keepalive_add_job(Job &job);
 
 /** Remove any watchdogs associated with a job  */
-void keepalive_remove_job(struct job *job);
+void keepalive_remove_job(const Job &job);
 
 /** Handle the wakeup event, possibly restarting jobs */
 void keepalive_wake_handler(void);
