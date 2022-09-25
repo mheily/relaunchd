@@ -18,5 +18,5 @@
 
 /* A list of signals that are meaningful to launchd(8) itself. */
 const int launchd_signals[] = {
-        SIGINT, SIGTERM, 0
+        SIGPIPE, SIGINT, SIGTERM, 0
 };

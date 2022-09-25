@@ -287,6 +287,9 @@ manager_main_loop()
 				do_shutdown();
 				exit(0);
 
+            case SIGPIPE:
+                break;
+
 			default:
 				log_error("caught unexpected signal");
 			}
