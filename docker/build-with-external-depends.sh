@@ -1,12 +1,11 @@
 #!/bin/sh
 
+cd "$(dirname "$0")"
+
 tag="${1:-relaunchd-src:latest}"
 
-docker run -it $tag bash -ex -c '
+docker run -v $(pwd)/..:/tmp/src:ro -it $tag bash -ex -c '
     cd /tmp/build
-    rm -rf cmake-build-debug
-    mkdir cmake-build-debug
-    cd cmake-build-debug
-    cmake -DUSE_PRIVATE_DEPENDENCIES=OFF ..
+    cmake -DUSE_PRIVATE_DEPENDENCIES=OFF /tmp/src
     make
 '
