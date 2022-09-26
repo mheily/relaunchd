@@ -23,6 +23,8 @@
 #include "../vendor/json.hpp"
 using json = nlohmann::json;
 
+#include "../vendor/tinyxml2.h"
+
 #include "manifest.h"
 #include "log.h"
 
@@ -68,13 +70,19 @@ namespace manifest {
     void from_json(const json& j, Manifest& m) {
         j.at("Label").get_to(m.label);
         if (j.contains("UserName")) {
-            j.at("UserName").get_to(m.user_name.value());
+            std::string tmp;
+            j.at("UserName").get_to(tmp);
+            m.user_name = std::move(tmp);
         }
         if (j.contains("GroupName")) {
-            j.at("GroupName").get_to(m.user_name.value());
+            std::string tmp;
+            j.at("GroupName").get_to(tmp);
+            m.group_name = std::move(tmp);
         }
         if (j.contains("Program")) {
-            j.at("Program").get_to(m.program.value());
+            std::string tmp;
+            j.at("Program").get_to(tmp);
+            m.program = tmp;
         }
         if (j.contains("ProgramArguments")) {
             j.at("ProgramArguments").get_to(m.program_arguments);
@@ -86,16 +94,22 @@ namespace manifest {
             j.at("RunAtLoad").get_to(m.run_at_load);
         }
         if (j.contains("WorkingDirectory")) {
-            j.at("WorkingDirectory").get_to(m.working_directory.value());
+            std::string tmp;
+            j.at("WorkingDirectory").get_to(tmp);
+            m.working_directory = std::move(tmp);
         }
         if (j.contains("RootDirectory")) {
-            j.at("RootDirectory").get_to(m.root_directory.value());
+            std::string tmp;
+            j.at("RootDirectory").get_to(tmp);
+            m.root_directory = std::move(tmp);
         }
         if (j.contains("EnvironmentVariables")) {
             j.at("EnvironmentVariables").get_to(m.environment_variables);
         }
         if (j.contains("Umask")) {
-            j.at("Umask").get_to(m.umask.value());
+            std::string tmp;
+            j.at("Umask").get_to(tmp);
+            m.umask = std::move(tmp);
         }
         if (j.contains("Timeout")) {
             j.at("Timeout").get_to(m.timeout);
@@ -155,6 +169,66 @@ namespace manifest {
         }
     }
 
+    std::optional<json> parse_xml(const char *path) {
+        using namespace tinyxml2;
+        XMLError xmlerr;
+        XMLDocument doc;
+        xmlerr = doc.LoadFile(path);
+        if (xmlerr != XML_SUCCESS) {
+            log_error("LoadFile failed: %d", xmlerr);
+            return std::nullopt;
+        }
+
+        // FIXME: lots of error checking needed
+        json result;
+        XMLElement* topElement = doc.FirstChildElement( "plist" )->FirstChildElement( "dict" );
+        if (topElement->NoChildren()) {
+            log_error("topElement has no child nodes");
+            return std::nullopt;
+        }
+        for (auto elem = topElement->FirstChildElement();
+             elem;
+             elem = elem->NextSiblingElement()) {
+            if (strcasecmp(elem->Name(), "key") != 0) {
+                log_error("expected key");
+                return std::nullopt;
+            }
+            auto key = elem->GetText();
+            if (!key) {
+                return std::nullopt; //todo: log
+            }
+            printf("got:%s %s\n", elem->Name(), key);
+
+            elem = elem->NextSiblingElement();
+            if (!elem) {
+                log_error("expected a sibling element");
+                return std::nullopt;
+            }
+
+            auto valtype = elem->Name();
+            if (!valtype) {
+                log_error("unable to get type of value");
+                return std::nullopt;
+            }
+            if (strcasecmp(valtype, "string") == 0) {
+                auto val = elem->GetText();
+                if (!val) {
+                    return std::nullopt; //todo: log
+                }
+                printf("got: %s=%s\n", key, val);
+                result[key] = val;
+            } else if (strcasecmp(valtype, "true") == 0) {
+                result[key] = true;
+            } else if (strcasecmp(valtype, "false") == 0) {
+                result[key] = false;
+            } else {
+                log_error("unsupported value type");
+                return std::nullopt;
+            }
+        }
+        return std::make_optional<json>(result);
+    }
+
     void Manifest::rectify() {
         struct passwd *pwent;
         struct group *grent;
@@ -174,31 +248,30 @@ namespace manifest {
             }
             if (!group_name) {
                 group_name = "wheel";  // FIXME: use /etc/passwd/group for this
-            } else {
-                pwent = ::getpwuid(uid);
-                if (!pwent) {
-                    throw std::system_error(errno, std::system_category(), "no pwent");
-                }
-                // FIXME: should we fail if User is already set?
-                user_name = std::string{pwent->pw_name};
-
-                grent = ::getgrgid(getegid());
-                if (!grent) {
-                    throw std::system_error(errno, std::system_category(), "no grent");
-                }
-                // FIXME: should we fail if Group is already set?
-                group_name = std::string{grent->gr_name};
             }
-
-            //
-            if (!program && program_arguments.empty()) {
-                // TODO: convert to ManifestError
-                throw std::logic_error("one of these must be set: Program and/or ProgramArguments");
-            } else if (!program) {
-                program = program_arguments[0];
-            } else if (program_arguments.empty()) {
-                program_arguments.emplace_back(program.value());
+        } else {
+            pwent = ::getpwuid(uid);
+            if (!pwent) {
+                throw std::system_error(errno, std::system_category(), "no pwent");
             }
+            // FIXME: should we fail if User is already set?
+            user_name = std::string{pwent->pw_name};
+
+            grent = ::getgrgid(getegid());
+            if (!grent) {
+                throw std::system_error(errno, std::system_category(), "no grent");
+            }
+            // FIXME: should we fail if Group is already set?
+            group_name = std::string{grent->gr_name};
+        }
+
+        if (!program && program_arguments.empty()) {
+            // TODO: convert to ManifestError
+            throw std::logic_error("one of these must be set: Program and/or ProgramArguments");
+        } else if (!program) {
+            program = program_arguments[0];
+        } else if (program_arguments.empty()) {
+            program_arguments.emplace_back(program.value());
         }
     }
 

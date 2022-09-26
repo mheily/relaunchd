@@ -317,8 +317,19 @@ manager_main_loop()
 
 int manager_load_manifest(const std::filesystem::path &path) {
     log_debug("loading %s", path.c_str());
-    std::ifstream ifs{path};
-    json obj = json::parse(ifs);
+    json obj;
+    if (path.extension() == ".plist") {
+        auto maybe_obj = manifest::parse_xml(path.c_str());
+        if (maybe_obj) {
+            obj = maybe_obj.value();
+        } else {
+            log_error("failed to parse plist as XML");
+            return -1;
+        }
+    } else if (path.extension() == ".json") {
+        std::ifstream ifs{path};
+        obj = json::parse(ifs);
+    }
 
     std::string label;
     if (obj.contains("Label")) {

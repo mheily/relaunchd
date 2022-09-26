@@ -15,6 +15,7 @@ add_library(launch STATIC
         options.cc options.h
         signal.cc signal.h
         state_file.cc state_file.hpp
+        ../vendor/tinyxml2.cpp ../vendor/tinyxml2.h
         )
 
 if (CMAKE_SYSTEM_NAME MATCHES Linux)
