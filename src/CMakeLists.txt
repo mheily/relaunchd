@@ -8,6 +8,8 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall -Wextra")
 
 check_include_files(sys/limits.h, HAVE_SYS_LIMITS_H)
 
+check_symbol_exists(setlogin "unistd.h" HAVE_SETLOGIN)
+
 add_library(launch STATIC 
         channel.h channel.cc
         log.cc log.h
@@ -39,6 +41,10 @@ add_executable(launchd
         timer.cc timer.h
         util.h)
 target_link_libraries(launchd launch pthread)
+
+if(HAVE_SETLOGIN)
+    target_compile_definitions(launchd PRIVATE -DHAVE_SETLOGIN)
+endif()
 
 if(HAVE_SYS_EVENT_H)
 else()

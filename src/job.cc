@@ -66,7 +66,7 @@ static inline int modify_credentials(const Job & job, const struct passwd *pwent
 		log_errno("setgid");
 		return (-1);
 	}
-#ifndef __GLIBC__
+#if HAVE_SETLOGIN
 	if (job.manifest.user_name) {
         if (setlogin(job.manifest.user_name.value().c_str()) < 0) {
             log_errno("setlogin");
