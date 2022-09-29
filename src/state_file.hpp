@@ -22,19 +22,14 @@ using json = nlohmann::json;
 
 class StateFile {
 public:
-    StateFile(std::string path, const json &default_value);
+    StateFile(std::string path, json default_value);
 
-    ~StateFile();
+    [[nodiscard]] const json &getValue() const;
 
-    json &value_for_update();
-
-    [[nodiscard]] const json &value_for_read() const;
-
-    void flushUpdate();
+    void setValue(json) const;
 
 private:
-
     const std::string dataPath;
-    json currentValue;
-    bool needUpdating = false;
+    const json defaultValue;
+    mutable json currentValue;
 };

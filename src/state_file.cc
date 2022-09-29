@@ -21,44 +21,34 @@
 
 using json = nlohmann::json;
 
-StateFile::StateFile(std::string path, const json &default_value) : dataPath(std::move(path)) {
-    // FIXME: this could race with another process
+StateFile::StateFile(std::string path, json default_value) : dataPath(std::move(path)),
+                                                             defaultValue(std::move(default_value)) {
+    // TODO: this could race with another process
     // add some extra handling for that
-    if (std::filesystem::exists(path)) {
+    if (std::filesystem::exists(dataPath)) {
         std::ifstream ifs{dataPath};
         currentValue = json::parse(ifs);
     } else {
-        currentValue = default_value;
         std::ofstream ofs{dataPath};
-        ofs << default_value;
+        ofs << defaultValue;
         ofs.close();
+        currentValue = defaultValue;
     }
 }
 
-void StateFile::flushUpdate() {
-    if (needUpdating) {
-        //FIXME: randomize this filename
-        std::string tmpfilepath = dataPath + ".tmp" + std::to_string(getpid());
-        std::ofstream ofs{tmpfilepath};
-        ofs << currentValue;
-        ofs.close();
-        rename(tmpfilepath.c_str(), dataPath.c_str());
-        // FIXME: cleanup tmpfile if an error occurs.
-        needUpdating = false;
-    }
+void StateFile::setValue(json new_value) const {
+    //TODO: randomize this filename
+    std::string tmpfilepath = std::string{dataPath}
+            .append(".tmp")
+            .append(std::to_string(getpid()));
+    std::ofstream ofs{tmpfilepath};
+    ofs << new_value;
+    ofs.close();
+    rename(tmpfilepath.c_str(), dataPath.c_str());
+    // TODO: cleanup tmpfile if an error occurs.
+    currentValue = new_value;
 }
 
-json &StateFile::value_for_update() {
-    needUpdating = true;
+const json &StateFile::getValue() const {
     return currentValue;
-}
-
-const json &StateFile::value_for_read() const {
-    return currentValue;
-}
-
-StateFile::~StateFile() {
-    if (needUpdating) {
-        flushUpdate();
-    }
 }
