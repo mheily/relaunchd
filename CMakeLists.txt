@@ -34,5 +34,8 @@ else()
         find_package(LibKQueue 2.6.2 REQUIRED)
     endif()
 endif()
+if(NOT USE_PRIVATE_DEPENDENCIES)
+    find_package(TinyXML2 9.0.0 REQUIRED)
+endif()
 
 add_subdirectory(src)
