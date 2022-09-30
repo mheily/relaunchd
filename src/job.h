@@ -59,11 +59,18 @@ struct Job {
         log_debug("job dump: label=%s state=%d", manifest.label.c_str(), state);
     }
 
+    bool kill(int signum);
+
+    bool kill(const std::string &signame_or_num);
+
     void run();
 
     void load();
 
     void unload();
+
+    bool isRunning() const { return pid > 0; }
+
 private:
     job_schedule_t _set_schedule();
 };

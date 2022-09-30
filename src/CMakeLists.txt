@@ -8,8 +8,6 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall -Wextra")
 
 check_include_files(sys/limits.h, HAVE_SYS_LIMITS_H)
 
-check_symbol_exists(setlogin "unistd.h" HAVE_SETLOGIN)
-
 add_library(launch STATIC 
         channel.h channel.cc
         log.cc log.h
@@ -42,8 +40,16 @@ add_executable(launchd
         util.h)
 target_link_libraries(launchd launch pthread)
 
-if(HAVE_SETLOGIN)
-    target_compile_definitions(launchd PRIVATE -DHAVE_SETLOGIN)
+# DISABLED: this symbol exists in glibc but warns that it will always fail
+# need to actually try compiling a program and using the function.
+#check_symbol_exists(setlogin "unistd.h" HAVE_SETLOGIN)
+#if(HAVE_SETLOGIN)
+#    target_compile_definitions(launchd PRIVATE -DHAVE_SETLOGIN)
+#endif()
+
+check_symbol_exists(sys_signame "signal.h" HAVE_SYS_SIGNAME)
+if(HAVE_SYS_SIGNAME)
+    target_compile_definitions(launchd PRIVATE -DHAVE_SYS_SIGNAME)
 endif()
 
 if(HAVE_SYS_EVENT_H)

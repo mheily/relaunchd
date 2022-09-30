@@ -396,7 +396,7 @@ void Job::load() {
 void Job::unload() {
 	if (state == JOB_STATE_RUNNING) {
 		log_debug("sending SIGTERM to process group %d", pid);
-		if (kill(-1 * pid, SIGTERM) < 0) {
+		if (::kill(-1 * pid, SIGTERM) < 0) {
 			log_errno("killpg(2) of pid %d", pid);
 			/* not sure how to handle the error, we still want to clean up */
 		}
@@ -480,4 +480,35 @@ Job::Job(std::optional<std::filesystem::path> manifest_path_, Manifest manifest_
         term_signal(0),
         schedule(_set_schedule()){}
 
+bool Job::kill(int signum) {
+    if (!isRunning()) {
+        log_debug("tried to kill non-running job");
+        return false;
+    }
+    if (::kill(pid, signum) < 0) {
+        log_error("kill(2) of PID %d failed: %s", pid, strerror(errno));
+        return false;
+    }
+    return true;
+}
 
+bool Job::kill(const std::string &signame_or_num) {
+    try {
+        return kill(std::stoi(signame_or_num));
+    } catch (...) {
+        // FIXME: need to do something like this for Linux, which does not have sys_signame
+#if HAVE_SYS_SIGNAME
+        auto s = signame_or_num;
+        if (s.find("sig") == 0 || s.find("SIG") == 0) {
+            s = s.substr(3);
+        }
+        for (int signum = 1; signum < NSIG; signum++) {
+            if (!strcasecmp(s.c_str(), sys_signame[signum])) {
+                return kill(signum);
+            }
+        }
+#endif
+    }
+    log_debug("tried to send unknown signal by name");
+    return false;
+}

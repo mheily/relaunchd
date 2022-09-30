@@ -88,6 +88,7 @@ namespace manifest {
 
     void from_json(const json& j, Manifest& m);
     std::optional<json> parse_xml(const char *path);
+    json parse(const std::filesystem::path &);
 }
 
 using Manifest = manifest::Manifest;

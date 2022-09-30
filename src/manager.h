@@ -56,4 +56,8 @@ void manager_main_loop();
 void manager_unload_all_jobs();
 
 int manager_load_manifest(const std::filesystem::path &path);
+int manager_load_manifest(const json &manifest, const std::string &path);
+int manager_unload_manifest(const std::filesystem::path &path);
+int manager_unload_by_label(const std::string &label);
 nlohmann::json manager_list_jobs();
+void manager_set_job_enabled(const std::string &label, bool enabled);

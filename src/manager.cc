@@ -139,7 +139,12 @@ void manager_init() {
         log_debug("creating %s", statedir.c_str());
         std::filesystem::create_directories(statedir);
     }
-    STATE_FILE = std::make_unique<StateFile>(statedir + "/state.json", json::object());
+
+    json defaultStateDoc = {
+            {"SchemaVersion", 1},
+            {"Overrides", json::object()}
+    };
+    STATE_FILE = std::make_unique<StateFile>(statedir + "/state.json", defaultStateDoc);
 
     if ((main_kqfd = kqueue()) < 0)
         err(1, "kqueue(2)");
@@ -315,25 +320,10 @@ manager_main_loop()
 	}
 }
 
-int manager_load_manifest(const std::filesystem::path &path) {
-    log_debug("loading %s", path.c_str());
-    json obj;
-    if (path.extension() == ".plist") {
-        auto maybe_obj = manifest::parse_xml(path.c_str());
-        if (maybe_obj) {
-            obj = maybe_obj.value();
-        } else {
-            log_error("failed to parse plist as XML");
-            return -1;
-        }
-    } else if (path.extension() == ".json") {
-        std::ifstream ifs{path};
-        obj = json::parse(ifs);
-    }
-
+int manager_load_manifest(const json &manifest, const std::string &path) {
     std::string label;
-    if (obj.contains("Label")) {
-        obj.at("Label").get_to(label);
+    if (manifest.contains("Label")) {
+        manifest.at("Label").get_to(label);
     } else {
         log_error("manifest has no Label key");
         return -1;
@@ -345,7 +335,17 @@ int manager_load_manifest(const std::filesystem::path &path) {
         return -1;
     }
 
-    services.insert({label, Job{path, obj.get<manifest::Manifest>()}});
+    // Check if the job is disabled
+    auto state = STATE_FILE->getValue();
+    if (state.at("Overrides").contains(label)) {
+        const auto job_state = state["Overrides"][label];
+        if (!job_state.at("Enabled")) {
+            log_debug("tried to load %s but it is disabled via local override", label.c_str());
+            return 0;
+        }
+    }
+
+    services.insert({label, Job{path, manifest.get<manifest::Manifest>()}});
     auto & job = services.at(label);
 
     log_debug("defined job: %s", label.c_str());
@@ -358,6 +358,39 @@ int manager_load_manifest(const std::filesystem::path &path) {
     }
 
     return 0;
+}
+
+int manager_load_manifest(const std::filesystem::path &path) {
+    log_debug("loading %s", path.c_str());
+    json obj = manifest::parse(path);
+    return manager_load_manifest(obj, path);
+}
+
+int manager_unload_by_label(const std::string &label) {
+    if (!services.count(label)) {
+        log_info("tried to unload a job that is not loaded: %s", label.c_str());
+        return -1;
+    }
+    auto & job = services.at(label);
+    job.unload();
+    log_debug("unloaded job: %s", job.manifest.label.c_str());
+    services.erase(label);
+    return 0;
+}
+
+int manager_unload_manifest(const std::filesystem::path &path) {
+    log_debug("unloading %s", path.c_str());
+    json obj = manifest::parse(path);
+
+    std::string label;
+    if (obj.contains("Label")) {
+        obj.at("Label").get_to(label);
+    } else {
+        log_error("manifest has no Label key");
+        return -1;
+    }
+
+    return manager_unload_by_label(label);
 }
 
 json manager_list_jobs() {
@@ -379,6 +412,17 @@ json manager_list_jobs() {
                 ));
     }
     return result;
+}
+
+void manager_set_job_enabled(const std::string &label, bool enabled) {
+    auto job = manager_get_job_by_label(label);
+    auto doc = STATE_FILE->getValue();
+    if (doc.at("Overrides").contains(label)) {
+        doc["Overrides"][label]["Enabled"] = enabled;
+    } else {
+        doc["Overrides"].emplace(label, json::object({{"Enabled", enabled}}));
+    }
+    STATE_FILE->setValue(doc);
 }
 
 static void do_shutdown()

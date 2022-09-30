@@ -26,6 +26,25 @@
 #include "log.h"
 #include "manager.h"
 
+static void _rpc_op_disable(Channel &chan, const json &args) {
+    const auto &label = args[1]["Label"];
+    manager_set_job_enabled(label, false);
+    chan.writeMessage("OK");
+}
+
+static void _rpc_op_enable(Channel &chan, const json &args) {
+    const auto &label = args[1]["Label"];
+    manager_set_job_enabled(label, true);
+    chan.writeMessage("OK");
+}
+
+static void _rpc_op_kill(Channel &chan, const json &args) {
+    const std::string &label = args[1]["Label"];
+    const std::string &signame_or_num = args[1]["Signal"];
+    auto job = manager_get_job_by_label(label);
+    job.kill(signame_or_num);
+    chan.writeMessage("OK");
+}
 
 static void _rpc_op_list(Channel &chan, const json &) {
     // FIXME: handle Label argument
@@ -33,8 +52,16 @@ static void _rpc_op_list(Channel &chan, const json &) {
     chan.writeMessage(msg);
 }
 
-static void _rpc_op_load(Channel &chan, const json &args) {
+static void _rpc_op_load_or_unload(Channel &chan, const json &args) {
     // FIXME: handle Force and OverrideDisabled arguments
+    int (*manager_func)(const std::filesystem::path &);
+    if (args[0] == "load") {
+        manager_func = &manager_load_manifest;
+    } else if (args[0] == "unload") {
+        manager_func = &manager_unload_manifest;
+    } else {
+        throw std::logic_error("unsupported operation");
+    }
     for (const auto &path : args[1]["Paths"]) {
         if (!std::filesystem::exists(path)) {
             chan.writeMessage("ERROR-TODO");
@@ -43,15 +70,40 @@ static void _rpc_op_load(Channel &chan, const json &args) {
         if (std::filesystem::is_directory(path)) {
             using std::filesystem::directory_iterator;
             for (const auto &file: directory_iterator(path)) {
-                log_debug("loading %s", file.path().c_str());
-                manager_load_manifest(file.path());
+                (*manager_func)(file.path());
             }
         } else {
             std::filesystem::path p{path.get<std::string>()};
-            manager_load_manifest(p);
+            (*manager_func)(p);
         }
     }
 
+    chan.writeMessage("OK");
+}
+
+static void _rpc_op_start(Channel &chan, const json &args) {
+    const std::string &label = args[1]["Label"];
+    auto job = manager_get_job_by_label(label);
+    job.run();
+    chan.writeMessage("OK");
+}
+
+static void _rpc_op_stop(Channel &chan, const json &args) {
+    const std::string &label = args[1]["Label"];
+    auto job = manager_get_job_by_label(label);
+    job.kill("SIGTERM");
+    chan.writeMessage("OK");
+}
+
+static void _rpc_op_remove(Channel &chan, const json &args) {
+    const auto &label = args[1]["Label"];
+    manager_unload_by_label(label);
+    chan.writeMessage("OK");
+}
+
+static void _rpc_op_submit(Channel &chan, const json &args) {
+    std::string path = ""; // TODO: maybe create a fake path? do we even need this?
+    manager_load_manifest(args[1], path);
     chan.writeMessage("OK");
 }
 
@@ -62,8 +114,18 @@ static void _rpc_op_version(Channel &chan, const json &) {
 // FIXME: needs a lot more error checking
 int rpc_dispatch(Channel &chan) {
     static const std::unordered_map<std::string, void(*)(Channel &chan, const json &j)> handlers = {
+            {"disable", _rpc_op_disable},
+            {"enable", _rpc_op_enable},
+            {"kill", _rpc_op_kill},
+
             {"list", _rpc_op_list},
-            {"load", _rpc_op_load},
+            {"load", _rpc_op_load_or_unload},
+            {"remove", _rpc_op_remove},
+            {"start", _rpc_op_start},
+            {"submit", _rpc_op_submit},
+
+            {"stop", _rpc_op_stop},
+            {"unload", _rpc_op_load_or_unload},
             {"version", _rpc_op_version},
     };
     chan.accept();

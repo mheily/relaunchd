@@ -229,6 +229,24 @@ namespace manifest {
         return std::make_optional<json>(result);
     }
 
+    json parse(const std::filesystem::path &path) {
+        if (path.extension() == ".plist") {
+            auto maybe_obj = manifest::parse_xml(path.c_str());
+            if (maybe_obj) {
+                return maybe_obj.value();
+            } else {
+                log_error("failed to parse plist as XML");
+                return -1;
+            }
+        } else if (path.extension() == ".json") {
+            std::ifstream ifs{path};
+            return json::parse(ifs);
+        } else {
+            log_error("unable to parse: invalid file extension");
+            throw std::runtime_error("parse failed");
+        }
+    }
+
     void Manifest::rectify() {
         struct passwd *pwent;
         struct group *grent;

@@ -21,6 +21,31 @@
 #include "options.h"
 
 namespace subcommand {
+    void disable(Channel &chan, std::vector<std::string> &args) {
+        auto kwargs = json::object({{"Label", args.at(0)}});
+        json msg = json::array({"disable", kwargs});
+        chan.writeMessage(msg);
+        auto maybe_json = chan.readMessage();
+        // FIXME
+    }
+
+    void enable(Channel &chan, std::vector<std::string> &args) {
+        auto kwargs = json::object({{"Label", args.at(0)}});
+        json msg = json::array({"enable", kwargs});
+        chan.writeMessage(msg);
+        auto maybe_json = chan.readMessage();
+        // FIXME
+    }
+
+    void kill(Channel &chan, std::vector<std::string> &args) {
+        auto kwargs = json::object({
+                                           {"Signal", args.at(0)},
+                                           {"Label", args.at(1)}});
+        json msg = json::array({"kill", kwargs});
+        chan.writeMessage(msg);
+        auto maybe_json = chan.readMessage();
+        // FIXME
+    }
 
     void list(Channel &chan, std::vector<std::string> &) {
         // FIXME: parse options
@@ -67,6 +92,94 @@ namespace subcommand {
         exit(EXIT_FAILURE);
     }
 
+    void remove(Channel &chan, std::vector<std::string> &args) {
+        auto kwargs = json::object({{"Label", args.at(0)}});
+        json msg = json::array({"remove", kwargs});
+        chan.writeMessage(msg);
+        auto maybe_json = chan.readMessage();
+        // FIXME
+    }
+
+    void start(Channel &chan, std::vector<std::string> &args) {
+        auto kwargs = json::object({{"Label", args.at(0)}});
+        json msg = json::array({"start", kwargs});
+        chan.writeMessage(msg);
+        auto maybe_json = chan.readMessage();
+        // FIXME
+    }
+
+    void stop(Channel &chan, std::vector<std::string> &args) {
+        auto kwargs = json::object({{"Label", args.at(0)}});
+        json msg = json::array({"stop", kwargs});
+        chan.writeMessage(msg);
+        auto maybe_json = chan.readMessage();
+        // FIXME
+    }
+
+
+    void submit(Channel &chan, std::vector<std::string> &args) {
+        auto kwargs = json::object(
+                {{"ProgramArguments", json::array()}
+                });
+        int preamble = 1;
+        for (auto it = args.begin(); it != args.end(); it++) {
+            if (preamble) {
+                if (*it == "-p") {
+                    it++;
+                    kwargs["Program"] = *it;
+                } else if (*it == "-l") {
+                    it++;
+                    kwargs["Label"] = *it;
+                } else if (*it == "-o") {
+                    it++;
+                    kwargs["StandardOutPath"] = *it;
+                } else if (*it == "-e") {
+                    it++;
+                    kwargs["StandardErrorPath"] = *it;
+                } else if (*it == "--") {
+                    preamble = 0;
+                }
+            } else {
+                kwargs["ProgramArguments"].push_back(*it);
+            }
+        }
+        json msg = json::array({"submit", kwargs});
+        std::cout << msg.dump(2);
+        chan.writeMessage(msg);
+        auto maybe_json = chan.readMessage();
+        // FIXME
+    }
+
+    // TODO: deduplicate this with load()
+    void unload(Channel &chan, std::vector<std::string> &args) {
+        auto kwargs = json::object(
+                {
+                        {"OverrideDisabled", false},
+                        {"Force",            false},
+                        {"Paths",            json::array()},
+                });
+        for (const auto &elem: args) {
+            if (elem == "-w") {
+                // FIXME: remove for unload?
+                kwargs["OverrideDisabled"] = true;
+            } else if (elem == "-F") {
+                // FIXME: remove for unload?
+                kwargs["Force"] = true;
+            } else {
+                auto path = std::filesystem::path(elem);
+                if (!std::filesystem::exists(path)) {
+                    // TODO: make this more informative to the user
+                    throw std::runtime_error("path does not exist");
+                }
+                kwargs["Paths"].push_back(std::filesystem::canonical(path));
+            }
+        }
+        json msg = json::array({"unload", kwargs});
+        chan.writeMessage(msg);
+        auto maybe_json = chan.readMessage();
+        // FIXME
+    }
+
     void version(Channel &chan, std::vector<std::string> &) {
         chan.writeMessage(json::array({"version"}));
         auto msg = chan.readMessage();
@@ -80,14 +193,21 @@ void printUsage() {
 
 int main(int argc, char *argv[]) {
     std::unordered_map<std::string, void (*)(Channel &, std::vector<std::string> &)> subcommands = {
-            {"disable",    subcommand::not_implemented},
-            {"enable",    subcommand::not_implemented},
-            {"kill",    subcommand::not_implemented},
+            {"disable",    subcommand::disable},
+            {"enable",    subcommand::enable},
+            {"kill",    subcommand::kill},
             {"list",    subcommand::list},
             {"load",    subcommand::load},
-            {"print",    subcommand::not_implemented},
-            {"unload",    subcommand::not_implemented},
+            {"remove", subcommand::remove},
+            {"start", subcommand::start},
+            {"stop", subcommand::stop},
+            {"submit", subcommand::submit},
+            {"unload",    subcommand::unload},
             {"version", subcommand::version},
+
+            // launchd v2 API not implemented yet
+            //{"print",    subcommand::not_implemented},
+
     };
 
     if (argc <= 1) {
