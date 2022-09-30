@@ -19,6 +19,7 @@
 #define PREFIX      "${CMAKE_INSTALL_PREFIX}"
 #define VARDIR		"${VARDIR}"
 #define PKGSTATEDIR "${PKGSTATEDIR}"
+#cmakedefine01 HAVE_SYS_SIGNAME
 
 #define CONFIG_H_
 #endif

@@ -58,9 +58,6 @@ target_link_libraries(launchd launch pthread)
 #endif()
 
 check_symbol_exists(sys_signame "signal.h" HAVE_SYS_SIGNAME)
-if(HAVE_SYS_SIGNAME)
-    target_compile_definitions(launchd PRIVATE -DHAVE_SYS_SIGNAME)
-endif()
 
 if(HAVE_SYS_EVENT_H)
 else()
