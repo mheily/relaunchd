@@ -16,6 +16,7 @@
 
 #include <err.h>
 #include <iostream>
+#include <filesystem>
 
 #include "channel.h"
 #include "options.h"

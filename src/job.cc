@@ -25,6 +25,7 @@
 #include <sys/param.h>
 #endif
 
+#include "config.h"
 #include "calendar.h"
 #include "job.h"
 #include "log.h"

@@ -8,16 +8,26 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall -Wextra")
 
 check_include_files(sys/limits.h, HAVE_SYS_LIMITS_H)
 
-add_library(launch STATIC 
+set(LAUNCH_SRC
         channel.h channel.cc
         log.cc log.h
         util.h
         options.cc options.h
         signal.cc signal.h
-        state_file.cc state_file.hpp
-        ../vendor/tinyxml2.cpp ../vendor/tinyxml2.h
-        )
+        state_file.cc state_file.hpp)
+if (USE_PRIVATE_DEPENDENCIES)
+    set(LAUNCH_SRC ${LAUNCH_SRC}
+        ../vendor/tinyxml2.cpp ../vendor/tinyxml2.h)
+endif()
+add_library(launch STATIC ${LAUNCH_SRC})
 
+if (NOT USE_PRIVATE_DEPENDENCIES)
+    # we register libtinyxml2 as a public dependency of liblaunch
+    # instead of including the tinyxml2 sources in it; also
+    # add the tinyxml2 include directory to all targets in the current dir.
+    target_link_libraries(launch PUBLIC tinyxml2::tinyxml2)
+    include_directories(tinyxml2::tinyxml2)
+endif()
 if (CMAKE_SYSTEM_NAME MATCHES Linux)
     # this makes adding libthread explicitly (below) redundant
     # but adding just that library is not necessarily sufficient
@@ -48,9 +58,6 @@ target_link_libraries(launchd launch pthread)
 #endif()
 
 check_symbol_exists(sys_signame "signal.h" HAVE_SYS_SIGNAME)
-if(HAVE_SYS_SIGNAME)
-    target_compile_definitions(launchd PRIVATE -DHAVE_SYS_SIGNAME)
-endif()
 
 if(HAVE_SYS_EVENT_H)
 else()
