@@ -17,8 +17,8 @@
 #ifndef RELAUNCHD_CLOCK_H_
 #define RELAUNCHD_CLOCK_H_
 
-#include <stdlib.h>
-#include <time.h>
+#include <cstdlib>
+#include <ctime>
 #include <sys/time.h>
 
 #include "log.h"

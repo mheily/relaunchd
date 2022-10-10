@@ -26,49 +26,48 @@
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <sys/event.h>
 #include <sys/wait.h>
 
 #include "calendar.h"
+#include "event.h"
 #include "log.h"
 #include "job.h"
-#include "keepalive.h"
 #include "manager.h"
-#include "signal.h"
 #include "options.h"
-#include "timer.h"
-#include "util.h"
 #include "channel.h"
 #include "rpc_server.h"
 #include "state_file.hpp"
+#include "clock.h"
 
 using json = nlohmann::json;
 
 static std::unique_ptr<StateFile> STATE_FILE;
-static void setup_rpc_server();
-static void setup_signal_handlers();
-static void do_shutdown();
 
-static std::unordered_map<std::string, Job> services;
+static void setup_signal_handlers();
+static void manager_reap_child(pid_t pid, int status);
+
+static std::unordered_map<std::string, std::shared_ptr<Job>> services;
 
 /* The kqueue descriptor used by main_loop() */
-static int main_kqfd = -1;
+//static int main_kqfd = -1;
+static kq::EventManager eventmgr;
 
 /* The RPC server socket */
 Channel chan;
 
+static bool SHUTTING_DOWN = false;
 
 
 
-int manager_wake_job(Job &job)
+int manager_wake_job(std::shared_ptr<Job> job)
 {
-	if (job.state != JOB_STATE_WAITING) {
+	if (job->state != JOB_STATE_WAITING) {
 		log_error("tried to wake job %s that was not asleep (state=%d)",
-				job.manifest.label.c_str(), job.state);
+				job->manifest.label.c_str(), job->state);
 		return -1;
 	}
 
-    job.run();
+    job->run();
     return 0;
 }
 
@@ -78,7 +77,7 @@ int manager_activate_job_by_fd(int fd)
 	return -1; //STUB
 }
 
-Job & manager_get_job_by_label(const std::string &label)
+std::shared_ptr<Job> manager_get_job_by_label(const std::string &label)
 {
     auto it = services.find(label);
     if (it != services.end()) {
@@ -88,10 +87,10 @@ Job & manager_get_job_by_label(const std::string &label)
     }
 }
 
-Job & manager_get_job_by_pid(pid_t pid)
+std::shared_ptr<Job> manager_get_job_by_pid(pid_t pid)
 {
     for (auto & [label, job] : services) {
-        if (job.pid == pid) {
+        if (job->pid == pid) {
             return job;
         }
     }
@@ -105,9 +104,9 @@ int manager_unload_job(const char *label)
         log_error("job not found: %s", label);
         return -1;
     }
-    auto job = it->second;
+    auto & job = it->second;
 
-    job.unload();
+    job->unload();
 
 	log_debug("job %s unloaded", label);
 
@@ -122,18 +121,18 @@ manager_unload_all_jobs()
 	log_debug("unloading all jobs");
     auto it = services.begin();
     while (it != services.end()) {
-        auto job = it->second;
+        auto & job = it->second;
         try {
-            job.unload();
+            job->unload();
         } catch (...) {
             log_error("failed to unload %s: ignoring because all jobs are being unloaded",
-                      job.manifest.label.c_str());
+                      job->manifest.label.c_str());
         }
         it = services.erase(it);
     }
 }
 
-void manager_init() {
+void manager_init() noexcept {
     auto statedir = getStateDir();
     if (getuid() != 0 && !std::filesystem::exists(statedir)) {
         log_debug("creating %s", statedir.c_str());
@@ -146,46 +145,66 @@ void manager_init() {
     };
     STATE_FILE = std::make_unique<StateFile>(statedir + "/state.json", defaultStateDoc);
 
-    if ((main_kqfd = kqueue()) < 0)
-        err(1, "kqueue(2)");
     setup_signal_handlers();
     //setup_socket_activation(main_kqfd);
-    setup_rpc_server();
-    if (keepalive_init(main_kqfd) < 0)
-        errx(1, "keepalive_init()");
-    if (setup_timers(main_kqfd) < 0)
-        errx(1, "setup_timers()");
-    if (calendar_init(main_kqfd) < 0)
-        errx(1, "calendar_init()");
+
+    // Set up the RPC server
+    chan.bindAndListen(getStateDir() + "/rpc.sock", 1024);
+    eventmgr.addSocketRead(chan.getSockFD(), [](int) { rpc_dispatch(chan); });
 }
 
 void
 manager_pid_event_add(int pid)
 {
-	struct kevent kev;
-
-	EV_SET(&kev, pid, EVFILT_PROC, EV_ADD, NOTE_EXIT, 0, NULL);
-	if (kevent(main_kqfd, &kev, 1, NULL, 0, NULL) < 0) {
-		log_errno("kevent");
-		//TODO: probably want to crash, or kill the job, or do something
-		// more useful here.
-	}
+    eventmgr.addProcess(pid, manager_reap_child);
 }
 
-void
-manager_pid_event_delete(int pid)
-{
-	struct kevent kev;
-
-	/* This isn't necessary, I think, but just to be on the safe side.. */
-	EV_SET(&kev, pid, EVFILT_PROC, EV_DELETE, NOTE_EXIT, 0, NULL);
-	if (kevent(main_kqfd, &kev, 1, NULL, 0, NULL) < 0) {
-		if (errno != ENOENT)
-			err(1, "kevent");
-	}
+static void reschedule_calendar_job(std::shared_ptr<Job> &job) {
+    auto maybe_schedule = calendar::schedule_calendar_job(
+            job->manifest.calendar_interval.value());
+    if (!maybe_schedule) {
+        return;
+    }
+    auto [absolute_time, relative_time] = maybe_schedule.value();
+    log_debug("job %s scheduled to run in %d minutes at t=%ld", job->manifest.label.c_str(), relative_time,
+              absolute_time);
+    job->state = JOB_STATE_WAITING;
+    eventmgr.addTimer(relative_time, [&job]() {
+        // The job may have been unloaded in the interval, or manually started by an administrator.
+        if (job->state == JOB_STATE_WAITING) {
+            job->run();
+            reschedule_calendar_job(job);
+        }
+    });
+    // XXX-FIXME: update StateFile to set the absolute start time.
 }
 
-void 
+static void reschedule_periodic_job(std::shared_ptr<Job> &job) {
+    log_debug("job %s will start after T=%u", job->manifest.label.c_str(), job->manifest.start_interval);
+    job->state = JOB_STATE_WAITING;
+    eventmgr.addTimer(job->manifest.start_interval, [&job]() {
+        // The job may have been unloaded in the interval, or manually started by an administrator.
+        if (job->state == JOB_STATE_WAITING) {
+            job->run();
+            reschedule_periodic_job(job);
+        }
+    });
+}
+
+static void manager_reschedule_job(std::shared_ptr<Job> &job) {
+    switch (job->schedule) {
+        case JOB_SCHEDULE_PERIODIC:
+            reschedule_periodic_job(job);
+            break;
+        case JOB_SCHEDULE_CALENDAR:
+            reschedule_calendar_job(job);
+            break;
+        default:
+            throw std::logic_error("wrong job type");
+    }
+}
+
+static void
 manager_reap_child(pid_t pid, int status)
 {
 // linux will need to do this in a loop after reading a signalfd and getting SIGCHLD
@@ -199,8 +218,6 @@ manager_reap_child(pid_t pid, int status)
 	}
 #endif
 
-	manager_pid_event_delete(pid);
-
     // fixme: check for range error exception
 	auto job = manager_get_job_by_pid(pid);
 //	if (!job) {
@@ -208,116 +225,78 @@ manager_reap_child(pid_t pid, int status)
 //		return;
 //	}
 
-	if (job.state == JOB_STATE_KILLED) {
+	if (job->state == JOB_STATE_KILLED) {
 		/* The job is unloaded, so nobody cares about the exit status */
 		return;
 	}
 
-	if (job.manifest.start_interval > 0) {
-		job.state = JOB_STATE_WAITING;
+	if (job->manifest.start_interval > 0) {
+		job->state = JOB_STATE_WAITING;
 	} else {
-		job.state = JOB_STATE_EXITED;
+		job->state = JOB_STATE_EXITED;
 	}
 	if (WIFEXITED(status)) {
-		job.last_exit_status = WEXITSTATUS(status);
+		job->last_exit_status = WEXITSTATUS(status);
 	} else if (WIFSIGNALED(status)) {
-		job.last_exit_status = -1;
-		job.term_signal = WTERMSIG(status);
+		job->last_exit_status = -1;
+		job->term_signal = WTERMSIG(status);
 	} else {
 		log_error("unhandled exit status");
 	}
-	log_debug("job %d exited with status %d", job.pid,
-			job.last_exit_status);
-	job.pid = 0;
+	log_debug("job %d exited with status %d", job->pid,
+			job->last_exit_status);
+	job->pid = 0;
 
-    if (job.manifest.keep_alive.always) {
-        keepalive_add_job(job);
+    if (job->manifest.keep_alive.always) {
+        time_t restart_at = job->started_at + job->manifest.throttle_interval;
+        time_t now = current_time();
+        if (now >= restart_at) {
+            log_debug("%s: restarting due to KeepAlive", job->manifest.label.c_str());
+            job->run();
+        } else {
+            time_t delta = restart_at - now;
+            if (delta > INT_MAX || delta < 0) {
+                throw std::range_error("interval too large");
+            }
+            int seconds = static_cast<int>(delta);
+            log_debug("%s: will restart in %d seconds due to KeepAlive setting", job->manifest.label.c_str(), seconds);
+            job->state = JOB_STATE_WAITING;
+            eventmgr.addTimer( seconds, [job]() {
+                // The job may have been unloaded in the interval, or manually started by an administrator.
+                if (job->state == JOB_STATE_WAITING) {
+                    job->run();
+                }
+            });
+        }
     }
+
     // FIXME: what about calendar and timer jobs?
 }
 
-static void setup_signal_handlers()
-{
-	int i;
-	struct kevent kev;
+static void setup_signal_handlers() {
+    // FIXME testing eventmgr.addSignal(SIGCHLD, [](int){});
 
-	for (i = 0; launchd_signals[i] != 0; i++) {
-		if (signal(launchd_signals[i], SIG_IGN) == SIG_ERR)
-			err(1, "signal(2): %d", launchd_signals[i]);
-		EV_SET(&kev, launchd_signals[i], EVFILT_SIGNAL, EV_ADD, 0, 0,
-               reinterpret_cast<void*>(&setup_signal_handlers));
-		if (kevent(main_kqfd, &kev, 1, NULL, 0, NULL) < 0)
-			err(1, "kevent(2)");
-	}
+    eventmgr.addSignal(SIGPIPE, [](int){});
+
+    eventmgr.addSignal(SIGINT, [](int){
+        SHUTTING_DOWN = true;
+        log_notice("caught SIGINT, exiting");
+    });
+
+    eventmgr.addSignal(SIGTERM, [](int){
+        SHUTTING_DOWN = true;
+        log_notice("caught SIGTERM, exiting");
+    });
 }
 
-
-static void setup_rpc_server()
-{
-    // FIXME: add try()
-    chan.bindAndListen(getStateDir() + "/rpc.sock", 1024);
-    chan.addEvent(main_kqfd, (void(*)(void *))&rpc_dispatch);
-}
-
-void
-manager_main_loop()
-{
-	struct kevent kev;
-
-	for (;;) {
-		if (kevent(main_kqfd, NULL, 0, &kev, 1, NULL) < 1) {
-			if (errno == EINTR) {
-				continue;
-			} else {
-				err(1, "kevent(2)");
-			}
-		}
-		/* TODO: refactor this to eliminate the use of switch() and just jump directly to the handler function */
-		if ((void *)kev.udata == &setup_signal_handlers) {
-			switch (kev.ident) {
-			case SIGCHLD:
-				/* NOTE: undocumented use of kev.data to obtain
-				 * the status of the child. This should be reported to
-				 * FreeBSD as a bug in the manpage.
-				 */
-				manager_reap_child(kev.ident, kev.data);
-				break;
-			case SIGINT:
-				log_notice("caught SIGINT, exiting");
-				manager_unload_all_jobs();
-				exit(1);
-
-			case SIGTERM:
-				log_notice("caught SIGTERM, exiting");
-				do_shutdown();
-				exit(0);
-
-            case SIGPIPE:
-                break;
-
-			default:
-				log_error("caught unexpected signal");
-			}
-		} else if (kev.filter == EVFILT_PROC) {
-			(void) manager_reap_child(kev.ident, kev.data);
-        } else if ((void *)kev.udata == &rpc_dispatch) {
-            (void) rpc_dispatch(chan);
-            // fixme: distinguish between a bad request and a fatal internal error
-//        } else if ((void *)kev.udata == &setup_socket_activation) {
-//			if (socket_activation_handler() < 0)
-//				errx(1, "socket_activation_handler()");
-		} else if ((void *)kev.udata == &setup_timers) {
-			if (timer_handler() < 0)
-				errx(1, "timer_handler()");
-		} else if ((void *)kev.udata == &calendar_init) {
-			if (calendar_handler() < 0)
-				errx(1, "calendar_handler()");
-		} else if ((void *)kev.udata == &keepalive_wake_handler) {
-			keepalive_wake_handler();
-		} else {
-			log_warning("spurious wakeup, no known handlers");
-		}
-	}
+bool manager_handle_event() {
+    log_debug("waiting for an event");
+    try {
+        eventmgr.waitForEvent();
+    } catch (...) {
+        log_error("caught exception"); // todo: print what()
+    }
+    return !SHUTTING_DOWN;
 }
 
 int manager_load_manifest(const json &manifest, const std::string &path) {
@@ -345,16 +324,21 @@ int manager_load_manifest(const json &manifest, const std::string &path) {
         }
     }
 
-    services.insert({label, Job{path, manifest.get<manifest::Manifest>()}});
-    auto & job = services.at(label);
+
+    std::shared_ptr<Job> job = std::make_shared<Job>(path, manifest.get<manifest::Manifest>());
+    services.emplace(label,job);
 
     log_debug("defined job: %s", label.c_str());
 
-    job.load();
-    log_debug("loaded job: %s", job.manifest.label.c_str());
+    job->load();
+    log_debug("loaded job: %s", job->manifest.label.c_str());
 
-    if (job.manifest.keep_alive.always || job.manifest.run_at_load) {
-        job.run();
+    if (job->manifest.keep_alive.always || job->manifest.run_at_load) {
+        job->run();
+    }
+
+    if (job->schedule != JOB_SCHEDULE_NONE) {
+        manager_reschedule_job(job);
     }
 
     return 0;
@@ -372,8 +356,8 @@ int manager_unload_by_label(const std::string &label) {
         return -1;
     }
     auto & job = services.at(label);
-    job.unload();
-    log_debug("unloaded job: %s", job.manifest.label.c_str());
+    job->unload();
+    log_debug("unloaded job: %s", job->manifest.label.c_str());
     services.erase(label);
     return 0;
 }
@@ -396,18 +380,18 @@ int manager_unload_manifest(const std::filesystem::path &path) {
 json manager_list_jobs() {
     auto result = json::array();
     for (const auto & [label, job] : services) {
-        std::string pid = (job.pid == 0) ? "-" : std::to_string(job.pid);
-        if (job.pid == 0) {
+        std::string pid = (job->pid == 0) ? "-" : std::to_string(job->pid);
+        if (job->pid == 0) {
             pid = "-";
         } else {
-            pid = std::to_string(job.pid);
+            pid = std::to_string(job->pid);
         }
         result.emplace_back(
                 json::object(
                         {
-                                {"Label",          std::string{job.manifest.label}},
+                                {"Label",          std::string{job->manifest.label}},
                                 {"PID",            std::move(pid)},
-                                {"LastExitStatus", job.last_exit_status},
+                                {"LastExitStatus", job->last_exit_status},
                         }
                 ));
     }
@@ -415,7 +399,8 @@ json manager_list_jobs() {
 }
 
 void manager_set_job_enabled(const std::string &label, bool enabled) {
-    auto job = manager_get_job_by_label(label);
+    //FIXME: do we care if it exists?
+    // auto & job = manager_get_job_by_label(label);
     auto doc = STATE_FILE->getValue();
     if (doc.at("Overrides").contains(label)) {
         doc["Overrides"][label]["Enabled"] = enabled;
@@ -425,7 +410,8 @@ void manager_set_job_enabled(const std::string &label, bool enabled) {
     STATE_FILE->setValue(doc);
 }
 
-static void do_shutdown()
-{
+void manager_shutdown() {
+    log_debug("manager shutting down");
+    manager_unload_all_jobs();
 }
 

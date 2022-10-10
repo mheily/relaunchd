@@ -9,14 +9,15 @@ include(CheckIncludeFiles)
 include(GNUInstallDirs)
 include(CheckSymbolExists)
 
+option(USE_LIBKQUEUE "Should we use libkqueue" OFF)
+
 option(USE_PRIVATE_DEPENDENCIES
     "Should we fetch, build and link to a private copy of libkqueue?"
     ON)
 
 CHECK_INCLUDE_FILES(sys/event.h HAVE_SYS_EVENT_H)
 
-if(HAVE_SYS_EVENT_H)
-else()
+if(USE_LIBKQUEUE)
     if(USE_PRIVATE_DEPENDENCIES)
         ExternalProject_Add(libkqueue
             GIT_REPOSITORY    https://github.com/mheily/libkqueue.git
@@ -39,3 +40,4 @@ if(NOT USE_PRIVATE_DEPENDENCIES)
 endif()
 
 add_subdirectory(src)
+add_subdirectory(test)

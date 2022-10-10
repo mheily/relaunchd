@@ -184,9 +184,9 @@ namespace subcommand {
     void version(Channel &chan, std::vector<std::string> &) {
         chan.writeMessage(json::array({"version"}));
         auto msg = chan.readMessage();
-        std::cout << msg.get<std::string>() << std::endl;
+        std::cout << msg.at("version").get<std::string>() << std::endl;
     }
-};
+}
 
 void printUsage() {
     std::cout << "usage: ...\n";

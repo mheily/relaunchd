@@ -14,19 +14,14 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <err.h>
-#include <errno.h>
+#include <cerrno>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <stdlib.h>
 #include <unistd.h>
-#include <sys/event.h>
-#include <sys/socket.h>
 
 #include <string>
 #include <system_error>
-#include <sys/ioctl.h>
 
 #include "log.h"
 #include "memory.h"
@@ -36,11 +31,11 @@
 Channel::Channel() {
     sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sockfd < 0) {
-        log_error("socket(2): %s", strerror(errno));
+        log_errno("socket(2)");
         throw std::system_error(errno, std::system_category(), "socket(2) failed");
     }
     if (fcntl(sockfd, F_SETFD, FD_CLOEXEC) < 0) {
-        log_error("fcntl(2): %s", strerror(errno));
+        log_errno("fcntl(2)");
         throw std::system_error(errno, std::system_category(), "fcntl(2) failed");
     }
     addr.sun_family = AF_UNIX;
@@ -70,7 +65,7 @@ void Channel::bindAndListen(const std::string &path, int backlog) {
     // TODO: add setsockopt(nonblocking) and handle the EWOULDBLOCK in the dispatch()
 
     if (listen(sockfd, backlog)) {
-        log_error("listen(2): %s", strerror(errno));
+        log_errno("listen(2)");
         throw std::system_error(errno, std::system_category(), "listen(2) failed");
     }
 }
@@ -83,19 +78,11 @@ void Channel::accept() {
     socklen_t len = sizeof(saun);
     int result = ::accept(sockfd, (struct sockaddr *) &saun, &len);
     if (result < 0) {
-        log_error("accept(2): %s", strerror(errno));
+        log_errno("accept(2)");
         // throw?
         return; // false ?
     }
     // TODO: setsockopt to make nonblocking, set buffer size
-
-    // DEADWOOD: Linux has no SO_NOSIGPIPE, so we SIG_IGN the SIGPIPE signal instead.
-//    int set = 1;
-//    if (setsockopt(result, SOL_SOCKET, SO_NOSIGPIPE, (void *)&set, sizeof(set))) {
-//        log_error("setsockopt(2): %s", strerror(errno));
-//        close(result);
-//        return; // false?
-//    }
 
     // TODO: fcntl to set o_cloexec
     peerfd = result;
@@ -106,7 +93,7 @@ int Channel::connect(const std::string &path) {
     // fixme check error
 
     if (::connect(sockfd, (struct sockaddr *) &addr, sizeof(addr))) {
-        log_error("connect(2): %s", strerror(errno));
+        log_errno("connect(2)");
         return -1;
     }
 
@@ -121,7 +108,7 @@ json Channel::readMessage() {
     char buf[IPC_MAX_MSGLEN];
     ssize_t bytes = read(sd, (char *) &buf, sizeof(buf));
     if (bytes < 0) {
-        log_error("read(2): %s", strerror(errno));
+        log_errno("read(2)");
         throw std::system_error(errno, std::system_category(), "read(2) failed");
     }
     log_debug("read %zu bytes from IPC channel", (size_t) bytes);
@@ -152,27 +139,32 @@ void Channel::writeMessage(const json &j) {
 
 Channel::~Channel() {
     if (sockfd >= 0) {
-        close(sockfd);
+        if (close(sockfd) != 0) {
+            log_errno("close(2)");
+        }
     }
     if (peerfd >= 0) {
-        close(peerfd);
-    }
-}
-
-void Channel::addEvent(int kqfd, void (*cb)(void *)) {
-    struct kevent kev;
-    EV_SET(&kev, sockfd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, reinterpret_cast<void *>(cb));
-    if (kevent(kqfd, &kev, 1, NULL, 0, NULL) < 0) {
-        log_error("kevent(2): %s", strerror(errno));
-        throw std::system_error(errno, std::system_category(), "kevent(2) failed");
+        if (close(peerfd) != 0) {
+            log_errno("close(2)");
+        }
     }
 }
 
 void Channel::disconnect() noexcept {
     if (peerfd >= 0) {
         if (close(peerfd)) {
-            log_error("connect(2): %s", strerror(errno));
+            log_errno("close(2)");
         }
         peerfd = -1;
+    } else {
+        log_error("tried to disconnect with no active peer");
+    }
+}
+
+int Channel::getSockFD() {
+    if (sockfd < 0) {
+        throw std::runtime_error("socket does not exist yet");
+    } else {
+        return sockfd;
     }
 }

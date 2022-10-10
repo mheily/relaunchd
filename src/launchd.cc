@@ -21,68 +21,117 @@
 #include <sysexits.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <fcntl.h>
+
+#if defined(__linux__)
+#include <sys/prctl.h>
+#endif
 
 #include "log.h"
 #include "manager.h"
 
-void usage() 
-{
-	printf("todo: usage\n");
+void double_fork(void);
+
+void redirect_stdio(pid_t);
+
+int become_a_subreaper();
+
+int become_a_subreaper() {
+#if defined(__FreeBSD__)
+    if (procctl(P_PID, getpid(), PROC_REAP_ACQUIRE, 0) < 0) {
+            log_errno("procctl(2)");
+    }
+    return 0;
+#elif defined(__linux__)
+    if (prctl(PR_SET_CHILD_SUBREAPER, 1) < 0) {
+            log_errno("prctl(2)");
+    }
+    return 0;
+#else
+    log_debug("this platform does not support becoming a subreaper");
+    return -1;
+#endif
 }
 
-#ifndef UNIT_TEST
-int
-main(int argc, char *argv[])
-{
-	int c;
+void double_fork(void) {
+    for (int i = 0; i < 2; i++) {
+        switch (fork()) {
+            case -1:
+                log_errno("fork(2)");
+                abort();
+            case 0:
+                break;
+            default:
+                _exit(0);
+        }
+    }
+}
 
-	/* Sanitize environment variables */
-	if ((getuid() != 0) && (access(getenv("HOME"), R_OK | W_OK | X_OK) < 0)) {
-		fputs("Invalid value for the HOME environment variable\n", stderr);
-		exit(1);
-	}
+void redirect_stdio(pid_t pid) {
+    int fd = open("/dev/null", O_RDWR, 0);
+    if (fd < 0) {
+        log_errno("unable to open /dev/null");
+        abort();
+    } else {
+        // todo: check if dup2 fails
+        if (pid == 1) {
+            // Special case: stdio has not been fully initialized
+            (void) dup2(fd, 3);
+            fd = 3;
+        }
+        (void) dup2(fd, STDIN_FILENO);
+        (void) dup2(fd, STDOUT_FILENO);
+        (void) dup2(fd, STDERR_FILENO);
+        (void) close(fd);
+    }
+}
 
-    bool daemonize = true;
-	int logmask = LOG_NOTICE;
+void usage() {
+    printf("todo: usage\n");
+}
 
-	while ((c = getopt(argc, argv, "fv")) != -1) {
-			switch (c) {
-			case 'f':
-					daemonize = false;
-					break;
-			case 'v':
-					logmask = LOG_DEBUG;
-					break;
-			default:
-					usage();
-					break;
-			}
-	}
+int main(int argc, char *argv[]) noexcept {
+    int c;
+    pid_t pid = getpid();
+    bool daemonize = (pid != 1);
+    int logmask = LOG_NOTICE;
+
+    /* Sanitize environment variables */
+    if ((getuid() != 0) && (access(getenv("HOME"), R_OK | W_OK | X_OK) < 0)) {
+        fputs("Invalid value for the HOME environment variable\n", stderr);
+        exit(1);
+    }
+
+    while ((c = getopt(argc, argv, "fv")) != -1) {
+        switch (c) {
+            case 'f':
+                daemonize = false;
+                break;
+            case 'v':
+                logmask = LOG_DEBUG;
+                break;
+            default:
+                usage();
+                break;
+        }
+    }
 
     openlog("launchd", LOG_PID | LOG_NDELAY, LOG_DAEMON);
     setlogmask(logmask);
 
-/* daemon(3) is deprecated on MacOS */
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#endif
+    if (daemonize) {
+        chdir("/");
+        if (pid != 1) {
+            double_fork();
+        }
+        redirect_stdio(pid);
+    } else {
+        log_freopen(stdout);
+    }
 
-	if (daemonize && daemon(0, 0) < 0) {
-		fprintf(stderr, "ERROR: Unable to daemonize\n");
-		exit(EX_OSERR);
-	} else {
-		log_freopen(stdout);
-	}
-
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
-
-	manager_init();
-	manager_main_loop();
-
-	/* NOTREACHED */
-	exit(EXIT_SUCCESS);
+    (void) become_a_subreaper();
+    manager_init();
+    while (manager_handle_event()) {}
+    manager_shutdown();
+    exit(EXIT_SUCCESS);
 }
-#endif /* !UNIT_TEST */

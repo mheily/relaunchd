@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <csignal>
 #include <fcntl.h>
 #include <grp.h>
 #include <pwd.h>
@@ -30,12 +31,9 @@
 #include "job.h"
 #include "log.h"
 #include "manager.h"
-#include "signal.h"
-#include "timer.h"
+#include "clock.h"
 
 extern void keepalive_remove_job(const Job &job);
-
-static int reset_signal_handlers();
 
 static int apply_resource_limits(const Job & job) {
 	//TODO - SoftResourceLimits, HardResourceLimits
@@ -278,32 +276,8 @@ err_out:
 	return -1;
 }
 
-static int 
-reset_signal_handlers()
-{
-	int i;
-
-	/* TODO: convert everything to use sigaction instead of signal()
-	struct sigaction sa;
-	sa.sa_handler = SIG_DFL;
-	sa.sa_flags = 0;
-	sigemptyset(&sa.sa_mask);
-		if (sigaction(launchd_signals[i], &sa, NULL) < 0) {
-			log_errno("sigaction(2)");
-			return -1;
-		}
-	*/
-
-	for (i = 0; launchd_signals[i] != 0; i++) {
-		if (signal(launchd_signals[i], SIG_DFL) == SIG_ERR)
-			err(1, "signal(2): %d", launchd_signals[i]);
-	}
-
-	return 0;
-}
-
 static int
-start_child_process(const Job job, const struct passwd *pwent, const struct group *grent)
+start_child_process(const Job &job, const struct passwd *pwent, const struct group *grent)
 {
 #ifndef NOFORK
 	if (setsid() < 0) {
@@ -311,10 +285,6 @@ start_child_process(const Job job, const struct passwd *pwent, const struct grou
 		goto err_out;
 	}
 #endif
-	if (reset_signal_handlers() < 0) {
-		log_error("unable to reset signal handlers");
-		goto err_out;
-	}
 	if (apply_resource_limits(job) < 0) {
 		log_error("unable to apply resource limits");
 		goto err_out;
@@ -380,15 +350,6 @@ void Job::load() {
 	}
 #endif
 
-	if (schedule == JOB_SCHEDULE_PERIODIC) {
-		timer_register_job(*this);
-	} else if (schedule == JOB_SCHEDULE_CALENDAR) {
-		if (calendar_register_job(*this) < 0) {
-			log_error("failed to register the calendar job");
-            throw std::runtime_error("calendar_register_job");
-		}
-	}
-
 	state = JOB_STATE_LOADED;
 	log_debug("loaded %s", manifest.label.c_str());
 	dump();
@@ -408,11 +369,6 @@ void Job::unload() {
 		state = JOB_STATE_DEFINED;
 	}
 
-    // FIXME: other submodules need removing too
-	keepalive_remove_job(*this);
-    if (schedule == JOB_SCHEDULE_CALENDAR) {
-        calendar_unregister_job(*this);
-    }
 }
 
 void Job::run() {
@@ -450,8 +406,9 @@ void Job::run() {
 			exit(124);
 		}
 	} else {
+        started_at = current_time();
 		manager_pid_event_add(pid);
-		log_debug("job %s started with pid %d", manifest.label.c_str(), pid);
+		log_debug("job %s started at %zu with pid %d", manifest.label.c_str(), started_at, pid);
 		state = JOB_STATE_RUNNING;
         // FIXME: sockets
         ///struct job_manifest_socket *jms;
@@ -462,7 +419,7 @@ void Job::run() {
 #endif /* NOFORK */
 }
 
-job_schedule_t Job::_set_schedule() {
+job_schedule_t Job::_set_schedule() const {
     if (manifest.start_interval > 0) {
         return JOB_SCHEDULE_PERIODIC;
     } else if (manifest.calendar_interval) {
@@ -473,15 +430,15 @@ job_schedule_t Job::_set_schedule() {
 }
 
 Job::Job(std::optional<std::filesystem::path> manifest_path_, Manifest manifest_) :
-        manifest_path(manifest_path_),
-        manifest(manifest_),
+        manifest_path(std::move(manifest_path_)),
+        manifest(std::move(manifest_)),
         state(JOB_STATE_DEFINED),
         pid(0),
         last_exit_status(0),
         term_signal(0),
         schedule(_set_schedule()){}
 
-bool Job::kill(int signum) {
+bool Job::kill(int signum) const {
     if (!isRunning()) {
         log_debug("tried to kill non-running job");
         return false;

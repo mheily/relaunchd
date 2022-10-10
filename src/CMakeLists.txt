@@ -10,10 +10,9 @@ check_include_files(sys/limits.h, HAVE_SYS_LIMITS_H)
 
 set(LAUNCH_SRC
         channel.h channel.cc
+        event.h
         log.cc log.h
-        util.h
         options.cc options.h
-        signal.cc signal.h
         state_file.cc state_file.hpp)
 if (USE_PRIVATE_DEPENDENCIES)
     set(LAUNCH_SRC ${LAUNCH_SRC}
@@ -28,17 +27,10 @@ if (NOT USE_PRIVATE_DEPENDENCIES)
     target_link_libraries(launch PUBLIC tinyxml2::tinyxml2)
     include_directories(tinyxml2::tinyxml2)
 endif()
-if (CMAKE_SYSTEM_NAME MATCHES Linux)
-    # this makes adding libthread explicitly (below) redundant
-    # but adding just that library is not necessarily sufficient
-    # (go figure why...)
-    target_link_options(launch PUBLIC "-pthread")
-endif()
 
 add_executable(launchd
         calendar.cc calendar.h
         channel.h
-        keepalive.cc keepalive.h
         job.cc job.h
         launchd.cc
         log.h
@@ -46,9 +38,8 @@ add_executable(launchd
         manifest.cc manifest.h
         options.h
         rpc_server.cc rpc_server.h
-        timer.cc timer.h
-        util.h)
-target_link_libraries(launchd launch pthread)
+        )
+target_link_libraries(launchd launch)
 
 # DISABLED: this symbol exists in glibc but warns that it will always fail
 # need to actually try compiling a program and using the function.
@@ -59,9 +50,8 @@ target_link_libraries(launchd launch pthread)
 
 check_symbol_exists(sys_signame "signal.h" HAVE_SYS_SIGNAME)
 
-if(HAVE_SYS_EVENT_H)
-else()
-    target_link_libraries(launchd "${LibKQueue_LIBRARIES}")
+if(USE_LIBKQUEUE)
+    target_link_libraries(launchd "${LibKQueue_LIBRARIES} pthread")
     # add the libkqueue header and library directories to all targets in this source directory:
     include_directories("${LibKQueue_INCLUDE_DIR}")
     add_link_options("${LibKQueue_LIBRARY_LDFLAGS}")
@@ -95,12 +85,11 @@ add_executable(launchctl
         channel.h
         launchctl.cc
         log.h
-        util.h
         options.h)
 
 target_link_libraries(launchctl launch pthread)
 
-if(HAVE_SYS_EVENT_H)
+if(USE_LIBKQUEUE)
 else()
     target_link_libraries(launchctl "${LibKQueue_LIBRARIES}")
 endif()

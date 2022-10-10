@@ -2,18 +2,22 @@
 	"UserName": "nobody",
 	"GroupName": "nogroup",
 	"Program": "/bin/sh",
-	"ProgramArguments": ["-c", "/usr/bin/touch /tmp/hello123"],
+	"ProgramArguments": [
+		"-c",
+		"/usr/bin/touch /tmp/hello123"
+	],
 	"EnableGlobbing": true,
 	"WorkingDirectory": "/",
 	"RootDirectory": "/",
 	"StandardInPath": "/dev/null",
 	"StandardOutPath": "/dev/null",
 	"StandardErrorPath": "/dev/null",
-	"Sockets": {
-		"MyService": {
-			"SockServiceName": "8088",
-		},
+	"StartCalendarInterval": {
+		"Minute": 16,
+		"Hour": 23,
+		"Day": 7,
+		"Weekday": 1,
+		"Month": 12
 	},
-	"Label": "test.sockets",
-	"RunAtLoad": true,
+	"Label": "test.start_calendar_interval"
 }

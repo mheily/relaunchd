@@ -32,8 +32,7 @@ using json = nlohmann::json;
 typedef enum {
 	JOB_SCHEDULE_NONE = 0,
 	JOB_SCHEDULE_PERIODIC,
-	JOB_SCHEDULE_CALENDAR,
-	JOB_SCHEDULE_KEEPALIVE
+	JOB_SCHEDULE_CALENDAR
 } job_schedule_t;
 
 enum job_state_e {
@@ -47,19 +46,24 @@ enum job_state_e {
 
 struct Job {
     Job(std::optional<std::filesystem::path> manifest_path_, Manifest manifest_);
+
+    // Do not allow jobs to be copied
+    Job (const Job&) = delete;
+    Job& operator= (const Job&) = delete;
+
+    time_t started_at; // The time that the job started
     std::optional<std::filesystem::path> manifest_path;
     Manifest manifest;
     enum job_state_e state;
     pid_t pid;
     int last_exit_status, term_signal;
-    // NOTE: moved this into calendar/timer internal: time_t  next_scheduled_start;
     job_schedule_t schedule;
 
     void dump() const {
         log_debug("job dump: label=%s state=%d", manifest.label.c_str(), state);
     }
 
-    bool kill(int signum);
+    bool kill(int signum) const;
 
     bool kill(const std::string &signame_or_num);
 
@@ -72,6 +76,6 @@ struct Job {
     bool isRunning() const { return pid > 0; }
 
 private:
-    job_schedule_t _set_schedule();
+    job_schedule_t _set_schedule() const;
 };
 

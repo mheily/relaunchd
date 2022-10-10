@@ -26,33 +26,32 @@
 #include "log.h"
 #include "manager.h"
 
-static void _rpc_op_disable(Channel &chan, const json &args) {
+static json _rpc_op_disable(const json &args) {
     const auto &label = args[1]["Label"];
     manager_set_job_enabled(label, false);
-    chan.writeMessage("OK");
+    return {{"error", false}};
 }
 
-static void _rpc_op_enable(Channel &chan, const json &args) {
+static json _rpc_op_enable(const json &args) {
     const auto &label = args[1]["Label"];
     manager_set_job_enabled(label, true);
-    chan.writeMessage("OK");
+    return {{"error", false}};
 }
 
-static void _rpc_op_kill(Channel &chan, const json &args) {
+static json _rpc_op_kill(const json &args) {
     const std::string &label = args[1]["Label"];
     const std::string &signame_or_num = args[1]["Signal"];
     auto job = manager_get_job_by_label(label);
-    job.kill(signame_or_num);
-    chan.writeMessage("OK");
+    job->kill(signame_or_num);
+    return {{"error", false}};
 }
 
-static void _rpc_op_list(Channel &chan, const json &) {
+static json _rpc_op_list(const json &) {
     // FIXME: handle Label argument
-    auto msg = manager_list_jobs();
-    chan.writeMessage(msg);
+    return manager_list_jobs();
 }
 
-static void _rpc_op_load_or_unload(Channel &chan, const json &args) {
+static json _rpc_op_load_or_unload(const json &args) {
     // FIXME: handle Force and OverrideDisabled arguments
     int (*manager_func)(const std::filesystem::path &);
     if (args[0] == "load") {
@@ -64,8 +63,7 @@ static void _rpc_op_load_or_unload(Channel &chan, const json &args) {
     }
     for (const auto &path : args[1]["Paths"]) {
         if (!std::filesystem::exists(path)) {
-            chan.writeMessage("ERROR-TODO");
-            return;
+            return {{"error", true}};
         }
         if (std::filesystem::is_directory(path)) {
             using std::filesystem::directory_iterator;
@@ -77,43 +75,43 @@ static void _rpc_op_load_or_unload(Channel &chan, const json &args) {
             (*manager_func)(p);
         }
     }
-
-    chan.writeMessage("OK");
+    return {{"error", false}};
 }
 
-static void _rpc_op_start(Channel &chan, const json &args) {
+static json _rpc_op_start(const json &args) {
     const std::string &label = args[1]["Label"];
     auto job = manager_get_job_by_label(label);
-    job.run();
-    chan.writeMessage("OK");
+    job->run();
+    return {{"error", false}};
 }
 
-static void _rpc_op_stop(Channel &chan, const json &args) {
+static json _rpc_op_stop(const json &args) {
     const std::string &label = args[1]["Label"];
     auto job = manager_get_job_by_label(label);
-    job.kill("SIGTERM");
-    chan.writeMessage("OK");
+    job->kill("SIGTERM");
+    return {{"error", false}};
 }
 
-static void _rpc_op_remove(Channel &chan, const json &args) {
+static json _rpc_op_remove(const json &args) {
     const auto &label = args[1]["Label"];
     manager_unload_by_label(label);
-    chan.writeMessage("OK");
+    return {{"error", false}};
 }
 
-static void _rpc_op_submit(Channel &chan, const json &args) {
+static json _rpc_op_submit(const json &args) {
     std::string path = ""; // TODO: maybe create a fake path? do we even need this?
     manager_load_manifest(args[1], path);
-    chan.writeMessage("OK");
+    return {{"error", false}};
 }
 
-static void _rpc_op_version(Channel &chan, const json &) {
-    chan.writeMessage("relaunchd version unknown"); // FIXME get version number
+static json _rpc_op_version(const json &) {
+    // FIXME get version number
+    return {{"error", false},{"version", "relaunch version unknown"}};
 }
 
 // FIXME: needs a lot more error checking
 int rpc_dispatch(Channel &chan) {
-    static const std::unordered_map<std::string, void(*)(Channel &chan, const json &j)> handlers = {
+    static const std::unordered_map<std::string, json(*)(const json &j)> handlers = {
             {"disable", _rpc_op_disable},
             {"enable", _rpc_op_enable},
             {"kill", _rpc_op_kill},
@@ -133,7 +131,8 @@ int rpc_dispatch(Channel &chan) {
         auto msg = chan.readMessage();
         auto method = msg.at(0).get<std::string>();
         auto funcptr = handlers.at(method);
-        (*funcptr)(chan, msg);
+        json response = (*funcptr)(msg);
+        chan.writeMessage(response);
     } catch (const std::exception &exc) {
         log_error("dispatch failed: %s", exc.what());
     }

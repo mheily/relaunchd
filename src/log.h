@@ -47,7 +47,7 @@ extern FILE *logfile;
 
 void log_freopen(FILE *new_logfile);
 
-#define _crash(code) abort
+#define _crash(code) abort()
 
 /* Emulate the <err.h> macros but use our own logging facility */
 #define err(code, format, ...) do { \

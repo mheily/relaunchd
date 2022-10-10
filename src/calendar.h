@@ -16,10 +16,11 @@
 
 #pragma once
 
-#include "job.h"
+#include <optional>
+#include <utility>
 
-int calendar_init(int kqfd);
-int calendar_handler();
-int calendar_register_job(Job &);
-int calendar_unregister_job(Job &);
+#include "manifest.h"
 
+namespace calendar {
+    std::optional<std::pair<time_t, int>> schedule_calendar_job(struct manifest::cron_spec &cron);
+}

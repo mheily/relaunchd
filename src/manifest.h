@@ -27,6 +27,9 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
+#include "../vendor/json.hpp"
+using json = nlohmann::json;
+
 namespace manifest {
     /** A wildcard value in a crontab(5) specification */
     #define CRON_SPEC_WILDCARD INT32_MAX

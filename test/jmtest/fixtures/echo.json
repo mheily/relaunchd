@@ -1,6 +1,0 @@
-{
-	"Label": "echo",
-	"ProgramArguments": ["/bin/echo", "hello world"],
-	"StandardOutPath": "/tmp/echojob.out",
-	"RunAtLoad": true
-}

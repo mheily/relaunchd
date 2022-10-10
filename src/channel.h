@@ -42,7 +42,7 @@ public:
     void disconnect() noexcept;
     json readMessage();
     void writeMessage(const json &j);
-    void addEvent(int kqfd, void (*cb)(void *));
+    int getSockFD();
 
 private:
     struct sockaddr_un addr;

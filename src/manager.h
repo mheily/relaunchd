@@ -29,14 +29,14 @@ int manager_activate_job_by_fd(int fd);
  *
  * @return the job, or NULL if there are no matching jobs
  */
-Job & manager_get_job_by_pid(pid_t pid);
+std::shared_ptr<Job> manager_get_job_by_pid(pid_t pid);
 
 /**
  * Given a label, find the associated job
  *
  * @return the job, or NULL if there are no matching jobs
  */
-Job & manager_get_job_by_label(const std::string &label);
+std::shared_ptr<Job> manager_get_job_by_label(const std::string &label);
 
 /**
  * Unload a job with a given <label>
@@ -46,13 +46,12 @@ int manager_unload_job(const char *label);
 /**
  * Wake up a job that has been waiting for an external event.
  */
-int manager_wake_job(Job &job);
+int manager_wake_job(std::shared_ptr<Job> job);
 
-void manager_init();
-void manager_reap_child(pid_t pid, int status);
+void manager_init() noexcept;
 void manager_pid_event_add(int pid);
-void manager_pid_event_delete(int pid);
-void manager_main_loop();
+
+bool manager_handle_event();
 void manager_unload_all_jobs();
 
 int manager_load_manifest(const std::filesystem::path &path);
@@ -61,3 +60,4 @@ int manager_unload_manifest(const std::filesystem::path &path);
 int manager_unload_by_label(const std::string &label);
 nlohmann::json manager_list_jobs();
 void manager_set_job_enabled(const std::string &label, bool enabled);
+void manager_shutdown();
