@@ -20,10 +20,26 @@
 
 #pragma once
 
+#if __has_include(<sys/epoll.h>)
+#define USE_EPOLL 1
+#include <sys/epoll.h>
+#include <sys/signalfd.h>
+#include <sys/timerfd.h>
+#elif __has_include(<sys/event.h>)
+#define USE_KQUEUE 1
+#include <sys/event.h>
+#else
+#error No supported kernel event API detected
+#endif
+
 #include <stdexcept>
 #include <functional>
+#include <unordered_set>
 #include <variant>
 #include <vector>
+
+#include <fcntl.h>
+#include <unistd.h>
 
 struct proc_event {
     pid_t pid;
@@ -75,15 +91,7 @@ public:
     virtual void ignoreTimer(int timer_id) = 0;
 };
 
-#if __linux__
-
-#include <unordered_set>
-
-#include <sys/epoll.h>
-#include <sys/signalfd.h>
-#include <sys/timerfd.h>
-#include <fcntl.h>
-#include <unistd.h>
+#if USE_EPOLL
 
 class EpollImplementation : public KernelEventInterface {
 public:
@@ -310,10 +318,7 @@ private:
     std::unordered_set<int> cleanup_fds; // file descriptors to close via the destructor
 };
 
-#else
-
-#include <sys/event.h>
-#include <unistd.h>
+#elif USE_KQUEUE
 
 class KqueueImplementation : public KernelEventInterface {
 public:
@@ -409,16 +414,19 @@ private:
     }
     int kqfd = -1;
 };
-#endif
+
+#endif  // USE_KQUEUE
 
 namespace kq {
     class EventManager {
     public:
         EventManager() {
-#ifdef __linux__
+#if USE_EPOLL
             impl = std::make_unique<EpollImplementation>();
-#else
+#elif USE_KQUEUE
             impl = std::make_unique<KqueueImplementation>();
+#else
+#error Not supported
 #endif
         }
 
