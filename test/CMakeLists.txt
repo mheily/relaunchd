@@ -9,8 +9,8 @@ add_test(NAME TestManifest COMMAND TestManifest)
 target_compile_definitions(TestManifest PRIVATE -DTESTDIR="${CMAKE_CURRENT_SOURCE_DIR}")
 
 # FIXME: too complex to test now
-#add_executable(TestManager manager_test.cc ../src/manager.cc ${CMAKE_BINARY_DIR}/src/config.h)
-#target_link_libraries(TestManager launch)
-#target_include_directories(TestManager PRIVATE . ${CMAKE_CURRENT_SOURCE_DIR}/../src ${CMAKE_BINARY_DIR}/src)
-#add_test(NAME TestManager COMMAND TestManager)
-#target_compile_definitions(TestManager PRIVATE -DTESTDIR="${CMAKE_CURRENT_SOURCE_DIR}")
+add_executable(TestManager manager_test.cc ../src/manager.cc ${CMAKE_BINARY_DIR}/src/config.h)
+target_link_libraries(TestManager launch)
+target_include_directories(TestManager PRIVATE . ${CMAKE_CURRENT_SOURCE_DIR}/../src ${CMAKE_BINARY_DIR}/src)
+add_test(NAME TestManager COMMAND TestManager)
+target_compile_definitions(TestManager PRIVATE -DTESTDIR="${CMAKE_CURRENT_SOURCE_DIR}")

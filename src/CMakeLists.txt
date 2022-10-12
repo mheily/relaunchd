@@ -9,11 +9,17 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall -Wextra")
 check_include_files(sys/limits.h, HAVE_SYS_LIMITS_H)
 
 set(LAUNCH_SRC
+        calendar.cc calendar.h
         channel.h channel.cc
         event.h
+        job.cc job.h
         log.cc log.h
+        manager.cc manager.h
+        manifest.cc manifest.h
         options.cc options.h
-        state_file.cc state_file.hpp)
+        rpc_server.cc rpc_server.h
+        state_file.cc state_file.hpp
+        )
 if (USE_PRIVATE_DEPENDENCIES)
     set(LAUNCH_SRC ${LAUNCH_SRC}
         ../vendor/tinyxml2.cpp ../vendor/tinyxml2.h)
@@ -28,17 +34,8 @@ if (NOT USE_PRIVATE_DEPENDENCIES)
     include_directories(tinyxml2::tinyxml2)
 endif()
 
-add_executable(launchd
-        calendar.cc calendar.h
-        channel.h
-        job.cc job.h
-        launchd.cc
-        log.h
-        manager.cc manager.h
-        manifest.cc manifest.h
-        options.h
-        rpc_server.cc rpc_server.h
-        )
+add_executable(launchd launchd.cc)
+
 target_link_libraries(launchd launch)
 
 # DISABLED: this symbol exists in glibc but warns that it will always fail
@@ -60,7 +57,7 @@ endif()
 # for asprintf() in glibc
 add_compile_definitions(_GNU_SOURCE)
 
-if ((CMAKE_INSTALL_PREFIX MATCHES "^/usr$") OR (CMAKE_INSTALL_PREFIX MATCHES "^/usr/local$"))
+if ((CMAKE_INSTALL_PREFIX MATCHES "^/(usr)?(/local)?$"))
     set(VARDIR "/var")
     set(SYSCONFDIR "/etc")
 else()
@@ -81,13 +78,9 @@ install(CODE "FILE(MAKE_DIRECTORY \$ENV{DESTDIR}\/${VARDIR}/run)")
 # launchctl
 #
 
-add_executable(launchctl
-        channel.h
-        launchctl.cc
-        log.h
-        options.h)
+add_executable(launchctl launchctl.cc)
 
-target_link_libraries(launchctl launch pthread)
+target_link_libraries(launchctl launch)
 
 if(USE_LIBKQUEUE)
 else()
