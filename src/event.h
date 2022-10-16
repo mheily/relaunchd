@@ -368,7 +368,13 @@ public:
     }
 
      void ignoreChildProcess(pid_t pid) override {
-         changeKevent(pid, EVFILT_PROC, EV_DELETE, NOTE_EXIT);
+        try {
+            changeKevent(pid, EVFILT_PROC, EV_DELETE, NOTE_EXIT);
+        } catch (const std::system_error &e) {
+            if (e.code().value() != ENOENT) {
+                throw;
+            }
+        }
      }
 
     void monitorSocketRead(int sockfd) override {
