@@ -207,19 +207,9 @@ static void manager_reschedule_job(std::shared_ptr<Job> &job) {
 static void
 manager_reap_child(pid_t pid, int status)
 {
-// linux will need to do this in a loop after reading a signalfd and getting SIGCHLD
-#if 0
-	pid = waitpid(-1, &status, WNOHANG);
-	if (pid < 0) {
-		if (errno == ECHILD) return;
-		err(1, "waitpid(2)");
-	} else if (pid == 0) {
-		return;
-	}
-#endif
-
-    // fixme: check for range error exception
-	auto job = manager_get_job_by_pid(pid);
+    // FIXME: check for range error exception because we are a subreaper on some platforms
+    // See: https://github.com/mheily/relaunchd/issues/15
+    auto job = manager_get_job_by_pid(pid);
 //	if (!job) {
 //		log_error("child pid %d exited but no job found", pid);
 //		return;

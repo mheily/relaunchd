@@ -58,7 +58,8 @@ namespace calendar {
         localtime_r(&t0, &tm);
 
         // XXX - FIXME -- this requires at least a daily rescheduling timer to be executed by the manager
-        // otherwise the job will never be scheduled
+        // otherwise the job will never be scheduled.
+        // See: https://github.com/mheily/relaunchd/issues/13
 
         /* Try to disqualify the job from running based on the current day */
         if (cron.month != CRON_SPEC_WILDCARD && cron.month != tm.tm_mon) {

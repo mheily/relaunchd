@@ -148,6 +148,7 @@ Channel::~Channel() {
             log_errno("close(2)");
         }
     }
+    // FIXME: should throw exception here if close() failed.
 }
 
 void Channel::disconnect() noexcept {

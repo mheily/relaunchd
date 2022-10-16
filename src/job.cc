@@ -364,6 +364,7 @@ void Job::unload() {
 		}
 		state = JOB_STATE_KILLED;
 		//TODO: start a timer to send a SIGKILL if it doesn't die gracefully
+        // See: https://github.com/mheily/relaunchd/issues/14
 	} else {
 		//TODO: update the timer interval in timer.c?
 		state = JOB_STATE_DEFINED;

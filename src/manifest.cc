@@ -169,6 +169,7 @@ namespace manifest {
         }
     }
 
+    // FIXME: needs work, see https://github.com/mheily/relaunchd/issues/16
     std::optional<json> parse_xml(const char *path) {
         using namespace tinyxml2;
         XMLError xmlerr;
