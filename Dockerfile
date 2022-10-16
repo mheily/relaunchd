@@ -1,7 +1,9 @@
-FROM debian:sid
-MAINTAINER mark@heily.com
+FROM alpine:3.14
+RUN apk add --no-cache binutils gcc g++ libgcc cmake git pkgconfig bash make
 
-RUN apt-get update && apt-get install -y build-essential cmake git pkg-config libkqueue-dev libtinyxml2-dev nlohmann-json3-dev vim less
-USER nobody
 RUN mkdir /tmp/build
+WORKDIR /tmp/build
 
+COPY ./ /tmp/src/
+
+RUN cmake -DCMAKE_INSTALL_PREFIX=/ /tmp/src && make && make install
