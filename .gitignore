@@ -1,3 +1,4 @@
+Attic/*
 .idea/
 cmake-build-*/
 *.kdev4
