@@ -17,7 +17,8 @@
 #pragma once
 
 #include "channel.h"
+#include "manager.h"
 
 int rpc_init(int kqfd);
 
-int rpc_dispatch(Channel &chan);
+int rpc_dispatch(Channel &chan, Manager &manager);

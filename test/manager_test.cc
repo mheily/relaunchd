@@ -22,5 +22,5 @@ using namespace std;
 //}
 
 int main(int argc, char *argv[]) {
-    manager_init();
+    Manager mgr;
 }

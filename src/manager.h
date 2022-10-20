@@ -19,45 +19,91 @@
 #include <filesystem>
 #include "../vendor/json.hpp"
 
+#include "channel.h"
+#include "event.h"
 #include "job.h"
 
+class Manager {
+public:
+    Manager();
+
+    virtual ~Manager();
+
+    bool handleEvent();
+
+    [[nodiscard]] std::optional<std::shared_ptr<Job>> at(pid_t pid) const;
+
+    [[nodiscard]] std::optional<std::shared_ptr<Job>> at(const std::string &label) const;
+
+    int erase(const std::string &label);
+
+    void clear();
+
+    int loadManifest(const std::filesystem::path &path);
+
+    int loadManifest(const json &manifest, const std::string &path);
+
+    void overrideJobEnabled(const std::string &label, bool enabled);
+
+    json listJobs();
+
+    int unloadJob(const std::string &label);
+
+    int unloadJob(const std::filesystem::path &path);
+
+private:
+
+    void startJob(const std::shared_ptr<Job> &job);
+
+    void wakeJob(std::shared_ptr<Job> &job);
+
+    void rescheduleCalendarJob(const std::shared_ptr<Job> &job);
+
+    void reschedulePeriodicJob(std::shared_ptr<Job> &job);
+
+    void rescheduleJob(std::shared_ptr<Job> &job);
+
+    void reapChildProcess(pid_t pid, int status);
+
+    void setupSignalHandlers();
+
+    std::unordered_map<std::string, std::shared_ptr<Job>> services;
+    // TODO: switch from "services" to this:
+    //std::unordered_map<std::string, std::shared_ptr<Job>> loaded_jobs;
+    //std::unordered_map<pid_t, std::shared_ptr<Job>> running_jobs;
+
+    kq::EventManager eventmgr;
+    Channel chan;
+    bool SHUTTING_DOWN = false;
+};
+
 /** Given a pending connection on a socket descriptor, activate the associated job */
-int manager_activate_job_by_fd(int fd);
+//int manager_activate_job_by_fd(int fd);
 
 /**
  * Given a process ID, find the associated job
  *
  * @return the job, or NULL if there are no matching jobs
  */
-std::shared_ptr<Job> manager_get_job_by_pid(pid_t pid);
+//std::shared_ptr<Job> manager_get_job_by_pid(pid_t pid);
 
 /**
  * Given a label, find the associated job
  *
  * @return the job, or NULL if there are no matching jobs
  */
-std::shared_ptr<Job> manager_get_job_by_label(const std::string &label);
+//std::shared_ptr<Job> manager_get_job_by_label(const std::string &label);
 
 /**
  * Unload a job with a given <label>
  */
-int manager_unload_job(const char *label);
+//int manager_unload_job(const char *label);
 
 /**
  * Wake up a job that has been waiting for an external event.
  */
-int manager_wake_job(std::shared_ptr<Job> job);
+//int manager_wake_job(std::shared_ptr<Job> job);
 
-void manager_init() noexcept;
-void manager_pid_event_add(int pid);
 
-bool manager_handle_event();
-void manager_unload_all_jobs();
-
-int manager_load_manifest(const std::filesystem::path &path);
-int manager_load_manifest(const json &manifest, const std::string &path);
-int manager_unload_manifest(const std::filesystem::path &path);
-int manager_unload_by_label(const std::string &label);
-nlohmann::json manager_list_jobs();
-void manager_set_job_enabled(const std::string &label, bool enabled);
-void manager_shutdown();
+//int manager_unload_manifest(const std::filesystem::path &path);
+//int manager_unload_by_label(const std::string &label);

@@ -130,8 +130,7 @@ int main(int argc, char *argv[]) noexcept {
     }
 
     (void) become_a_subreaper();
-    manager_init();
-    while (manager_handle_event()) {}
-    manager_shutdown();
+    Manager mgr;
+    while (mgr.handleEvent()) {}
     exit(EXIT_SUCCESS);
 }
