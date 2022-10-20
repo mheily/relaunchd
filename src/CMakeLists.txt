@@ -6,6 +6,20 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS_DEBUG   "${CMAKE_CXX_FLAGS_DEBUG} -g3 -Wall -Wextra -Werror")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall -Wextra")
 
+#
+# Address Sanitizer
+#
+if(ENABLE_ASAN)
+    #
+    # -fsanitize=address           - Build with address sanitizer support
+    # -fno-omit-frame-pointer      - Always keep the frame pointer in a register
+    # -fno-optimize-sibling-calls  - Don't optimize away tail recursion.
+    #
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls")
+    add_link_options("-fsanitize=address")
+    message("ENABLING ASAN")
+endif()
+
 check_include_files(sys/limits.h, HAVE_SYS_LIMITS_H)
 
 # NOTE: socket.{cc,h} are currently disabled
@@ -90,3 +104,15 @@ else()
 endif()
 
 install(TARGETS launchctl DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+#
+#  Ensure variables which represent arguments are not
+#  cached. This provides more of a sane interface where
+#  cmake will build with the arguments you last specified
+#  not all the arguments provided since the beginning of
+#  the lifetime of CMakeCache.txt.
+#
+unset(ENABLE_ASAN CACHE)
+unset(ENABLE_LSAN CACHE)
+unset(ENABLE_UBSAN CACHE)
+unset(ENABLE_TSAN CACHE)

@@ -137,6 +137,11 @@ or an array of hashes. In relaunchd, only a hash is acceptable.
 In the Darwin implementation, the Umask key is a decimal integer.
 In relaunchd, octal notation is used, but converted to a string.
 
+## Sanitizers
+
+Currently, only ASAN is supported. To enable ASAN, add
+the option `-DENABLE_ASAN=YES` when calling CMake.
+
 ## Static Analysis 
 
 Coverity scan reports for relaunchd are available at:
