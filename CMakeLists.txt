@@ -8,6 +8,7 @@ include(ExternalProject)
 include(CheckIncludeFiles)
 include(GNUInstallDirs)
 include(CheckSymbolExists)
+include(EnableSanitizers)
 
 option(USE_LIBKQUEUE "Should we use libkqueue" OFF)
 
@@ -41,3 +42,15 @@ endif()
 
 add_subdirectory(src)
 add_subdirectory(test)
+
+#
+#  Ensure variables which represent arguments are not
+#  cached. This provides more of a sane interface where
+#  cmake will build with the arguments you last specified
+#  not all the arguments provided since the beginning of
+#  the lifetime of CMakeCache.txt.
+#
+unset(ENABLE_ASAN CACHE)
+unset(ENABLE_LSAN CACHE)
+unset(ENABLE_UBSAN CACHE)
+unset(ENABLE_TSAN CACHE)
