@@ -38,6 +38,7 @@
 #include <variant>
 #include <vector>
 
+#include <csignal>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -436,14 +437,14 @@ namespace kq {
 #endif
         }
 
-        void addSignal(int signum, void (*fp)(int)) {
+        void addSignal(int signum, std::function<void(int)> callback) {
             impl->monitorSignal(signum);
-            signal_callbacks.insert({{signum, fp}});
+            signal_callbacks.insert({{signum, callback}});
         }
 
-        void addProcess(pid_t pid, void (*fp)(pid_t, int)) {
+        void addProcess(pid_t pid, std::function<void(pid_t, int)> callback) {
             impl->monitorChildProcess(pid);
-            process_callbacks.insert({{pid, fp}});
+            process_callbacks.insert({{pid, callback}});
         }
 
         void deleteProcess(pid_t pid) {
@@ -456,9 +457,9 @@ namespace kq {
             timer_callbacks.erase(timer_id);
         }
 
-        void addSocketRead(int sd, void (*fp)(int)) {
+        void addSocketRead(int sd, std::function<void(int)> callback) {
             impl->monitorSocketRead(sd);
-            socket_read_callbacks.insert({{sd, fp}});
+            socket_read_callbacks.insert({{sd, callback}});
         }
 
         int addTimer(int seconds, std::function<void()> callback) {
@@ -495,7 +496,8 @@ namespace kq {
                     const auto &timer_id = std::get<timer_event>(event).timer_id;
                     const auto &callback = timer_callbacks.at(timer_id);
                     callback();
-                    impl->ignoreTimer(timer_id);
+                    // Not needed because of EV_ONESHOT
+                    // impl->ignoreTimer(timer_id);
                     break;
                 }
                 default:
