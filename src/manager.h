@@ -39,9 +39,9 @@ public:
 
     void clear();
 
-    int loadManifest(const std::filesystem::path &path, bool overrideDisabled = false, bool forceLoad = false);
+    bool loadManifest(const std::filesystem::path &path, bool overrideDisabled = false, bool forceLoad = false);
 
-    int loadManifest(const json &manifest, const std::string &path, bool overrideDisabled = false, bool forceLoad = false);
+    bool loadManifest(const json &jsondata, const std::string &path, bool overrideDisabled = false, bool forceLoad = false);
 
     void overrideJobEnabled(const std::string &label, bool enabled);
 
@@ -51,6 +51,8 @@ public:
 
     int unloadJob(const std::filesystem::path &path, bool overrideDisabled = false, bool forceUnload = false);
 
+    void startAllJobs();
+
 private:
 
     void startJob(const std::shared_ptr<Job> &job);
@@ -59,9 +61,9 @@ private:
 
     void rescheduleCalendarJob(const std::shared_ptr<Job> &job);
 
-    void reschedulePeriodicJob(std::shared_ptr<Job> &job);
+    void reschedulePeriodicJob(const std::shared_ptr<Job> &job);
 
-    void rescheduleJob(std::shared_ptr<Job> &job);
+    void rescheduleJob(const std::shared_ptr<Job> &job);
 
     void reapChildProcess(pid_t pid, int status);
 

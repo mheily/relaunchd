@@ -60,6 +60,7 @@ static json _rpc_op_list(const json &, Manager &mgr) {
 static json _rpc_op_load(const json &args, Manager &mgr) {
     bool forceLoad = args[1]["Force"];
     bool overrideDisabled = args[1]["OverrideDisabled"];
+    bool error = false;
     for (const auto &path : args[1]["Paths"]) {
         if (!std::filesystem::exists(path)) {
             return {{"error", true}};
@@ -67,14 +68,19 @@ static json _rpc_op_load(const json &args, Manager &mgr) {
         if (std::filesystem::is_directory(path)) {
             using std::filesystem::directory_iterator;
             for (const auto &file: directory_iterator(path)) {
-                mgr.loadManifest(file.path(), overrideDisabled, forceLoad);
+                if (!mgr.loadManifest(file.path(), overrideDisabled, forceLoad)) {
+                    error = true;
+                }
             }
         } else {
             std::filesystem::path p{path.get<std::string>()};
-            mgr.loadManifest(p, overrideDisabled, forceLoad);
+            if (!mgr.loadManifest(p, overrideDisabled, forceLoad)) {
+                error = true;
+            }
         }
     }
-    return {{"error", false}};
+    mgr.startAllJobs();
+    return {{"error", error}};
 }
 
 static json _rpc_op_unload(const json &args, Manager &mgr) {

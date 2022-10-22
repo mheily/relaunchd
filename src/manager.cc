@@ -128,63 +128,54 @@ void Manager::setupSignalHandlers() {
 }
 
 
-int Manager::loadManifest(const std::filesystem::path &path, bool overrideDisabled, bool forceLoad) {
+bool Manager::loadManifest(const std::filesystem::path &path, bool overrideDisabled, bool forceLoad) {
     json obj = manifest::parse(path);
     return loadManifest(obj, path, overrideDisabled, forceLoad);
 }
 
-int Manager::loadManifest(const json &manifest, const std::string &path, bool overrideDisabled, bool forceLoad) {
-    std::string label;
-    if (manifest.contains("Label")) {
-        manifest.at("Label").get_to(label);
-    } else {
-        log_error("manifest has no Label key");
-        return -1;
+bool
+Manager::loadManifest(const json &jsondata, const std::string &path, bool overrideDisabled, bool forceLoad) {
+    Manifest manifest;
+    try {
+        manifest = jsondata.get<manifest::Manifest>();
+    } catch (const std::exception &exc) {
+        log_error("failed to parse manifest at %s: %s", path.c_str(), exc.what());
+        return false;
     }
 
     /* Check for duplicate jobs */
-    if (services.count(label)) {
-        log_error("tried to load a duplicate job with label %s", label.c_str());
-        return -1;
+    if (services.count(manifest.label)) {
+        log_error("tried to load a duplicate job with label %s", manifest.label.c_str());
+        return false;
     }
 
     if (overrideDisabled) {
-        log_debug("%s: overriding the Disabled key", label.c_str());
-        overrideJobEnabled(label, true);
+        log_debug("%s: overriding the Disabled key", manifest.label.c_str());
+        overrideJobEnabled(manifest.label, true);
     }
 
     // Check if the job is disabled
-    if (manifest.at("Disabled") && !forceLoad) {
+    if (manifest.disabled && !forceLoad) {
         auto state = STATE_FILE->getValue();
-        if (state.at("Overrides").contains(label)) {
-            const auto job_state = state["Overrides"][label];
+        if (state.at("Overrides").contains(manifest.label)) {
+            const auto job_state = state["Overrides"][manifest.label];
             if (job_state.at("Enabled")) {
                 forceLoad = true;
             }
         }
     }
 
-    if (manifest.at("Disabled") && !forceLoad) {
-        log_debug("will not load %s: it is disabled", label.c_str());
-        return 0;
+    if (manifest.disabled && !forceLoad) {
+        log_debug("will not load %s: it is disabled", manifest.label.c_str());
+        return false;
     }
 
-    std::shared_ptr<Job> job = std::make_shared<Job>(path, manifest.get<manifest::Manifest>());
-    services.emplace(label,job);
+    std::shared_ptr<Job> job = std::make_shared<Job>(path, manifest);
+    services.emplace(manifest.label,job);
 
     job->load();
-    log_debug("loaded job: %s", job->manifest.label.c_str());
 
-    if (job->manifest.keep_alive.always || job->manifest.run_at_load) {
-        /// FIXME: all jobs must be loaded before any job starts
-        startJob(job);
-    }
-
-    if (job->schedule != JOB_SCHEDULE_NONE) {
-        rescheduleJob(job);
-    }
-
-    return 0;
+    return true;
 }
 
 int Manager::unloadJob(const std::string &label, bool overrideDisabled, bool forceUnload) {
@@ -387,7 +378,7 @@ void Manager::rescheduleCalendarJob(const std::shared_ptr<Job> &job) {
     // XXX-FIXME: update StateFile to set the absolute start time.
 }
 
-void Manager::reschedulePeriodicJob(std::shared_ptr<Job> &job) {
+void Manager::reschedulePeriodicJob(const std::shared_ptr<Job> &job) {
     log_debug("job %s will start after T=%u", job->manifest.label.c_str(), job->manifest.start_interval);
     job->state = JOB_STATE_WAITING;
     eventmgr.addTimer(job->manifest.start_interval, [&job, this]() {
@@ -399,7 +390,7 @@ void Manager::reschedulePeriodicJob(std::shared_ptr<Job> &job) {
     });
 }
 
-void Manager::rescheduleJob(std::shared_ptr<Job> &job) {
+void Manager::rescheduleJob(const std::shared_ptr<Job> &job) {
     switch (job->schedule) {
         case JOB_SCHEDULE_PERIODIC:
             reschedulePeriodicJob(job);
@@ -417,6 +408,19 @@ void Manager::startJob(const std::shared_ptr<Job> &job) {
     eventmgr.addProcess(job->pid, [this](pid_t pid, int status) {
         reapChildProcess(pid, status);
     });
+    job->state = JOB_STATE_RUNNING;
 }
 
+void Manager::startAllJobs() {
+    for (const auto & [label, job] : services) {
+        if (job->state == JOB_STATE_LOADED) {
+            if (job->manifest.keep_alive.always || job->manifest.run_at_load) {
+                startJob(job);
+            }
+            if (job->schedule != JOB_SCHEDULE_NONE) {
+                rescheduleJob(job);
+            }
+        }
+    }
+}
 
