@@ -161,10 +161,8 @@ namespace subcommand {
                 });
         for (const auto &elem: args) {
             if (elem == "-w") {
-                // FIXME: remove for unload?
                 kwargs["OverrideDisabled"] = true;
             } else if (elem == "-F") {
-                // FIXME: remove for unload?
                 kwargs["Force"] = true;
             } else {
                 auto path = std::filesystem::path(elem);

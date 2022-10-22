@@ -39,17 +39,17 @@ public:
 
     void clear();
 
-    int loadManifest(const std::filesystem::path &path);
+    int loadManifest(const std::filesystem::path &path, bool overrideDisabled = false, bool forceLoad = false);
 
-    int loadManifest(const json &manifest, const std::string &path);
+    int loadManifest(const json &manifest, const std::string &path, bool overrideDisabled = false, bool forceLoad = false);
 
     void overrideJobEnabled(const std::string &label, bool enabled);
 
     json listJobs();
 
-    int unloadJob(const std::string &label);
+    int unloadJob(const std::string &label, bool overrideDisabled = false, bool forceUnload = false);
 
-    int unloadJob(const std::filesystem::path &path);
+    int unloadJob(const std::filesystem::path &path, bool overrideDisabled = false, bool forceUnload = false);
 
 private:
 

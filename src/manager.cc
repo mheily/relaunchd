@@ -127,7 +127,13 @@ void Manager::setupSignalHandlers() {
     });
 }
 
-int Manager::loadManifest(const json &manifest, const std::string &path) {
+
+int Manager::loadManifest(const std::filesystem::path &path, bool overrideDisabled, bool forceLoad) {
+    json obj = manifest::parse(path);
+    return loadManifest(obj, path, overrideDisabled, forceLoad);
+}
+
+int Manager::loadManifest(const json &manifest, const std::string &path, bool overrideDisabled, bool forceLoad) {
     std::string label;
     if (manifest.contains("Label")) {
         manifest.at("Label").get_to(label);
@@ -142,14 +148,25 @@ int Manager::loadManifest(const json &manifest, const std::string &path) {
         return -1;
     }
 
+    if (overrideDisabled) {
+        log_debug("%s: overriding the Disabled key", label.c_str());
+        overrideJobEnabled(label, true);
+    }
+
     // Check if the job is disabled
-    auto state = STATE_FILE->getValue();
-    if (state.at("Overrides").contains(label)) {
-        const auto job_state = state["Overrides"][label];
-        if (!job_state.at("Enabled")) {
-            log_debug("tried to load %s but it is disabled via local override", label.c_str());
-            return 0;
+    if (manifest.at("Disabled") && !forceLoad) {
+        auto state = STATE_FILE->getValue();
+        if (state.at("Overrides").contains(label)) {
+            const auto job_state = state["Overrides"][label];
+            if (job_state.at("Enabled")) {
+                forceLoad = true;
+            }
         }
+    }
+
+    if (manifest.at("Disabled") && !forceLoad) {
+        log_debug("will not load %s: it is disabled", label.c_str());
+        return 0;
     }
 
     std::shared_ptr<Job> job = std::make_shared<Job>(path, manifest.get<manifest::Manifest>());
@@ -159,6 +176,7 @@ int Manager::loadManifest(const json &manifest, const std::string &path) {
     log_debug("loaded job: %s", job->manifest.label.c_str());
 
     if (job->manifest.keep_alive.always || job->manifest.run_at_load) {
+        /// FIXME: all jobs must be loaded before any job starts
         startJob(job);
     }
 
@@ -169,28 +187,41 @@ int Manager::loadManifest(const json &manifest, const std::string &path) {
     return 0;
 }
 
-int Manager::loadManifest(const std::filesystem::path &path) {
-    log_debug("loading %s", path.c_str());
-    json obj = manifest::parse(path);
-    return loadManifest(obj, path);
-}
-
-int Manager::unloadJob(const std::string &label) {
+int Manager::unloadJob(const std::string &label, bool overrideDisabled, bool forceUnload) {
     if (!services.count(label)) {
         log_info("tried to unload a job that is not loaded: %s", label.c_str());
         return -1;
     }
+    if (overrideDisabled) {
+        log_debug("%s: overriding the Disabled key", label.c_str());
+        overrideJobEnabled(label, false);
+    }
     auto & job = services.at(label);
+
+    // Check if the job is disabled
+    if (!job->manifest.disabled && !forceUnload) {
+        auto state = STATE_FILE->getValue();
+        if (state.at("Overrides").contains(label)) {
+            const auto job_state = state["Overrides"][label];
+            if (!job_state.at("Enabled")) {
+                forceUnload = true;
+            }
+        }
+    }
+
+    if (job->manifest.disabled && !forceUnload) {
+        log_debug("will not unload %s: it is disabled", label.c_str());
+        return 0;
+    }
+
     job->unload();
     log_debug("unloaded job: %s", job->manifest.label.c_str());
     services.erase(label);
     return 0;
 }
 
-int Manager::unloadJob(const std::filesystem::path &path) {
-    log_debug("unloading %s", path.c_str());
+int Manager::unloadJob(const std::filesystem::path &path, bool overrideDisabled, bool forceUnload) {
     json obj = manifest::parse(path);
-
     std::string label;
     if (obj.contains("Label")) {
         obj.at("Label").get_to(label);
@@ -198,8 +229,7 @@ int Manager::unloadJob(const std::filesystem::path &path) {
         log_error("manifest has no Label key");
         return -1;
     }
-
-    return unloadJob(label);
+    return unloadJob(label, overrideDisabled, forceUnload);
 }
 
 json Manager::listJobs() {

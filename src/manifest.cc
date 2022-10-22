@@ -114,6 +114,9 @@ namespace manifest {
         if (j.contains("Timeout")) {
             j.at("Timeout").get_to(m.timeout);
         }
+        if (j.contains("Disabled")) {
+            j.at("Disabled").get_to(m.disabled);
+        }
         if (j.contains("ExitTimeout")) {
             j.at("ExitTimeout").get_to(m.exit_timeout);
         }

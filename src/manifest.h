@@ -51,6 +51,7 @@ namespace manifest {
         std::optional<std::string> program;
         std::vector<std::string> program_arguments;
         bool job_is_agent;
+        bool disabled = false;
         bool enable_globbing;
         bool run_at_load;
         std::optional<std::string> working_directory;
