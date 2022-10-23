@@ -132,15 +132,15 @@ int main(int argc, char *argv[]) noexcept {
 
     (void) become_a_subreaper();
 
-    Manager mgr;
-
-    // FIXME: how to handle error? crash? or carry on
+    DomainType domain;
     if (getuid() == 0) {
-        mgr.loadAllManifests(SYSTEM_DAEMON_LOAD_PATH);
+        domain = DOMAIN_TYPE_SYSTEM;
     } else {
-        mgr.loadAllManifests(USER_DAEMON_LOAD_PATH);
+        domain = DOMAIN_TYPE_USER;
     }
 
+    Manager mgr{domain};
+    mgr.loadDefaultManifests();
     mgr.startAllJobs();
 
     while (mgr.handleEvent()) {}

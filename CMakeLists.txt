@@ -16,10 +16,15 @@ option(USE_PRIVATE_DEPENDENCIES
     "Should we fetch, build and link to a private copy of libkqueue?"
     ON)
 
-set(SYSTEM_DAEMON_LOAD_PATH
-        "/etc/relaunchd/LaunchDaemons:/usr/lib/relaunchd/LaunchDaemons"
+set(VENDOR_DAEMON_LOAD_PATH
+        "/lib/relaunchd/LaunchDaemons"
         CACHE
-        STRING "Search path for system-wide daemons")
+        STRING "Search path for system-wide daemons provided by the OS vendor")
+
+set(SYSTEM_DAEMON_LOAD_PATH
+        "/etc/relaunchd/LaunchDaemons"
+        CACHE
+        STRING "Search path for system-wide daemons provided by the local system administrators")
 
 set(USER_DAEMON_LOAD_PATH
         "$HOME/.config/relaunchd/LaunchDaemons"

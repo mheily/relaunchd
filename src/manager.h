@@ -23,9 +23,15 @@
 #include "event.h"
 #include "job.h"
 
+typedef enum {
+    DOMAIN_TYPE_SYSTEM,
+    DOMAIN_TYPE_USER,
+    DOMAIN_TYPE_GUI,
+} DomainType;
+
 class Manager {
 public:
-    Manager();
+    Manager(DomainType domain_);
 
     virtual ~Manager();
 
@@ -38,6 +44,8 @@ public:
     int erase(const std::string &label);
 
     void clear();
+
+    void loadDefaultManifests();
 
     bool loadAllManifests(const std::string &load_path, bool overrideDisabled = false, bool forceLoad = false);
 
@@ -76,6 +84,7 @@ private:
     //std::unordered_map<std::string, std::shared_ptr<Job>> loaded_jobs;
     //std::unordered_map<pid_t, std::shared_ptr<Job>> running_jobs;
 
+    DomainType domain;
     kq::EventManager eventmgr;
     Channel chan;
     bool SHUTTING_DOWN = false;

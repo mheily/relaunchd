@@ -257,7 +257,7 @@ void Manager::overrideJobEnabled(const std::string &label, bool enabled) {
     STATE_FILE->setValue(doc);
 }
 
-Manager::Manager() {
+Manager::Manager(DomainType domain_) : domain(domain_) {
     auto statedir = getStateDir();
     if (getuid() != 0 && !std::filesystem::exists(statedir)) {
         log_debug("creating %s", statedir.c_str());
@@ -422,6 +422,23 @@ void Manager::startAllJobs() {
                 rescheduleJob(job);
             }
         }
+    }
+}
+
+
+void Manager::loadDefaultManifests() {
+    switch (domain) {
+        case DOMAIN_TYPE_SYSTEM:
+            (void)loadAllManifests(VENDOR_DAEMON_LOAD_PATH);
+            (void)loadAllManifests(SYSTEM_DAEMON_LOAD_PATH);
+            break;
+        case DOMAIN_TYPE_USER:
+            (void)loadAllManifests(USER_DAEMON_LOAD_PATH);
+            break;
+        case DOMAIN_TYPE_GUI:
+            // TODO: implement LaunchAgents
+            throw std::runtime_error("not supported");
+            break;
     }
 }
 
