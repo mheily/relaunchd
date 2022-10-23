@@ -16,6 +16,16 @@ option(USE_PRIVATE_DEPENDENCIES
     "Should we fetch, build and link to a private copy of libkqueue?"
     ON)
 
+set(SYSTEM_DAEMON_LOAD_PATH
+        "/etc/relaunchd/LaunchDaemons:/usr/lib/relaunchd/LaunchDaemons"
+        CACHE
+        STRING "Search path for system-wide daemons")
+
+set(USER_DAEMON_LOAD_PATH
+        "$HOME/.config/relaunchd/LaunchDaemons"
+        CACHE
+        STRING "Search path for user daemons")
+
 CHECK_INCLUDE_FILES(sys/event.h HAVE_SYS_EVENT_H)
 
 if(USE_LIBKQUEUE)

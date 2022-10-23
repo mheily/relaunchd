@@ -27,6 +27,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sstream>
 
 #include "calendar.h"
 #include "event.h"
@@ -422,5 +423,58 @@ void Manager::startAllJobs() {
             }
         }
     }
+}
+
+bool Manager::loadAllManifests(const std::string &load_path, bool overrideDisabled, bool forceLoad) {
+    std::vector<std::string> paths;
+    std::stringstream ss(load_path);
+    while (ss.good()) {
+        std::string str;
+        std::getline(ss, str, ':');
+
+        // Replace $HOME with the actual HOME
+        if (getenv("HOME")) {
+            auto index = str.find("$HOME");
+            if (index != std::string::npos) {
+                str.replace(index, 5, getenv("HOME"));
+            }
+        }
+
+        paths.emplace_back(str);
+    }
+
+    bool error = false;
+    for (const auto &path : paths) {
+        if (!std::filesystem::exists(path)) {
+            log_warning("load failed: path does not exist: %s", path.c_str());
+            error = true;
+            continue;
+        }
+        if (std::filesystem::is_directory(path)) {
+            log_notice("loading all manifests in %s/", path.c_str());
+            using std::filesystem::directory_iterator;
+            for (const auto &file: directory_iterator(path)) {
+                try {
+                    if (!loadManifest(file.path(), overrideDisabled, forceLoad)) {
+                        error = true;
+                    }
+                } catch (...) {
+                    log_error("unhandled exception while parsing %s", file.path().c_str());
+                    error = true;
+                }
+            }
+        } else {
+            try {
+                std::filesystem::path p{path};
+                if (!loadManifest(p, overrideDisabled, forceLoad)) {
+                    error = true;
+                }
+            } catch (...) {
+                log_error("unhandled exception while parsing %s", path.c_str());
+                error = true;
+            }
+        }
+    }
+    return error;
 }
 

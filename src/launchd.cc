@@ -27,6 +27,7 @@
 #include <sys/prctl.h>
 #endif
 
+#include "config.h"
 #include "log.h"
 #include "manager.h"
 
@@ -130,7 +131,19 @@ int main(int argc, char *argv[]) noexcept {
     }
 
     (void) become_a_subreaper();
+
     Manager mgr;
+
+    // FIXME: how to handle error? crash? or carry on
+    if (getuid() == 0) {
+        mgr.loadAllManifests(SYSTEM_DAEMON_LOAD_PATH);
+    } else {
+        mgr.loadAllManifests(USER_DAEMON_LOAD_PATH);
+    }
+
+    mgr.startAllJobs();
+
     while (mgr.handleEvent()) {}
+
     exit(EXIT_SUCCESS);
 }

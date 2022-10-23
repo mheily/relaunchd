@@ -39,6 +39,8 @@ public:
 
     void clear();
 
+    bool loadAllManifests(const std::string &load_path, bool overrideDisabled = false, bool forceLoad = false);
+
     bool loadManifest(const std::filesystem::path &path, bool overrideDisabled = false, bool forceLoad = false);
 
     bool loadManifest(const json &jsondata, const std::string &path, bool overrideDisabled = false, bool forceLoad = false);
