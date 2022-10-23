@@ -58,15 +58,15 @@ a per-user basis. Daemons should not attempt to display UI or interact directly 
 with a user should be done through agents. 
 .Sh FILES
 .Bl -tag -width "/usr/local/share/launchd/daemons" -compact
-.It Pa ~/.launchd/agents
+.It Pa @USER_AGENT_LOAD_PATH@
 Per-user agents provided by the user.
-.It Pa /usr/local/etc/launchd/agents
+.It Pa @SYSTEM_AGENT_LOAD_PATH@
 Per-user agents provided by the administrator.
-.It Pa /usr/local/etc/launchd/daemons
+.It Pa @SYSTEM_DAEMON_LOAD_PATH@
 System-wide daemons provided by the administrator.
-.It Pa /usr/local/share/launchd/agents
+.It Pa @VENDOR_AGENT_LOAD_PATH@
 Per-user agents provided by the operating system.
-.It Pa /usr/local/share/launchd/daemons
+.It Pa @VENDOR_DAEMON_LOAD_PATH@
 System-wide daemons provided by the operating system.
 .El
 .Sh SEE ALSO 

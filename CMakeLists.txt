@@ -16,20 +16,30 @@ option(USE_PRIVATE_DEPENDENCIES
     "Should we fetch, build and link to a private copy of libkqueue?"
     ON)
 
+set(VENDOR_AGENT_LOAD_PATH
+        "/lib/relaunchd/LaunchAgents"
+        CACHE
+        STRING "Search path for system-wide agents provided by the OS vendor")
+
 set(VENDOR_DAEMON_LOAD_PATH
         "/lib/relaunchd/LaunchDaemons"
         CACHE
         STRING "Search path for system-wide daemons provided by the OS vendor")
+
+set(SYSTEM_AGENT_LOAD_PATH
+        "/etc/relaunchd/LaunchAgents"
+        CACHE
+        STRING "Search path for system-wide agents provided by the local system administrators")
 
 set(SYSTEM_DAEMON_LOAD_PATH
         "/etc/relaunchd/LaunchDaemons"
         CACHE
         STRING "Search path for system-wide daemons provided by the local system administrators")
 
-set(USER_DAEMON_LOAD_PATH
-        "$HOME/.config/relaunchd/LaunchDaemons"
+set(USER_AGENT_LOAD_PATH
+        "~/.config/relaunchd/LaunchAgents"
         CACHE
-        STRING "Search path for user daemons")
+        STRING "Search path for user-provided agents")
 
 CHECK_INCLUDE_FILES(sys/event.h HAVE_SYS_EVENT_H)
 

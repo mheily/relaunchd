@@ -136,7 +136,13 @@ int main(int argc, char *argv[]) noexcept {
     if (getuid() == 0) {
         domain = DOMAIN_TYPE_SYSTEM;
     } else {
-        domain = DOMAIN_TYPE_USER;
+        // XXX-FIXME probably need to implement "launchctl bootstrap"
+        // to initialize these correctly.
+        if (getenv("DISPLAY")) {
+            domain = DOMAIN_TYPE_GUI;
+        } else {
+            domain = DOMAIN_TYPE_USER;
+        }
     }
 
     Manager mgr{domain};

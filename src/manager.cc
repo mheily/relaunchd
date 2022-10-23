@@ -429,15 +429,15 @@ void Manager::startAllJobs() {
 void Manager::loadDefaultManifests() {
     switch (domain) {
         case DOMAIN_TYPE_SYSTEM:
-            (void)loadAllManifests(VENDOR_DAEMON_LOAD_PATH);
             (void)loadAllManifests(SYSTEM_DAEMON_LOAD_PATH);
+            (void)loadAllManifests(VENDOR_DAEMON_LOAD_PATH);
             break;
         case DOMAIN_TYPE_USER:
-            (void)loadAllManifests(USER_DAEMON_LOAD_PATH);
+            (void)loadAllManifests(SYSTEM_AGENT_LOAD_PATH);
+            (void)loadAllManifests(VENDOR_AGENT_LOAD_PATH);
             break;
         case DOMAIN_TYPE_GUI:
-            // TODO: implement LaunchAgents
-            throw std::runtime_error("not supported");
+            (void)loadAllManifests(USER_AGENT_LOAD_PATH);
             break;
     }
 }
@@ -449,12 +449,13 @@ bool Manager::loadAllManifests(const std::string &load_path, bool overrideDisabl
         std::string str;
         std::getline(ss, str, ':');
 
-        // Replace $HOME with the actual HOME
-        if (getenv("HOME")) {
-            auto index = str.find("$HOME");
-            if (index != std::string::npos) {
-                str.replace(index, 5, getenv("HOME"));
+        // Replace ~ with the actual HOME
+        if (str.rfind("~", 0)) {
+            char *home = getenv("HOME");
+            if (!home) {
+                continue;
             }
+            str.replace(0, 5, getenv("HOME"));
         }
 
         paths.emplace_back(str);
