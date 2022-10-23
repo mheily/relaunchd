@@ -50,6 +50,7 @@ if(NOT USE_PRIVATE_DEPENDENCIES)
     find_package(TinyXML2 9.0.0 REQUIRED)
 endif()
 
+add_subdirectory(man)
 add_subdirectory(src)
 add_subdirectory(test)
 

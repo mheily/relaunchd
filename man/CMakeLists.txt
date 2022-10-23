@@ -1,0 +1,3 @@
+install(FILES launchctl.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
+install(FILES launchd.plist.5 DESTINATION ${CMAKE_INSTALL_MANDIR}/man5)
+install(FILES launchd.8 DESTINATION ${CMAKE_INSTALL_MANDIR}/man8)
