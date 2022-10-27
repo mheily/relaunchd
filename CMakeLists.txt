@@ -6,6 +6,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules ${CMAKE_MODULE_P
 
 include(ExternalProject)
 include(CheckIncludeFiles)
+include(CheckIPOSupported)
 include(GNUInstallDirs)
 include(CheckSymbolExists)
 include(EnableSanitizers)
@@ -40,6 +41,8 @@ set(USER_AGENT_LOAD_PATH
         "~/.config/relaunchd/LaunchAgents"
         CACHE
         STRING "Search path for user-provided agents")
+
+check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
 
 CHECK_INCLUDE_FILES(sys/event.h HAVE_SYS_EVENT_H)
 

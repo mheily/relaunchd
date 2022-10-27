@@ -84,6 +84,15 @@ add_executable(launchctl launchctl.cc)
 
 target_link_libraries(launchctl launch)
 
+if(ipo_supported)
+    message(STATUS "Enabling link-time optimization")
+    set_property(TARGET launch PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+    set_property(TARGET launchctl PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+    set_property(TARGET launchd PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+else()
+    message(STATUS "LTO not supported: <${ipo_error}>")
+endif()
+
 if(USE_LIBKQUEUE)
 else()
     target_link_libraries(launchctl "${LibKQueue_LIBRARIES}")
