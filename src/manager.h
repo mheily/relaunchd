@@ -16,18 +16,15 @@
 
 #pragma once
 
+#include <array>
 #include <filesystem>
 #include "../vendor/json.hpp"
 
 #include "channel.h"
+#include "domain.h"
 #include "event.h"
 #include "job.h"
 
-typedef enum {
-    DOMAIN_TYPE_SYSTEM,
-    DOMAIN_TYPE_USER,
-    DOMAIN_TYPE_GUI,
-} DomainType;
 
 class Manager {
 public:
@@ -84,7 +81,7 @@ private:
     //std::unordered_map<std::string, std::shared_ptr<Job>> loaded_jobs;
     //std::unordered_map<pid_t, std::shared_ptr<Job>> running_jobs;
 
-    DomainType domain;
+    Domain domain;
     kq::EventManager eventmgr;
     Channel chan;
     bool SHUTTING_DOWN = false;

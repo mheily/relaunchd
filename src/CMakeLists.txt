@@ -13,6 +13,7 @@ check_include_files(sys/limits.h, HAVE_SYS_LIMITS_H)
 set(LAUNCH_SRC
         calendar.cc calendar.h
         channel.h channel.cc
+        domain.h domain.cc
         event.h
         job.cc job.h
         log.cc log.h

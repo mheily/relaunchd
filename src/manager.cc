@@ -257,7 +257,7 @@ void Manager::overrideJobEnabled(const std::string &label, bool enabled) {
     STATE_FILE->setValue(doc);
 }
 
-Manager::Manager(DomainType domain_) : domain(domain_) {
+Manager::Manager(DomainType domain_) : domain(Domain(domain_)) {
     auto statedir = getStateDir();
     if (getuid() != 0 && !std::filesystem::exists(statedir)) {
         log_debug("creating %s", statedir.c_str());
@@ -427,72 +427,57 @@ void Manager::startAllJobs() {
 
 
 void Manager::loadDefaultManifests() {
-    switch (domain) {
-        case DOMAIN_TYPE_SYSTEM:
-            (void)loadAllManifests(SYSTEM_DAEMON_LOAD_PATH);
-            (void)loadAllManifests(VENDOR_DAEMON_LOAD_PATH);
-            break;
-        case DOMAIN_TYPE_USER:
-            (void)loadAllManifests(SYSTEM_AGENT_LOAD_PATH);
-            (void)loadAllManifests(VENDOR_AGENT_LOAD_PATH);
-            break;
-        case DOMAIN_TYPE_GUI:
-            (void)loadAllManifests(USER_AGENT_LOAD_PATH);
-            break;
+    log_info("loading default manifests for domain %s", domain.to_string().c_str());
+    auto paths = domain.getLoadPaths();
+    for (const auto &path : paths) {
+        (void) loadAllManifests(path);
     }
 }
 
-bool Manager::loadAllManifests(const std::string &load_path, bool overrideDisabled, bool forceLoad) {
-    std::vector<std::string> paths;
-    std::stringstream ss(load_path);
-    while (ss.good()) {
-        std::string str;
-        std::getline(ss, str, ':');
+bool Manager::loadAllManifests(const std::string &path, bool overrideDisabled, bool forceLoad) {
+    log_debug("loading all in %s", path.c_str());
 
-        // Replace ~ with the actual HOME
-        if (str.rfind("~", 0)) {
-            char *home = getenv("HOME");
-            if (!home) {
-                continue;
-            }
-            str.replace(0, 5, getenv("HOME"));
-        }
-
-        paths.emplace_back(str);
-    }
+    // FIXME: do this elsewhere
+    // Replace ~ with the actual HOME
+//    if (str.rfind("~", 0)) {
+//        char *home = getenv("HOME");
+//        if (!home) {
+//            continue;
+//        }
+//            str.replace(0, 5, getenv("HOME"));
+//        }
+//    }
 
     bool error = false;
-    for (const auto &path : paths) {
-        if (!std::filesystem::exists(path)) {
-            log_warning("load failed: path does not exist: %s", path.c_str());
-            error = true;
-            continue;
-        }
-        if (std::filesystem::is_directory(path)) {
-            log_notice("loading all manifests in %s/", path.c_str());
-            using std::filesystem::directory_iterator;
-            for (const auto &file: directory_iterator(path)) {
-                try {
-                    if (!loadManifest(file.path(), overrideDisabled, forceLoad)) {
-                        error = true;
-                    }
-                } catch (...) {
-                    log_error("unhandled exception while parsing %s", file.path().c_str());
-                    error = true;
-                }
-            }
-        } else {
+    if (!std::filesystem::exists(path)) {
+        log_warning("load failed: path does not exist: %s", path.c_str());
+        return false;
+    }
+    if (std::filesystem::is_directory(path)) {
+        log_notice("loading all manifests in %s/", path.c_str());
+        using std::filesystem::directory_iterator;
+        for (const auto &file: directory_iterator(path)) {
             try {
-                std::filesystem::path p{path};
-                if (!loadManifest(p, overrideDisabled, forceLoad)) {
+                if (!loadManifest(file.path(), overrideDisabled, forceLoad)) {
                     error = true;
                 }
             } catch (...) {
-                log_error("unhandled exception while parsing %s", path.c_str());
+                log_error("unhandled exception while parsing %s", file.path().c_str());
                 error = true;
             }
         }
+    } else {
+        try {
+            std::filesystem::path p{path};
+            if (!loadManifest(p, overrideDisabled, forceLoad)) {
+                error = true;
+            }
+        } catch (...) {
+            log_error("unhandled exception while parsing %s", path.c_str());
+            error = true;
+        }
     }
+
     return error;
 }
 

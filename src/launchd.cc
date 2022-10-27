@@ -97,11 +97,11 @@ int main(int argc, char *argv[]) noexcept {
     bool daemonize = (pid != 1);
     int logmask = LOG_NOTICE;
 
-    /* Sanitize environment variables */
-    if ((getuid() != 0) && (access(getenv("HOME"), R_OK | W_OK | X_OK) < 0)) {
-        fputs("Invalid value for the HOME environment variable\n", stderr);
-        exit(1);
-    }
+//    /* Sanitize environment variables */
+//    if ((getuid() != 0) && (access(getenv("HOME"), R_OK | W_OK | X_OK) < 0)) {
+//        fputs("Invalid value for the HOME environment variable\n", stderr);
+//        exit(1);
+//    }
 
     while ((c = getopt(argc, argv, "fv")) != -1) {
         switch (c) {
@@ -117,6 +117,7 @@ int main(int argc, char *argv[]) noexcept {
         }
     }
 
+    // FIXME: pid 1 logging cannot go to syslogd because of chicken+egg
     openlog("launchd", LOG_PID | LOG_NDELAY, LOG_DAEMON);
     setlogmask(logmask);
 
