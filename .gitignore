@@ -2,3 +2,4 @@ Attic/*
 .idea/
 cmake-build-*/
 *.kdev4
+container-stamp

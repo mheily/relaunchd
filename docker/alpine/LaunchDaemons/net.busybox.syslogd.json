@@ -1,0 +1,11 @@
+{
+  "Label": "net.busybox.syslogd",
+  "ProgramArguments": [
+    "/sbin/syslogd",
+    "-n"
+  ],
+  "RunAtLoad": true,
+  "KeepAlive": {
+    "Always": true
+  }
+}
