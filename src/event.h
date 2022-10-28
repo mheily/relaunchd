@@ -25,6 +25,7 @@
 #include <sys/epoll.h>
 #include <sys/signalfd.h>
 #include <sys/timerfd.h>
+#include <sys/wait.h>
 #elif __has_include(<sys/event.h>)
 #define USE_KQUEUE 1
 #include <sys/event.h>
@@ -147,6 +148,7 @@ public:
                         }
                     }
                     if (sig.ssi_signo == SIGCHLD) {
+                        (void) waitpid(sig.ssi_pid, nullptr, WNOHANG);
                         if (watch_pids.count(sig.ssi_pid)) {
                             watch_pids.erase(sig.ssi_pid);
                             return Event(proc_event{static_cast<pid_t>(sig.ssi_pid), static_cast<int>(sig.ssi_status)});
