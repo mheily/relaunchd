@@ -166,6 +166,9 @@ namespace manifest {
                 keepalive.at("Always").get_to(m.keep_alive.always);
             }
         }
+        if (j.contains("Dependencies")) {
+            m.dependencies = DependencyList(j.at("Dependencies"));
+        }
         m.rectify();
         if (!m.validate()) {
             throw InvalidManifestError();

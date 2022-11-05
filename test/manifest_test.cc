@@ -21,6 +21,30 @@ void test_parse() {
     }
 }
 
+void testParseComplexDependency() {
+    json obj = json::parse(R"(
+        [
+            {
+                "Label": "dep1",
+                "StartBefore": true
+            }
+        ]
+    )");
+    DependencyList deplist{obj};
+}
+
+void testParseSimpleDependency() {
+    json obj = json::parse(R"(
+        [
+            "dep1",
+            "dep2"
+        ]
+    )");
+    DependencyList deplist{obj};
+}
+
 int main(int argc, char *argv[]) {
-    test_parse();
+    //test_parse();
+    testParseComplexDependency();
+    testParseSimpleDependency();
 }

@@ -4,8 +4,6 @@
     "/sbin/syslogd",
     "-n"
   ],
-  "RunAtLoad": true,
-  "KeepAlive": {
-    "Always": true
-  }
+  "KeepAlive": true,
+  "RunAtLoad": true
 }

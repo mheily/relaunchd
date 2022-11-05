@@ -29,6 +29,8 @@ using json = nlohmann::json;
 #include "manifest.h"
 #include "log.h"
 
+typedef std::string Label;
+
 typedef enum {
 	JOB_SCHEDULE_NONE = 0,
 	JOB_SCHEDULE_PERIODIC,
@@ -38,6 +40,7 @@ typedef enum {
 enum job_state_e {
     JOB_STATE_DEFINED,
     JOB_STATE_LOADED,
+    JOB_STATE_MISSING_DEPENDS,
     JOB_STATE_WAITING,
     JOB_STATE_RUNNING,
     JOB_STATE_KILLED,
@@ -47,13 +50,11 @@ enum job_state_e {
 struct Job {
     Job(std::optional<std::filesystem::path> manifest_path_, Manifest manifest_);
 
-    // Do not allow jobs to be copied
-    Job (const Job&) = delete;
-    Job& operator= (const Job&) = delete;
+    //! The time that the job started
+    time_t started_at;
 
-    time_t started_at; // The time that the job started
     std::optional<std::filesystem::path> manifest_path;
-    Manifest manifest;
+    const Manifest manifest;
     enum job_state_e state;
     pid_t pid;
     int last_exit_status, term_signal;
@@ -74,6 +75,36 @@ struct Job {
     void unload();
 
     bool isRunning() const { return pid > 0; }
+
+    //! Has the job ever been started by the manager? It might not be running now;
+    //! to check if it is running, use isRunning() instead.
+    bool hasStarted() const {
+        switch (state) {
+            case JOB_STATE_DEFINED:
+            case JOB_STATE_LOADED:
+            case JOB_STATE_MISSING_DEPENDS:
+                return false;
+            case JOB_STATE_WAITING:
+            case JOB_STATE_RUNNING:
+            case JOB_STATE_KILLED:
+            case JOB_STATE_EXITED:
+                return true;
+            default:
+                throw std::runtime_error("unhandled case");
+        }
+    }
+
+    //! Should the job be started automatically?
+    bool shouldStart() const {
+        // FIXME: what about scheduled jobs?
+        //  if    job->schedule != JOB_SCHEDULE_NONE
+        if (state == JOB_STATE_LOADED &&
+            (manifest.keep_alive.always || manifest.run_at_load)) {
+            return true;
+        } else {
+            return false;
+        }
+    }
 
 private:
     job_schedule_t _set_schedule() const;

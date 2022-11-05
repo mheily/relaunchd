@@ -23,6 +23,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <queue>
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -55,40 +56,46 @@ int manager_activate_job_by_fd(int fd)
 void Manager::reapChildProcess(pid_t pid, int status) {
     // FIXME: check for range error exception because we are a subreaper on some platforms
     // See: https://github.com/mheily/relaunchd/issues/15
-    auto maybe_job = at(pid);
-    if (!maybe_job) {
-		log_debug("child pid %d exited but no matching job found", pid);
-		return;
-	}
-    auto job = *maybe_job;
+    std::string label;
+    for (const auto &[_, job] : jobs) {
+        if (job.pid == pid) {
+            label = job.manifest.label;
+            break;
+        }
+    }
+    if (label.size() == 0) {
+        log_debug("child pid %d exited but no matching job found", pid);
+        return;
+    }
+    auto & job = jobs.at(label);
 
-	if (job->state == JOB_STATE_KILLED) {
+	if (job.state == JOB_STATE_KILLED) {
 		/* The job is unloaded, so nobody cares about the exit status */
 		return;
 	}
 
-	if (job->manifest.start_interval > 0) {
-		job->state = JOB_STATE_WAITING;
+	if (job.manifest.start_interval > 0) {
+		job.state = JOB_STATE_WAITING;
 	} else {
-		job->state = JOB_STATE_EXITED;
+		job.state = JOB_STATE_EXITED;
 	}
 	if (WIFEXITED(status)) {
-		job->last_exit_status = WEXITSTATUS(status);
+		job.last_exit_status = WEXITSTATUS(status);
 	} else if (WIFSIGNALED(status)) {
-		job->last_exit_status = -1;
-		job->term_signal = WTERMSIG(status);
+		job.last_exit_status = -1;
+		job.term_signal = WTERMSIG(status);
 	} else {
 		log_error("unhandled exit status");
 	}
-	log_debug("job %d exited with status %d", job->pid,
-			job->last_exit_status);
-	job->pid = 0;
+	log_debug("job %d exited with status %d", job.pid,
+			job.last_exit_status);
+	job.pid = 0;
 
-    if (job->manifest.keep_alive.always) {
-        time_t restart_at = job->started_at + job->manifest.throttle_interval;
+    if (job.manifest.keep_alive.always) {
+        time_t restart_at = job.started_at + job.manifest.throttle_interval;
         time_t now = current_time();
         if (now >= restart_at) {
-            log_debug("%s: restarting due to KeepAlive", job->manifest.label.c_str());
+            log_debug("%s: restarting due to KeepAlive", job.manifest.label.c_str());
             startJob(job);
         } else {
             time_t delta = restart_at - now;
@@ -96,14 +103,15 @@ void Manager::reapChildProcess(pid_t pid, int status) {
                 throw std::range_error("interval too large");
             }
             int seconds = static_cast<int>(delta);
-            log_debug("%s: will restart in %d seconds due to KeepAlive setting", job->manifest.label.c_str(), seconds);
-            job->state = JOB_STATE_WAITING;
-            eventmgr.addTimer( seconds, [job, this]() {
+            log_debug("%s: will restart in %d seconds due to KeepAlive setting", job.manifest.label.c_str(), seconds);
+            job.state = JOB_STATE_WAITING;
+            eventmgr.addTimer( seconds, [label, this]() {
+                auto & job = jobs.at(label); // FIXME: handle or avoid exception
                 // The job may have been unloaded in the interval, or manually started by an administrator.
-                if (job->state == JOB_STATE_WAITING) {
+                if (job.state == JOB_STATE_WAITING) {
                     startJob(job);
                 } else {
-                    log_debug("attempted to restart job %s: not waiting to be started", job->manifest.label.c_str());
+                    log_debug("attempted to restart job %s: not waiting to be started", job.manifest.label.c_str());
                 }
             });
         }
@@ -145,7 +153,7 @@ Manager::loadManifest(const json &jsondata, const std::string &path, bool overri
     }
 
     /* Check for duplicate jobs */
-    if (services.count(manifest.label)) {
+    if (jobs.count(manifest.label)) {
         log_error("tried to load a duplicate job with label %s", manifest.label.c_str());
         return false;
     }
@@ -171,16 +179,15 @@ Manager::loadManifest(const json &jsondata, const std::string &path, bool overri
         return false;
     }
 
-    std::shared_ptr<Job> job = std::make_shared<Job>(path, manifest);
-    services.emplace(manifest.label,job);
-
-    job->load();
+    auto [it, _] = jobs.emplace(std::string{manifest.label}, Job{path, manifest});
+    auto &job = it->second;
+    job.load();
 
     return true;
 }
 
 int Manager::unloadJob(const std::string &label, bool overrideDisabled, bool forceUnload) {
-    if (!services.count(label)) {
+    if (!jobs.count(label)) {
         log_info("tried to unload a job that is not loaded: %s", label.c_str());
         return -1;
     }
@@ -188,10 +195,10 @@ int Manager::unloadJob(const std::string &label, bool overrideDisabled, bool for
         log_debug("%s: overriding the Disabled key", label.c_str());
         overrideJobEnabled(label, false);
     }
-    auto & job = services.at(label);
+    auto & job = jobs.at(label);
 
     // Check if the job is disabled
-    if (!job->manifest.disabled && !forceUnload) {
+    if (!job.manifest.disabled && !forceUnload) {
         auto state = STATE_FILE->getValue();
         if (state.at("Overrides").contains(label)) {
             const auto job_state = state["Overrides"][label];
@@ -201,14 +208,14 @@ int Manager::unloadJob(const std::string &label, bool overrideDisabled, bool for
         }
     }
 
-    if (job->manifest.disabled && !forceUnload) {
+    if (job.manifest.disabled && !forceUnload) {
         log_debug("will not unload %s: it is disabled", label.c_str());
         return 0;
     }
 
-    job->unload();
-    log_debug("unloaded job: %s", job->manifest.label.c_str());
-    services.erase(label);
+    job.unload();
+    log_debug("unloaded job: %s", job.manifest.label.c_str());
+    jobs.erase(label);
     return 0;
 }
 
@@ -226,19 +233,19 @@ int Manager::unloadJob(const std::filesystem::path &path, bool overrideDisabled,
 
 json Manager::listJobs() {
     auto result = json::array();
-    for (const auto & [label, job] : services) {
-        std::string pid = (job->pid == 0) ? "-" : std::to_string(job->pid);
-        if (job->pid == 0) {
+    for (const auto & [label, job] : jobs) {
+        std::string pid = (job.pid == 0) ? "-" : std::to_string(job.pid);
+        if (job.pid == 0) {
             pid = "-";
         } else {
-            pid = std::to_string(job->pid);
+            pid = std::to_string(job.pid);
         }
         result.emplace_back(
                 json::object(
                         {
-                                {"Label",          std::string{job->manifest.label}},
+                                {"Label",          std::string{job.manifest.label}},
                                 {"PID",            std::move(pid)},
-                                {"LastExitStatus", job->last_exit_status},
+                                {"LastExitStatus", job.last_exit_status},
                         }
                 ));
     }
@@ -293,7 +300,7 @@ bool Manager::handleEvent() {
     return !SHUTTING_DOWN;
 }
 
-std::optional<std::shared_ptr<Job>> Manager::at(const pid_t pid) const {
+std::optional<Label> Manager::getLabelByPid(const pid_t pid) const {
     // TODO: switch to running_jobs
 //    auto it = services.find(pid);
 //    if (it != services.end()) {
@@ -301,44 +308,36 @@ std::optional<std::shared_ptr<Job>> Manager::at(const pid_t pid) const {
 //    } else {
 //        return std::nullopt;
 //    }
-    for (const auto & [label, job] : services) {
-        if (job->pid == pid) {
-            return job;
+    for (const auto & [label, job] : jobs) {
+        if (job.pid == pid) {
+            return label;
         }
     }
     return std::nullopt;
 }
 
-std::optional<std::shared_ptr<Job>> Manager::at(const std::string &label) const {
-    // TODO: switch to loaded_jobs
-    auto it = services.find(label);
-    if (it != services.end()) {
-        return it->second;
-    } else {
-        return std::nullopt;
-    }
+bool Manager::jobExists(const Label &label) const {
+    return jobs.count(label);
+}
+
+Job & Manager::getJob(const std::string &label) {
+    return jobs.at(label);
 }
 
 int Manager::erase(const std::string &label) {
     // XXX FIXME kill and remove from running jobs
 
-    auto it = services.find(label);
-    if (it == services.end()) {
-        return 0;
+    if (jobExists(label)) {
+        getJob(label).unload();
     }
-    auto & job = it->second;
-
-    job->unload();
-
-    log_debug("job %s unloaded", label.c_str());
 
     return 0;
 }
 
-void Manager::wakeJob(std::shared_ptr<Job> &job) {
-    if (job->state != JOB_STATE_WAITING) {
+void Manager::wakeJob(Job &job) {
+    if (job.state != JOB_STATE_WAITING) {
         log_error("tried to wake job %s that was not asleep (state=%d)",
-                  job->manifest.label.c_str(), job->state);
+                  job.manifest.label.c_str(), job.state);
         throw std::logic_error("job in wrong state");
     }
     startJob(job);
@@ -346,53 +345,57 @@ void Manager::wakeJob(std::shared_ptr<Job> &job) {
 
 void Manager::clear() {
     log_debug("unloading all jobs");
-    auto it = services.begin();
-    while (it != services.end()) {
+    auto it = jobs.begin();
+    while (it != jobs.end()) {
         auto & job = it->second;
         try {
-            job->unload();
+            job.unload();
         } catch (...) {
             log_error("failed to unload %s: ignoring because all jobs are being unloaded",
-                      job->manifest.label.c_str());
+                      job.manifest.label.c_str());
         }
-        it = services.erase(it);
+        it = jobs.erase(it);
     }
 }
 
-void Manager::rescheduleCalendarJob(const std::shared_ptr<Job> &job) {
-    auto maybe_schedule = calendar::schedule_calendar_job(
-            job->manifest.calendar_interval.value());
+void Manager::rescheduleCalendarJob(Job &job) {
+    auto interval = job.manifest.calendar_interval.value();
+    auto maybe_schedule = calendar::schedule_calendar_job(interval);
     if (!maybe_schedule) {
         return;
     }
     auto [absolute_time, relative_time] = maybe_schedule.value();
-    log_debug("job %s scheduled to run in %d minutes at t=%ld", job->manifest.label.c_str(), relative_time,
+    log_debug("job %s scheduled to run in %d minutes at t=%ld", job.manifest.label.c_str(), relative_time,
               absolute_time);
-    job->state = JOB_STATE_WAITING;
-    eventmgr.addTimer(relative_time, [job, this]() {
-        // The job may have been unloaded in the interval, or manually started by an administrator.
-        if (job->state == JOB_STATE_WAITING) {
-            startJob(job);
-            rescheduleCalendarJob(job);
+    job.state = JOB_STATE_WAITING;
+    auto &label = job.manifest.label;
+    eventmgr.addTimer(relative_time, [label, this]() {
+        if (jobExists(label)) {
+            auto &job = getJob(label);
+            // The job may have been unloaded in the interval, or manually started by an administrator.
+            if (job.state == JOB_STATE_WAITING) {
+                startJob(job);
+                rescheduleCalendarJob(job);
+            }
         }
     });
     // XXX-FIXME: update StateFile to set the absolute start time.
 }
 
-void Manager::reschedulePeriodicJob(const std::shared_ptr<Job> &job) {
-    log_debug("job %s will start after T=%u", job->manifest.label.c_str(), job->manifest.start_interval);
-    job->state = JOB_STATE_WAITING;
-    eventmgr.addTimer(job->manifest.start_interval, [&job, this]() {
+void Manager::reschedulePeriodicJob(Job &job) {
+    log_debug("job %s will start after T=%u", job.manifest.label.c_str(), job.manifest.start_interval);
+    job.state = JOB_STATE_WAITING;
+    eventmgr.addTimer(job.manifest.start_interval, [&job, this]() {
         // The job may have been unloaded in the interval, or manually started by an administrator.
-        if (job->state == JOB_STATE_WAITING) {
+        if (job.state == JOB_STATE_WAITING) {
             startJob(job);
             reschedulePeriodicJob(job);
         }
     });
 }
 
-void Manager::rescheduleJob(const std::shared_ptr<Job> &job) {
-    switch (job->schedule) {
+void Manager::rescheduleJob(Job &job) {
+    switch (job.schedule) {
         case JOB_SCHEDULE_PERIODIC:
             reschedulePeriodicJob(job);
             break;
@@ -404,21 +407,94 @@ void Manager::rescheduleJob(const std::shared_ptr<Job> &job) {
     }
 }
 
-void Manager::startJob(const std::shared_ptr<Job> &job) {
-    job->run();
-    eventmgr.addProcess(job->pid, [this](pid_t pid, int status) {
+void Manager::startJob(Job &job) {
+    log_debug("trying to start %s", job.manifest.label.c_str());
+    // Start all dependencies
+    for (const auto & [label, dep] : job.manifest.dependencies.getItemsByLabel()) {
+        log_debug("evaluating dependency: %s", label.c_str());
+        if (!jobExists(label)) {
+            log_debug("dependency does not exist: %s", label.c_str());
+            job.state = JOB_STATE_MISSING_DEPENDS;
+            return;
+        }
+        auto & depjob = getJob(label);
+        if (depjob.state == JOB_STATE_LOADED) {
+            log_debug("starting job %s as a dependency of %s", depjob.manifest.label.c_str(), job.manifest.label.c_str());
+            startJob(depjob);
+        }
+        if (!depjob.isRunning()) {
+            log_debug("dependency is not running: %s", label.c_str());
+            job.state = JOB_STATE_MISSING_DEPENDS;
+            return;
+        }
+    }
+
+    if (job.schedule != JOB_SCHEDULE_NONE) {
+        // To "start" a scheduled job means scheduling it, not actually starting it.
+        return rescheduleJob(job);
+    }
+
+    job.run();
+    eventmgr.addProcess(job.pid, [this](pid_t pid, int status) {
         reapChildProcess(pid, status);
     });
-    job->state = JOB_STATE_RUNNING;
+    job.state = JOB_STATE_RUNNING;
 }
 
+/*
+void Manager::startAllJobsTODO() {
+    std::queue<std::string> pending, deferred; // deferred job labels
+    size_t previous_deferred_count = 0;
+    for (const auto &[label, job]: jobs) {
+        if (!job.hasStarted() && job.shouldStart()) {
+            deferred.push(label);
+        }
+    }
+    // If two iterations result in the same list of deferred jobs, we cannot make any forward
+    // progress and are done.
+    while (deferred.size() != previous_deferred_count) {
+        previous_deferred_count = deferred.size();
+
+        // Move all deferred items to pending
+        while (!deferred.empty()) {
+            pending.push(deferred.front());
+            deferred.pop();
+        }
+
+        // Start or defer each job in pending
+        while (!pending.empty()) {
+            auto label = pending.front();
+            pending.pop();
+            auto job = jobs.at(label);
+            if (job.shouldStart() && !job.hasStarted()) {
+                auto missing = getMissingDependencies(job);
+                if (missing.size() == 0) {
+                    startJob(job);
+                } else {
+                    // push the unsatisfied job dependencies to deferred
+                    // fixme: wont work with !isRequired
+//#error  we need to make dependencies & order part of Manifest, and use it as part of shouldRun() calculations
+//      so that things that are dependnecies but not enabled will be started.
+                    for (const auto &deplabel : missing) {
+                        deferred.push(deplabel);
+                    }
+                    // retry the job after trying the deps
+                    deferred.push(job.manifest.label);
+                }
+            }
+        }
+    }
+}
+
+ */
+
 void Manager::startAllJobs() {
-    for (const auto & [label, job] : services) {
-        if (job->state == JOB_STATE_LOADED) {
-            if (job->manifest.keep_alive.always || job->manifest.run_at_load) {
+    for (auto & [label, job] : jobs) {
+        if (job.state == JOB_STATE_LOADED) {
+            if (job.manifest.keep_alive.always || job.manifest.run_at_load) {
                 startJob(job);
             }
-            if (job->schedule != JOB_SCHEDULE_NONE) {
+            if (job.schedule != JOB_SCHEDULE_NONE) {
                 rescheduleJob(job);
             }
         }
@@ -479,5 +555,23 @@ bool Manager::loadAllManifests(const std::string &path, bool overrideDisabled, b
     }
 
     return error;
+}
+
+// FIXME: this only handles the simple case of an implicit StartAfter requirement.
+std::vector<std::string> Manager::getMissingDependencies(Job &job) {
+    std::vector<std::string> result;
+    for (const auto & [label, dep] : job.manifest.dependencies.getItemsByLabel()) {
+        if (!jobExists(label)) {
+            if (dep.isRequired) {
+                result.push_back(label);
+            }
+        } else {
+            const auto & depjob = getJob(label);
+            if (dep.isRequired && dep.startAfter && !depjob.hasStarted()) {
+                result.push_back(label);
+            }
+        }
+    }
+    return result;
 }
 

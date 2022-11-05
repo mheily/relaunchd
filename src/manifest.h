@@ -28,6 +28,8 @@
 #include <sys/stat.h>
 
 #include "../vendor/json.hpp"
+#include "dependency.h"
+
 using json = nlohmann::json;
 
 namespace manifest {
@@ -78,6 +80,8 @@ namespace manifest {
             bool always; /* Equivalent to setting { "KeepAlive": true } */
             /* TODO: various other conditions */
         } keep_alive;
+
+        DependencyList dependencies;
 
         // TODO: ResourceLimits, HopefullyExits*, inetd, LowPriorityIO, LaunchOnlyOnce
         //SLIST_HEAD(,job_manifest_socket) sockets;

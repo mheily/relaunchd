@@ -1,0 +1,11 @@
+{
+  "Label": "test.depends",
+  "ProgramArguments": [
+    "/bin/true"
+  ],
+  "RunAtLoad": true,
+  "KeepAlive": true,
+  "Dependencies": [
+    "net.busybox.crond"
+  ]
+}

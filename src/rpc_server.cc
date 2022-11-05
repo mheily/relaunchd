@@ -42,10 +42,9 @@ static json _rpc_op_enable(const json &args, Manager &mgr) {
 static json _rpc_op_kill(const json &args, Manager &mgr) {
     const std::string &label = args[1]["Label"];
     const std::string &signame_or_num = args[1]["Signal"];
-    auto maybe_job = mgr.at(label);
-    if (maybe_job) {
-        const auto job = *maybe_job;
-        job->kill(signame_or_num);
+    if (mgr.jobExists(label)) {
+        auto & job = mgr.getJob(label);
+        job.kill(signame_or_num);
         return {{"error", false}};
     } else {
         return {{"error", true}};
@@ -92,10 +91,9 @@ static json _rpc_op_unload(const json &args, Manager &mgr) {
 
 static json _rpc_op_start(const json &args, Manager &mgr) {
     const std::string &label = args[1]["Label"];
-    auto maybe_job = mgr.at(label);
-    if (maybe_job) {
-        const auto job = *maybe_job;
-        job->run();
+    if (mgr.jobExists(label)) {
+        auto & job = mgr.getJob(label);
+        job.run();
         return {{"error", false}};
     } else {
         return {{"error", true}};
@@ -104,10 +102,9 @@ static json _rpc_op_start(const json &args, Manager &mgr) {
 
 static json _rpc_op_stop(const json &args, Manager &mgr) {
     const std::string &label = args[1]["Label"];
-    auto maybe_job = mgr.at(label);
-    if (maybe_job) {
-        const auto job = *maybe_job;
-        job->kill("SIGTERM");
+    if (mgr.jobExists(label)) {
+        auto & job = mgr.getJob(label);
+        job.kill("SIGTERM");
         return {{"error", false}};
     } else {
         return {{"error", true}};

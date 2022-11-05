@@ -34,9 +34,9 @@ public:
 
     bool handleEvent();
 
-    [[nodiscard]] std::optional<std::shared_ptr<Job>> at(pid_t pid) const;
+    [[nodiscard]] std::optional<Label> getLabelByPid(pid_t pid) const;
 
-    [[nodiscard]] std::optional<std::shared_ptr<Job>> at(const std::string &label) const;
+    Job& getJob(const std::string &label);
 
     int erase(const std::string &label);
 
@@ -60,26 +60,28 @@ public:
 
     void startAllJobs();
 
+    //! Return true if the job exists
+    bool jobExists(const Label &label) const;
+
 private:
 
-    void startJob(const std::shared_ptr<Job> &job);
+    void startJob(Job &job);
 
-    void wakeJob(std::shared_ptr<Job> &job);
+    void wakeJob(Job &job);
 
-    void rescheduleCalendarJob(const std::shared_ptr<Job> &job);
+    void rescheduleCalendarJob(Job &job);
 
-    void reschedulePeriodicJob(const std::shared_ptr<Job> &job);
+    void reschedulePeriodicJob(Job &job);
 
-    void rescheduleJob(const std::shared_ptr<Job> &job);
+    void rescheduleJob(Job &job);
 
     void reapChildProcess(pid_t pid, int status);
 
     void setupSignalHandlers();
 
-    std::unordered_map<std::string, std::shared_ptr<Job>> services;
-    // TODO: switch from "services" to this:
-    //std::unordered_map<std::string, std::shared_ptr<Job>> loaded_jobs;
-    //std::unordered_map<pid_t, std::shared_ptr<Job>> running_jobs;
+    std::vector<std::string> getMissingDependencies(Job &job);
+
+    std::unordered_map<std::string, Job> jobs;
 
     Domain domain;
     kq::EventManager eventmgr;

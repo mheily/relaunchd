@@ -7,4 +7,4 @@ WORKDIR /tmp/build
 
 RUN cmake -DCMAKE_INSTALL_PREFIX=/ /tmp/src && make install
 
-CMD '/sbin/launchd'
+ENTRYPOINT /sbin/launchd -v

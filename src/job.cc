@@ -356,6 +356,7 @@ void Job::load() {
 }
 
 void Job::unload() {
+    log_debug("unloading job: %s", manifest.label.c_str());
 	if (state == JOB_STATE_RUNNING) {
 		log_debug("sending SIGTERM to process group %d", pid);
 		if (::kill(-1 * pid, SIGTERM) < 0) {
@@ -369,7 +370,7 @@ void Job::unload() {
 		//TODO: update the timer interval in timer.c?
 		state = JOB_STATE_DEFINED;
 	}
-
+    // FIXME: should the entire job disappear from the jobs table?
 }
 
 void Job::run() {
@@ -445,6 +446,7 @@ bool Job::kill(int signum) const {
     }
     if (::kill(pid, signum) < 0) {
         log_error("kill(2) of PID %d failed: %s", pid, strerror(errno));
+        // TODO: gracefully handle ESRCH, if the job already died but was not reaped
         return false;
     }
     return true;

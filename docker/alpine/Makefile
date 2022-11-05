@@ -14,4 +14,7 @@ container-stamp:
 shell: container-stamp
 	docker exec -it "$$(cat container-stamp)" bash
 
-.PHONY : all clean shell
+logs: container-stamp
+	docker logs "$$(cat container-stamp )"
+
+.PHONY : all clean logs shell
