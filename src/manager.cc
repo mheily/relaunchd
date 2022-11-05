@@ -407,8 +407,26 @@ void Manager::rescheduleJob(Job &job) {
     }
 }
 
-void Manager::startJob(Job &job) {
+void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
     log_debug("trying to start %s", job.manifest.label.c_str());
+
+    // Check for a cyclic dependency that would cause infinite recursion.
+    // Example: Job A depends on Job B, and Job B depends on Job A.
+    if (visited) {
+        log_debug("checking for cycle");
+        for (const auto &label : visited.value()) {
+            if (job.manifest.label == label) {
+                log_error("cycle detected in the job dependency graph");
+                return;
+            }
+        }
+        // This is extra paranoia.
+        if (visited.value().size() > 100) {
+            log_error("dependency chain is too long; maximum number of jobs exceeded");
+            return;
+        }
+    }
+
     // Start all dependencies
     for (const auto & [label, dep] : job.manifest.dependencies.getItemsByLabel()) {
         log_debug("evaluating dependency: %s", label.c_str());
@@ -420,7 +438,13 @@ void Manager::startJob(Job &job) {
         auto & depjob = getJob(label);
         if (depjob.state == JOB_STATE_LOADED) {
             log_debug("starting job %s as a dependency of %s", depjob.manifest.label.c_str(), job.manifest.label.c_str());
-            startJob(depjob);
+            if (visited) {
+                visited.value().emplace_back(job.manifest.label);
+                startJob(depjob, visited);
+            } else {
+                std::vector<Label> dep_visited = {job.manifest.label};
+                startJob(depjob, dep_visited);
+            }
         }
         if (!depjob.isRunning()) {
             log_debug("dependency is not running: %s", label.c_str());

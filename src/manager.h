@@ -65,7 +65,7 @@ public:
 
 private:
 
-    void startJob(Job &job);
+    void startJob(Job &job, std::optional<std::vector<Label>> visited = std::nullopt);
 
     void wakeJob(Job &job);
 
