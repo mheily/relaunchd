@@ -1,6 +1,6 @@
 #undef NDEBUG
 
-#include <assert.h>
+#include <cassert>
 #include <filesystem>
 #include <iostream>
 
@@ -62,7 +62,7 @@ void testDependencies() {
 }
 
 void testCyclicDependency() {
-    log_freopen(stdout);
+    //log_freopen(stdout);
     Manager mgr{DOMAIN_TYPE_USER};
     json job1_manifest = json::parse(R"(
         {

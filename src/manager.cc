@@ -45,14 +45,6 @@ using json = nlohmann::json;
 
 static std::unique_ptr<StateFile> STATE_FILE;
 
-
-int manager_activate_job_by_fd(int fd)
-{
-    (void) fd;
-	return -1; //STUB
-}
-
-
 void Manager::reapChildProcess(pid_t pid, int status) {
     // FIXME: check for range error exception because we are a subreaper on some platforms
     // See: https://github.com/mheily/relaunchd/issues/15
@@ -421,10 +413,12 @@ void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
             }
         }
         // This is extra paranoia.
+        // LCOV_EXCL_START
         if (visited.value().size() > 100) {
             log_error("dependency chain is too long; maximum number of jobs exceeded");
             return;
         }
+        // LCOV_EXCL_STOP
     }
 
     // Start all dependencies
