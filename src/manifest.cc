@@ -175,6 +175,7 @@ namespace manifest {
         }
     }
 
+#if XML_MANIFEST_SUPPORT
     // FIXME: needs work, see https://github.com/mheily/relaunchd/issues/16
     std::optional<json> parse_xml(const char *path) {
         using namespace tinyxml2;
@@ -235,8 +236,10 @@ namespace manifest {
         }
         return std::make_optional<json>(result);
     }
+#endif // XML_MANIFEST_SUPPORT
 
     json parse(const std::filesystem::path &path) {
+#if XML_MANIFEST_SUPPORT
         if (path.extension() == ".plist") {
             auto maybe_obj = manifest::parse_xml(path.c_str());
             if (maybe_obj) {
@@ -245,7 +248,10 @@ namespace manifest {
                 log_error("failed to parse plist as XML");
                 return -1;
             }
-        } else if (path.extension() == ".json") {
+        }
+#endif // XML_MANIFEST_SUPPORT
+
+        if (path.extension() == ".json") {
             std::ifstream ifs{path};
             return json::parse(ifs);
         } else {

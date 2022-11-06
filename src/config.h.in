@@ -16,9 +16,11 @@
 
 #ifndef CONFIG_H_
 
+// Compile-time options
 #define PREFIX      "${CMAKE_INSTALL_PREFIX}"
 #define VARDIR		"${VARDIR}"
 #define PKGSTATEDIR "${PKGSTATEDIR}"
+#define XML_MANIFEST_SUPPORT ${XML_MANIFEST_SUPPORT}
 
 // Default paths for loading manifests
 #define SYSTEM_AGENT_LOAD_PATH "${SYSTEM_AGENT_LOAD_PATH}"

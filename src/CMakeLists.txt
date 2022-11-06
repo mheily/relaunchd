@@ -25,9 +25,11 @@ set(LAUNCH_SRC
         state_file.cc state_file.hpp
         )
 if (USE_PRIVATE_DEPENDENCIES)
-    set(LAUNCH_SRC ${LAUNCH_SRC}
-        ../vendor/tinyxml2.cpp ../vendor/tinyxml2.h)
-endif()
+    set(LAUNCH_SRC ${LAUNCH_SRC})
+    if (USE_TINYXML)
+        set(LAUNCH_SRC ${LAUNCH_SRC} ../vendor/tinyxml2.cpp ../vendor/tinyxml2.h)
+    endif ()
+endif ()
 add_library(launch STATIC ${LAUNCH_SRC})
 
 if (NOT USE_PRIVATE_DEPENDENCIES)

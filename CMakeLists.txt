@@ -13,6 +13,8 @@ include(EnableSanitizers)
 
 option(USE_LIBKQUEUE "Should we use libkqueue" OFF)
 
+option(USE_TINYXML "Should we use TinyXML to support XML manifests" OFF)
+
 option(USE_PRIVATE_DEPENDENCIES
     "Should we fetch, build and link to a private copy of libkqueue?"
     ON)
@@ -46,6 +48,12 @@ check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
 
 CHECK_INCLUDE_FILES(sys/event.h HAVE_SYS_EVENT_H)
 
+if(USE_TINYXML)
+    set(XML_MANIFEST_SUPPORT 1)
+else()
+    set(XML_MANIFEST_SUPPORT 0)
+endif()
+
 if(USE_LIBKQUEUE)
     if(USE_PRIVATE_DEPENDENCIES)
         ExternalProject_Add(libkqueue
@@ -64,7 +72,7 @@ if(USE_LIBKQUEUE)
         find_package(LibKQueue 2.6.2 REQUIRED)
     endif()
 endif()
-if(NOT USE_PRIVATE_DEPENDENCIES)
+if(NOT USE_PRIVATE_DEPENDENCIES AND USE_TINYXML)
     find_package(TinyXML2 9.0.0 REQUIRED)
 endif()
 
