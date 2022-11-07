@@ -459,53 +459,6 @@ void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
     job.state = JOB_STATE_RUNNING;
 }
 
-/*
-void Manager::startAllJobsTODO() {
-    std::queue<std::string> pending, deferred; // deferred job labels
-    size_t previous_deferred_count = 0;
-    for (const auto &[label, job]: jobs) {
-        if (!job.hasStarted() && job.shouldStart()) {
-            deferred.push(label);
-        }
-    }
-    // If two iterations result in the same list of deferred jobs, we cannot make any forward
-    // progress and are done.
-    while (deferred.size() != previous_deferred_count) {
-        previous_deferred_count = deferred.size();
-
-        // Move all deferred items to pending
-        while (!deferred.empty()) {
-            pending.push(deferred.front());
-            deferred.pop();
-        }
-
-        // Start or defer each job in pending
-        while (!pending.empty()) {
-            auto label = pending.front();
-            pending.pop();
-            auto job = jobs.at(label);
-            if (job.shouldStart() && !job.hasStarted()) {
-                auto missing = getMissingDependencies(job);
-                if (missing.size() == 0) {
-                    startJob(job);
-                } else {
-                    // push the unsatisfied job dependencies to deferred
-                    // fixme: wont work with !isRequired
-//#error  we need to make dependencies & order part of Manifest, and use it as part of shouldRun() calculations
-//      so that things that are dependnecies but not enabled will be started.
-                    for (const auto &deplabel : missing) {
-                        deferred.push(deplabel);
-                    }
-                    // retry the job after trying the deps
-                    deferred.push(job.manifest.label);
-                }
-            }
-        }
-    }
-}
-
- */
-
 void Manager::startAllJobs() {
     for (auto & [label, job] : jobs) {
         if (job.state == JOB_STATE_LOADED) {
