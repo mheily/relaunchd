@@ -279,7 +279,7 @@ Manager::Manager(DomainType domain_) : domain(Domain(domain_)) {
 
 Manager::~Manager() {
     log_debug("manager shutting down");
-    clear();
+    unloadAllJobs();
 }
 
 bool Manager::handleEvent() {
@@ -335,7 +335,7 @@ void Manager::wakeJob(Job &job) {
     startJob(job);
 }
 
-void Manager::clear() {
+void Manager::unloadAllJobs() {
     log_debug("unloading all jobs");
     auto it = jobs.begin();
     while (it != jobs.end()) {

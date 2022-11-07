@@ -40,7 +40,7 @@ public:
 
     int erase(const std::string &label);
 
-    void clear();
+    void unloadAllJobs();
 
     void loadDefaultManifests();
 
