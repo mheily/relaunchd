@@ -38,8 +38,6 @@ public:
 
     Job& getJob(const std::string &label);
 
-    int erase(const std::string &label);
-
     void unloadAllJobs();
 
     void loadDefaultManifests();
@@ -57,6 +55,8 @@ public:
     int unloadJob(const std::string &label, bool overrideDisabled = false, bool forceUnload = false);
 
     int unloadJob(const std::filesystem::path &path, bool overrideDisabled = false, bool forceUnload = false);
+
+    void unloadJob(Job &job, bool overrideDisabled = false, bool forceUnload = false);
 
     void startAllJobs();
 

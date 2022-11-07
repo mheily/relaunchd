@@ -178,16 +178,14 @@ Manager::loadManifest(const json &jsondata, const std::string &path, bool overri
     return true;
 }
 
-int Manager::unloadJob(const std::string &label, bool overrideDisabled, bool forceUnload) {
-    if (!jobs.count(label)) {
-        log_info("tried to unload a job that is not loaded: %s", label.c_str());
-        return -1;
-    }
+
+void Manager::unloadJob(Job &job, bool overrideDisabled, bool forceUnload) {
+    std::string label = job.manifest.label;
+
     if (overrideDisabled) {
         log_debug("%s: overriding the Disabled key", label.c_str());
         overrideJobEnabled(label, false);
     }
-    auto & job = jobs.at(label);
 
     // Check if the job is disabled
     if (!job.manifest.disabled && !forceUnload) {
@@ -202,11 +200,25 @@ int Manager::unloadJob(const std::string &label, bool overrideDisabled, bool for
 
     if (job.manifest.disabled && !forceUnload) {
         log_debug("will not unload %s: it is disabled", label.c_str());
-        return 0;
+        return;
     }
 
     job.unload();
-    log_debug("unloaded job: %s", job.manifest.label.c_str());
+    if (job.state == JOB_STATE_KILLED) {
+        //TODO: start a timer to send a SIGKILL if it doesn't die gracefully
+        // See: https://github.com/mheily/relaunchd/issues/14
+        job.state = JOB_STATE_DEFINED;
+    }
+    job.state = JOB_STATE_DEFINED;
+}
+
+int Manager::unloadJob(const std::string &label, bool overrideDisabled, bool forceUnload) {
+    if (!jobs.count(label)) {
+        log_info("tried to unload a job that is not loaded: %s", label.c_str());
+        return -1;
+    }
+    auto & job = jobs.at(label);
+    unloadJob(job, overrideDisabled, forceUnload);
     jobs.erase(label);
     return 0;
 }
@@ -220,7 +232,9 @@ int Manager::unloadJob(const std::filesystem::path &path, bool overrideDisabled,
         log_error("manifest has no Label key");
         return -1;
     }
-    return unloadJob(label, overrideDisabled, forceUnload);
+    unloadJob(label, overrideDisabled, forceUnload);
+    jobs.erase(label);
+    return 0;
 }
 
 json Manager::listJobs() {
@@ -316,16 +330,6 @@ Job & Manager::getJob(const std::string &label) {
     return jobs.at(label);
 }
 
-int Manager::erase(const std::string &label) {
-    // XXX FIXME kill and remove from running jobs
-
-    if (jobExists(label)) {
-        getJob(label).unload();
-    }
-
-    return 0;
-}
-
 void Manager::wakeJob(Job &job) {
     if (job.state != JOB_STATE_WAITING) {
         log_error("tried to wake job %s that was not asleep (state=%d)",
@@ -341,7 +345,7 @@ void Manager::unloadAllJobs() {
     while (it != jobs.end()) {
         auto & job = it->second;
         try {
-            job.unload();
+            unloadJob(job);
         } catch (...) {
             log_error("failed to unload %s: ignoring because all jobs are being unloaded",
                       job.manifest.label.c_str());

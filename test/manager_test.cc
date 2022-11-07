@@ -93,6 +93,7 @@ void testCyclicDependency() {
     assert(!job2.hasStarted());
     assert(job1.state == JOB_STATE_MISSING_DEPENDS);
     assert(job2.state == JOB_STATE_MISSING_DEPENDS);
+    mgr.unloadAllJobs();
 }
 
 //! Test the job.shouldStart() logic

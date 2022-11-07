@@ -357,20 +357,17 @@ void Job::load() {
 
 void Job::unload() {
     log_debug("unloading job: %s", manifest.label.c_str());
-	if (state == JOB_STATE_RUNNING) {
-		log_debug("sending SIGTERM to process group %d", pid);
-		if (::kill(-1 * pid, SIGTERM) < 0) {
-			log_errno("killpg(2) of pid %d", pid);
-			/* not sure how to handle the error, we still want to clean up */
-		}
-		state = JOB_STATE_KILLED;
-		//TODO: start a timer to send a SIGKILL if it doesn't die gracefully
-        // See: https://github.com/mheily/relaunchd/issues/14
-	} else {
-		//TODO: update the timer interval in timer.c?
-		state = JOB_STATE_DEFINED;
-	}
-    // FIXME: should the entire job disappear from the jobs table?
+    if (state == JOB_STATE_RUNNING) {
+        log_debug("sending SIGTERM to process group %d", pid);
+        if (::kill(-1 * pid, SIGTERM) < 0) {
+            if (errno != ESRCH) {
+                log_errno("killpg(2) of pid %d", pid);
+            }
+        }
+        state = JOB_STATE_KILLED;
+    } else {
+        state = JOB_STATE_DEFINED;
+    }
 }
 
 void Job::run() {
