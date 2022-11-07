@@ -74,10 +74,8 @@ struct Job {
 
     void unload();
 
-    bool isRunning() const { return pid > 0; }
-
-    //! Has the job ever been started by the manager? It might not be running now;
-    //! to check if it is running, use isRunning() instead.
+    //! Has the job ever been started by the manager? It might not currently
+    // be running, but that is okay.
     bool hasStarted() const {
         switch (state) {
             case JOB_STATE_DEFINED:
@@ -96,8 +94,9 @@ struct Job {
 
     //! Should the job be started automatically?
     bool shouldStart() const {
-        // FIXME: what about scheduled jobs?
-        //  if    job->schedule != JOB_SCHEDULE_NONE
+        if (schedule != JOB_SCHEDULE_NONE && state != JOB_STATE_WAITING) {
+            return true;
+        }
         if (state == JOB_STATE_LOADED &&
             (manifest.keep_alive.always || manifest.run_at_load)) {
             return true;

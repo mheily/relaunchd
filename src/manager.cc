@@ -440,7 +440,7 @@ void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
                 startJob(depjob, dep_visited);
             }
         }
-        if (!depjob.isRunning()) {
+        if (depjob.state != JOB_STATE_RUNNING) {
             log_debug("dependency is not running: %s", label.c_str());
             job.state = JOB_STATE_MISSING_DEPENDS;
             return;
@@ -461,17 +461,11 @@ void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
 
 void Manager::startAllJobs() {
     for (auto & [label, job] : jobs) {
-        if (job.state == JOB_STATE_LOADED) {
-            if (job.manifest.keep_alive.always || job.manifest.run_at_load) {
-                startJob(job);
-            }
-            if (job.schedule != JOB_SCHEDULE_NONE) {
-                rescheduleJob(job);
-            }
+        if (job.shouldStart() && !job.hasStarted()) {
+            startJob(job);
         }
     }
 }
-
 
 void Manager::loadDefaultManifests() {
     log_info("loading default manifests for domain %s", domain.to_string().c_str());

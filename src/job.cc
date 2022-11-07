@@ -440,7 +440,7 @@ Job::Job(std::optional<std::filesystem::path> manifest_path_, Manifest manifest_
         schedule(_set_schedule()){}
 
 bool Job::kill(int signum) const {
-    if (!isRunning()) {
+    if (state != JOB_STATE_RUNNING || pid == 0) {
         log_debug("tried to kill non-running job");
         return false;
     }
