@@ -4,7 +4,6 @@ project(relaunchd)
 # add our own module repository to CMake's search path:
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules ${CMAKE_MODULE_PATH} )
 
-include(CodeCoverage)
 include(ExternalProject)
 include(CheckIncludeFiles)
 include(CheckIPOSupported)
@@ -80,6 +79,7 @@ endif()
 
 # Enable code coverage automatically for debug builds
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    include(CodeCoverage)
     append_coverage_compiler_flags()
 endif()
 
