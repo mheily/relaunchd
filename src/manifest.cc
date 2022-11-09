@@ -162,8 +162,12 @@ namespace manifest {
         }
         if (j.contains("KeepAlive")) {
             auto keepalive = j.at("KeepAlive");
-            if (keepalive.contains("Always")) {
-                keepalive.at("Always").get_to(m.keep_alive.always);
+            if (keepalive.type() == json::value_t::boolean) {
+                keepalive.get_to(m.keep_alive.always);
+            } else if (keepalive.type() == json::value_t::object) {
+                if (keepalive.contains("Always")) {
+                    keepalive.at("Always").get_to(m.keep_alive.always);
+                }
             }
         }
         if (j.contains("Dependencies")) {
