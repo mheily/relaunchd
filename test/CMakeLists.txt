@@ -19,10 +19,11 @@ target_compile_definitions(TestManager PRIVATE -DTESTDIR="${CMAKE_CURRENT_SOURCE
 #
 # Code coverage report
 #
-
-setup_target_for_coverage_lcov(
-        NAME TestManager_coverage
-        EXECUTABLE TestManager
-        DEPENDENCIES TestManager
-        EXCLUDE '${CMAKE_SOURCE_DIR}/vendor/*' '${CMAKE_SOURCE_DIR}/test/*' '/opt/homebrew/opt/llvm/include/c++/*'
-)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    setup_target_for_coverage_lcov(
+            NAME TestManager_coverage
+            EXECUTABLE TestManager
+            DEPENDENCIES TestManager
+            EXCLUDE '${CMAKE_SOURCE_DIR}/vendor/*' '${CMAKE_SOURCE_DIR}/test/*' '/opt/homebrew/opt/llvm/include/c++/*'
+    )
+endif()
