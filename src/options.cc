@@ -31,7 +31,13 @@ std::string getStateDir() {
         if (xdg_state_home) {
             statedir = std::string{xdg_state_home};
         } else {
-            statedir = std::string{getenv("HOME")} + "/.local/state";
+            char *home_p = getenv("HOME");
+            if (home_p && !access(home_p, W_OK | X_OK)) {
+                statedir = std::string{getenv("HOME")} + "/.local/state";
+            } else {
+                char *tmpdir_p = getenv("TMPDIR");
+                statedir = tmpdir_p ? std::string{tmpdir_p} : std::string{"/tmp/relaunchd-" + std::to_string(getuid())};
+            }
         }
         statedir += "/relaunchd";
     }
