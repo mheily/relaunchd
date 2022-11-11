@@ -224,18 +224,24 @@ public:
         if (signalfd(sigfd, &sigmask, 0) < 0) {
             throw std::system_error(errno, std::system_category(), "signalfd()");
         }
+        sigset_t delta;
+        sigemptyset(&delta);
+        sigaddset(&delta, signum);
         if (sigprocmask(SIG_BLOCK, &sigmask, NULL) < 0) {
-            throw std::system_error(errno, std::system_category(), "signalfd()");
+            throw std::system_error(errno, std::system_category(), "sigprocmask()");
         }
     }
 
     void ignoreSignal(int signum) override {
-        if (signal(signum, SIG_DFL) == SIG_ERR) {
-            throw std::system_error(errno, std::system_category(), "signal()");
-        }
         sigdelset(&sigmask, signum);
         if (signalfd(sigfd, &sigmask, 0) < 0) {
             throw std::system_error(errno, std::system_category(), "signalfd()");
+        }
+        sigset_t delta;
+        sigemptyset(&delta);
+        sigaddset(&delta, signum);
+        if (sigprocmask(SIG_UNBLOCK, &delta, NULL) < 0) {
+            throw std::system_error(errno, std::system_category(), "sigprocmask()");
         }
     }
 
@@ -439,6 +445,10 @@ namespace kq {
 #endif
         }
 
+        ~EventManager() {
+            resetAllSignalHandlers();
+        }
+
         void addSignal(int signum, std::function<void(int)> callback) {
             impl->monitorSignal(signum);
             signal_callbacks.insert({{signum, callback}});
@@ -484,6 +494,7 @@ namespace kq {
                 case EVTYPE_PROC: {
                     const auto &proc_ev = std::get<proc_event>(event);
                     const auto &callback = process_callbacks.at(proc_ev.pid);
+
                     callback(proc_ev.pid, proc_ev.status);
                     deleteProcess(proc_ev.pid);
                     break;
@@ -505,6 +516,13 @@ namespace kq {
                 default:
                     throw std::range_error("type not found");
             }
+        }
+
+        void resetAllSignalHandlers() {
+            for (const auto &pair : signal_callbacks) {
+                impl->ignoreSignal(pair.first);
+            }
+            signal_callbacks.clear();
         }
 
     private:
