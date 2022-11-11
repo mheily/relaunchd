@@ -128,7 +128,57 @@ void testShouldStart() {
     assert(job2.state == JOB_STATE_WAITING);
 }
 
+void testKeepaliveAfterExit() {
+    //log_freopen(stdout);
+    Manager mgr{DOMAIN_TYPE_USER};
+    json manifest = json::parse(R"(
+        {
+          "Label": "test.job1",
+          "Program": "/bin/true",
+          "RunAtLoad": true,
+          "KeepAlive": true,
+          "ThrottleInterval": 0
+        }
+    )");
+    std::string path = "/dev/null";
+    mgr.loadManifest(manifest, path);
+    mgr.startAllJobs();
+    auto &job = mgr.getJob("test.job1");
+    assert(job.state == JOB_STATE_RUNNING);
+    pid_t old_pid = job.pid;
+    mgr.handleEvent();
+    assert(old_pid != job.pid);
+}
+
+void testKeepaliveAfterSignal() {
+    //log_freopen(stdout);
+    Manager mgr{DOMAIN_TYPE_USER};
+    json manifest = json::parse(R"(
+        {
+          "Label": "test.job1",
+          "ProgramArguments": ["/bin/sleep", "99"],
+          "RunAtLoad": true,
+          "KeepAlive": true,
+          "ThrottleInterval": 0
+        }
+    )");
+    std::string path = "/dev/null";
+    mgr.loadManifest(manifest, path);
+    mgr.startAllJobs();
+    auto &job = mgr.getJob("test.job1");
+    assert(job.state == JOB_STATE_RUNNING);
+    pid_t old_pid = job.pid;
+    assert(!kill(job.pid, SIGKILL));
+    log_debug("pre handling");
+    mgr.handleEvent();
+    log_debug("post handling");
+    assert(job.state == JOB_STATE_RUNNING);
+    assert(old_pid != job.pid);
+}
+
 int main(int argc, char *argv[]) {
+    testKeepaliveAfterSignal();
+    testKeepaliveAfterExit();
     testCyclicDependency();
     testDependencies();
     testShouldStart();
