@@ -121,21 +121,31 @@ static std::vector<std::string> setup_environment_variables(const Job & job, con
 	 *
 	 * The removal of these variables conforms to daemon(8) behavior on FreeBSD.
 	 */
-    if (pwent->pw_uid > 0) {
+    if (!pwent || pwent->pw_uid > 0) {
+        std::string pw_name, pw_dir, pw_shell;
+        if (pwent) {
+            pw_name = pwent->pw_name;
+            pw_dir = pwent->pw_dir;
+            pw_shell = pwent->pw_shell;
+        } else {
+            pw_name = std::to_string(getuid());
+            pw_dir = "/";
+            pw_shell = "/bin/sh";
+        }
         if (!job.manifest.environment_variables.count("LOGNAME")) {
-            result.emplace_back(std::string{"LOGNAME="} + std::string{pwent->pw_name});
+            result.emplace_back(std::string{"LOGNAME="} + pw_name);
         }
         if (!job.manifest.environment_variables.count("USER")) {
-            result.emplace_back(std::string{"USER="} + std::string{pwent->pw_name});
+            result.emplace_back(std::string{"USER="} + pw_name);
         }
         if (!job.manifest.environment_variables.count("HOME")) {
-            result.emplace_back(std::string{"HOME="} + std::string{pwent->pw_dir});
+            result.emplace_back(std::string{"HOME="} + pw_dir);
         }
         if (!job.manifest.environment_variables.count("PATH")) {
             result.emplace_back(std::string{"PATH=/usr/bin:/bin:/usr/local/bin"});
         }
         if (!job.manifest.environment_variables.count("SHELL")) {
-            result.emplace_back(std::string{"HOME="} + std::string{pwent->pw_shell});
+            result.emplace_back(std::string{"HOME="} + pw_shell);
         }
         if (!job.manifest.environment_variables.count("TMPDIR")) {
             result.emplace_back(std::string{"TMPDIR=/tmp"});
@@ -170,13 +180,12 @@ static std::vector<std::string> setup_environment_variables(const Job & job, con
 }
 
 static inline int
-exec_job(const Job & job, const struct passwd *pwent)
+exec_job(const Job & job, const std::vector<std::string> &final_env)
 {
 	int rv;
 	char *path;
 	char **argv, **envp;
 
-	auto final_env = setup_environment_variables(job, pwent);
 	envp = static_cast<char **>(calloc(final_env.size() + 1, sizeof(char *)));
     if (!envp) {
         throw std::bad_alloc();
@@ -277,7 +286,7 @@ err_out:
 }
 
 static int
-start_child_process(const Job &job, const struct passwd *pwent, const struct group *grent)
+start_child_process(const Job &job, const std::vector<std::string> &final_env, const struct passwd *pwent, const struct group *grent)
 {
 #ifndef NOFORK
 	if (setsid() < 0) {
@@ -303,7 +312,8 @@ start_child_process(const Job &job, const struct passwd *pwent, const struct gro
 			goto err_out;
 		}
 	}
-	if (getuid() == 0 && modify_credentials(job, pwent, grent) < 0) {
+    // FIXME: what if User provided by no Group? This will not work
+	if (getuid() == 0 && pwent && grent && (modify_credentials(job, pwent, grent) < 0)) {
 		log_error("unable to modify credentials");
 		goto err_out;
 	}
@@ -316,7 +326,7 @@ start_child_process(const Job &job, const struct passwd *pwent, const struct gro
 		goto err_out;
 	}
 
-	if (exec_job(job, pwent) < 0) {
+    if (exec_job(job, final_env) < 0) {
 		log_error("exec_job() failed");
 		goto err_out;
 	}
@@ -376,23 +386,15 @@ void Job::run() {
 
     if (manifest.user_name) {
         pwent = ::getpwnam(manifest.user_name.value().c_str());
-    } else {
-        pwent = ::getpwuid(getuid());
     }
-	if (!pwent) {
-        throw std::system_error(errno, std::system_category(), "no pwent");
-	}
 
     if (manifest.group_name) {
         grent = ::getgrnam(manifest.group_name.value().c_str());
-    } else {
-        grent = ::getgrgid(getgid());
     }
-	if (!grent) {
-        throw std::system_error(errno, std::system_category(), "no grent");
-	}
 
-	// temporary for debugging
+    auto final_env = setup_environment_variables(*this, pwent);
+
+    // temporary for debugging
 #ifdef NOFORK
 	(void) start_child_process(*this, pwent, grent);
 #else

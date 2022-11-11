@@ -285,19 +285,23 @@ namespace manifest {
                 group_name = "wheel";  // FIXME: use /etc/passwd/group for this
             }
         } else {
+            errno = 0;
             pwent = ::getpwuid(uid);
-            if (!pwent) {
-                throw std::system_error(errno, std::system_category(), "no pwent");
+            if (pwent) {
+                // FIXME: should we fail if User is already set?
+                user_name = std::string{pwent->pw_name};
+            } else if (errno) {
+                throw std::system_error(errno, std::system_category(), "getpwuid");
             }
-            // FIXME: should we fail if User is already set?
-            user_name = std::string{pwent->pw_name};
 
+            errno = 0;
             grent = ::getgrgid(getegid());
-            if (!grent) {
+            if (grent) {
+                // FIXME: should we fail if Group is already set?
+                group_name = std::string{grent->gr_name};
+            } else if (errno) {
                 throw std::system_error(errno, std::system_category(), "no grent");
             }
-            // FIXME: should we fail if Group is already set?
-            group_name = std::string{grent->gr_name};
         }
 
         if (!program && program_arguments.empty()) {
@@ -319,16 +323,6 @@ namespace manifest {
         if (!program && !program_arguments.empty()) {
             // TODO: deduplicate this with rectify()
             log_error("job does not set Program or ProgramArguments");
-            return false;
-        }
-
-        if (!user_name) {
-            log_error("job %s does not set `user_name'", label.c_str());
-            return false;
-        }
-
-        if (!group_name) {
-            log_error("job %s does not set `group_name'", label.c_str());
             return false;
         }
 
