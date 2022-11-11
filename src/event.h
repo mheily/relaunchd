@@ -26,6 +26,7 @@
 #include <sys/signalfd.h>
 #include <sys/timerfd.h>
 #include <sys/wait.h>
+#include <queue>
 #elif __has_include(<sys/event.h>)
 #define USE_KQUEUE 1
 #include <sys/event.h>
@@ -82,6 +83,8 @@ public:
 
     virtual void monitorSignal(int signum) = 0;
 
+    virtual void unblockSignal(int signum) = 0;
+
     virtual void ignoreSignal(int signum) = 0;
 
     virtual void monitorSocketRead(int sockfd) = 0;
@@ -91,6 +94,9 @@ public:
     virtual void monitorTimer(int timer_id, int milliseconds) = 0;
 
     virtual void ignoreTimer(int timer_id) = 0;
+
+    //! Run cleanup actions between fork() and exec(), such as resetting signal handlers
+    virtual void handleFork() = 0;
 };
 
 #if USE_EPOLL
@@ -123,9 +129,23 @@ public:
         for (auto &fd: cleanup_fds) {
             close(fd);
         }
+        for (int signum : blocked_signals) {
+            unblockSignal(signum);
+        }
+    }
+
+    void handleFork() override {
+        for (int signum : blocked_signals) {
+            unblockSignal(signum);
+        }
     }
 
     Event waitForEvent() override {
+        if (!pending_events.empty()) {
+            auto event = pending_events.front();
+            pending_events.pop();
+            return event;
+        }
         for (;;) {
             int evtype;
             {
@@ -138,27 +158,14 @@ public:
             }
             switch (evtype) {
                 case EVTYPE_SIGNAL: {
-                    struct signalfd_siginfo sig;
-                    ssize_t n = read(sigfd, &sig, sizeof(sig));
-                    if (n != sizeof(sig)) {
-                        if (errno == EWOULDBLOCK) {
-                            continue;
-                        } else {
-                            throw std::system_error(errno, std::system_category(), "read()");
-                        }
-                    }
-                    if (sig.ssi_signo == SIGCHLD) {
-                        (void) waitpid(sig.ssi_pid, nullptr, WNOHANG);
-                        if (watch_pids.count(sig.ssi_pid)) {
-                            watch_pids.erase(sig.ssi_pid);
-                            return Event(proc_event{static_cast<pid_t>(sig.ssi_pid), static_cast<int>(sig.ssi_status)});
-                        } else {
-                            continue;
-                        }
-                    } else {
-                        return Event(signal_event{static_cast<int>(sig.ssi_signo)});
+                    getSignalEvents();
+                    if (!pending_events.empty()) {
+                        auto event = pending_events.front();
+                        pending_events.pop();
+                        return event;
                     }
                 }
+                    break;
                 case EVTYPE_SOCKET_READ: {
                     auto event = epollGetOne(socket_read_fd);
                     if (event) {
@@ -224,12 +231,13 @@ public:
         if (signalfd(sigfd, &sigmask, 0) < 0) {
             throw std::system_error(errno, std::system_category(), "signalfd()");
         }
-        sigset_t delta;
-        sigemptyset(&delta);
-        sigaddset(&delta, signum);
-        if (sigprocmask(SIG_BLOCK, &sigmask, NULL) < 0) {
-            throw std::system_error(errno, std::system_category(), "sigprocmask()");
-        }
+        changeSignalMask(SIG_BLOCK, signum);
+        blocked_signals.insert(signum);
+    }
+
+    void unblockSignal(int signum) override {
+        changeSignalMask(SIG_UNBLOCK, signum);
+        blocked_signals.erase(signum);
     }
 
     void ignoreSignal(int signum) override {
@@ -237,12 +245,7 @@ public:
         if (signalfd(sigfd, &sigmask, 0) < 0) {
             throw std::system_error(errno, std::system_category(), "signalfd()");
         }
-        sigset_t delta;
-        sigemptyset(&delta);
-        sigaddset(&delta, signum);
-        if (sigprocmask(SIG_UNBLOCK, &delta, NULL) < 0) {
-            throw std::system_error(errno, std::system_category(), "sigprocmask()");
-        }
+        unblockSignal(signum);
     }
 
     void monitorTimer(int timer_id, int milliseconds) override {
@@ -284,6 +287,58 @@ public:
     }
 
 private:
+    void getSignalEvents() {
+        bool sigchild_seen = false;
+        for (;;) {
+            struct signalfd_siginfo sig;
+            ssize_t n = read(sigfd, &sig, sizeof(sig));
+            if (n != sizeof(sig)) {
+                if (errno == EWOULDBLOCK) {
+                    break;
+                } else {
+                    throw std::system_error(errno, std::system_category(), "read()");
+                }
+            }
+            if (sig.ssi_signo == SIGCHLD) {
+                sigchild_seen = true;
+            } else {
+                pending_events.emplace(Event(signal_event{static_cast<int>(sig.ssi_signo)}));
+            }
+        }
+        // Reap all zombies and create process events
+        if (sigchild_seen) {
+            for (;;) {
+                int status;
+                pid_t pid = waitpid(-1, &status, WNOHANG);
+                if (pid == 0) {
+                    break;
+                } else if (pid < 0) {
+                    if (errno == ECHILD) {
+                        break;
+                    } else {
+                        throw std::system_error(errno, std::system_category(), "waitpid()");
+                    }
+                }
+                if (watch_pids.count(pid)) {
+                    pending_events.emplace(Event(proc_event{pid, status}));
+                    watch_pids.erase(pid);
+                } else {
+                    // TODO maybe just return the event anyway and ignore it at a higher layer in the stack?
+                    continue;
+                }
+            }
+        }
+    }
+
+    static void changeSignalMask(int how, int signum) {
+        sigset_t delta;
+        sigemptyset(&delta);
+        sigaddset(&delta, signum);
+        if (sigprocmask(how, &delta, NULL) < 0) {
+            throw std::system_error(errno, std::system_category(), "sigprocmask()");
+        }
+    }
+
     static int epollCreate() {
         int fd = epoll_create(10);
         if (fd < 0) {
@@ -325,6 +380,8 @@ private:
     std::unordered_set<int> watch_pids; // process IDs to monitor
     std::unordered_map<int, int> timerfd_map;
     std::unordered_set<int> cleanup_fds; // file descriptors to close via the destructor
+    std::unordered_set<int> blocked_signals; // signals that need to be unblocked when cleaning up
+    std::queue<Event> pending_events;
 };
 
 #elif USE_KQUEUE
@@ -404,10 +461,14 @@ public:
         changeKevent(signum, EVFILT_SIGNAL, EV_ADD, NOTE_EXIT);
     }
 
-    void ignoreSignal(int signum) override {
+    void unblockSignal(int signum) override {
         if (signal(signum, SIG_DFL) == SIG_ERR) {
             throw std::system_error(errno, std::system_category(), "signal()");
         }
+    }
+
+    void ignoreSignal(int signum) override {
+        unblockSignal(signum);
         changeKevent(signum, EVFILT_SIGNAL, EV_DELETE, NOTE_EXIT);
     }
 
@@ -418,6 +479,8 @@ public:
     void ignoreTimer(int timer_id) override {
         changeKevent(timer_id, EVFILT_TIMER, EV_DELETE, 0);
     }
+
+    void handleFork() override {}
 
 private:
     void changeKevent(uintptr_t ident, int filter, int flags, int fflags, intptr_t data = 0) {
@@ -443,10 +506,6 @@ namespace kq {
 #else
 #error Not supported
 #endif
-        }
-
-        ~EventManager() {
-            resetAllSignalHandlers();
         }
 
         void addSignal(int signum, std::function<void(int)> callback) {
@@ -518,11 +577,8 @@ namespace kq {
             }
         }
 
-        void resetAllSignalHandlers() {
-            for (const auto &pair : signal_callbacks) {
-                impl->ignoreSignal(pair.first);
-            }
-            signal_callbacks.clear();
+        void handleFork() {
+            impl->handleFork();
         }
 
     private:
