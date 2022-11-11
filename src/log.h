@@ -20,14 +20,15 @@
 #include <stdio.h>
 #include <string.h>
 #include <syslog.h>
+#include <unistd.h>
 
 /* Logging */
 extern FILE *logfile;
 
 #define _log_all(level, format,...) do {				\
 	if (logfile != NULL) {						\
-		fprintf(stdout, "%s(%s:%d): " format "\n",		\
-			__func__, __FILE__, __LINE__, ## __VA_ARGS__);	\
+		fprintf(stdout, "[%d] %s(%s:%d): " format "\n",		\
+			getpid(), __func__, __FILE__, __LINE__, ## __VA_ARGS__);	\
 	} else {							\
 		syslog(level, "%s(%s:%d): " format "\n",			\
 			__func__, __FILE__, __LINE__, ## __VA_ARGS__);	\
