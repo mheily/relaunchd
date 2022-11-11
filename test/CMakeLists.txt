@@ -19,7 +19,7 @@ target_compile_definitions(TestManager PRIVATE -DTESTDIR="${CMAKE_CURRENT_SOURCE
 #
 # Code coverage report
 #
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+if(ENABLE_COVERAGE)
     setup_target_for_coverage_lcov(
             NAME TestManager_coverage
             EXECUTABLE TestManager

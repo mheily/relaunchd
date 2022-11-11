@@ -11,6 +11,8 @@ include(GNUInstallDirs)
 include(CheckSymbolExists)
 include(EnableSanitizers)
 
+option(ENABLE_COVERAGE "Should we enable code coverage reports" OFF)
+
 option(USE_LIBKQUEUE "Should we use libkqueue" OFF)
 
 option(USE_TINYXML "Should we use TinyXML to support XML manifests" OFF)
@@ -78,7 +80,7 @@ endif()
 
 
 # Enable code coverage automatically for debug builds
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+if(ENABLE_COVERAGE)
     include(CodeCoverage)
     append_coverage_compiler_flags()
 endif()
