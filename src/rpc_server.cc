@@ -89,6 +89,10 @@ static json _rpc_op_unload(const json &args, Manager &mgr) {
     return {{"error", false}};
 }
 
+/* FIXME: will need to ask the manager to start/stop the job,
+ * instead of directly controlling the job.
+ */
+#if 0
 static json _rpc_op_start(const json &args, Manager &mgr) {
     const std::string &label = args[1]["Label"];
     if (mgr.jobExists(label)) {
@@ -110,6 +114,7 @@ static json _rpc_op_stop(const json &args, Manager &mgr) {
         return {{"error", true}};
     }
 }
+#endif
 
 static json _rpc_op_remove(const json &args, Manager &mgr) {
     const std::string &label = args[1]["Label"];
@@ -134,14 +139,12 @@ int rpc_dispatch(Channel &chan, Manager &mgr) {
             {"disable", _rpc_op_disable},
             {"enable", _rpc_op_enable},
             {"kill", _rpc_op_kill},
-
             {"list", _rpc_op_list},
             {"load", _rpc_op_load},
             {"remove", _rpc_op_remove},
-            {"start", _rpc_op_start},
+            //FIXME:{"start", _rpc_op_start},
+            //FIXME:{"stop", _rpc_op_stop},
             {"submit", _rpc_op_submit},
-
-            {"stop", _rpc_op_stop},
             {"unload", _rpc_op_unload},
             {"version", _rpc_op_version},
     };
