@@ -68,7 +68,7 @@ struct Job {
 
     bool kill(const std::string &signame_or_num);
 
-    void run();
+    void run(std::function<void()> post_fork_cleanup);
 
     void load();
 

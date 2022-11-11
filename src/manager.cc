@@ -456,7 +456,10 @@ void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
         return rescheduleJob(job);
     }
 
-    job.run();
+    std::function<void()> post_fork_cleanup = [this]() {
+        eventmgr.handleFork();
+    };
+    job.run(post_fork_cleanup);
     eventmgr.addProcess(job.pid, [this](pid_t pid, int status) {
         reapChildProcess(pid, status);
     });

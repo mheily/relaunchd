@@ -380,7 +380,7 @@ void Job::unload() {
     }
 }
 
-void Job::run() {
+void Job::run(const std::function<void()> post_fork_cleanup) {
     struct passwd *pwent = NULL;
 	struct group *grent = NULL;
 
@@ -402,9 +402,17 @@ void Job::run() {
 	if (pid < 0) {
         throw std::system_error(errno, std::system_category(), "fork(2)");
 	} else if (pid == 0) {
-		if (start_child_process(*this, pwent, grent) < 0) {
-			//TODO: report failures to the parent
-			exit(124);
+        try {
+            post_fork_cleanup();
+        } catch (...) {
+            //TODO: report failures to the parent? or is exiting good enough?
+            log_error("post_fork_cleanup() failed");
+            exit(123);
+        }
+		if (start_child_process(*this, final_env, pwent, grent) < 0) {
+			//TODO: report failures to the parent? or is exiting good enough?
+            log_error("post_fork_cleanup() failed");
+            exit(124);
 		}
 	} else {
         started_at = current_time();
