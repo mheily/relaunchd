@@ -26,6 +26,7 @@
 #include <sys/signalfd.h>
 #include <sys/timerfd.h>
 #include <sys/wait.h>
+#include <optional>
 #include <queue>
 #elif __has_include(<sys/event.h>)
 #define USE_KQUEUE 1
