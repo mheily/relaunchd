@@ -12,7 +12,7 @@ on:
 jobs:
   linux-build-and-test:
     if: github.repository == 'mheily/relaunchd'
-    timeout-minutes: 5
+    timeout-minutes: 15
     strategy:
       fail-fast: false
     runs-on: ubuntu-20.04
