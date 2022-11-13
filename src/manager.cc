@@ -97,13 +97,16 @@ void Manager::reapChildProcess(pid_t pid, int status) {
             int seconds = static_cast<int>(delta);
             log_debug("%s: will restart in %d seconds due to KeepAlive setting", job.manifest.label.c_str(), seconds);
             job.state = JOB_STATE_WAITING;
-            eventmgr.addTimer( seconds, [label, this]() {
-                auto & job = jobs.at(label); // FIXME: handle or avoid exception
-                // The job may have been unloaded in the interval, or manually started by an administrator.
-                if (job.state == JOB_STATE_WAITING) {
+            eventmgr.addTimer(seconds, [label, this]() {
+                if (!jobExists(label)) {
+                    log_warning("timer callback referenced job that no longer exists");
+                    return;
+                }
+                auto &job = getJob(label);
+                if (job.shouldStart()) {
                     startJob(job);
                 } else {
-                    log_debug("attempted to restart job %s: not waiting to be started", job.manifest.label.c_str());
+                    log_warning("job %s is no longer a candidate for restarting", job.manifest.label.c_str());
                 }
             });
         }
