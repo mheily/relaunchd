@@ -75,7 +75,7 @@ private:
 
     void rescheduleJob(Job &job);
 
-    void reapChildProcess(pid_t pid, int status);
+    std::optional<Label> reapChildProcess(pid_t pid, int status);
 
     void setupSignalHandlers();
 
@@ -85,6 +85,8 @@ private:
     kq::EventManager eventmgr;
     Channel chan;
     bool SHUTTING_DOWN = false;
+
+    void rescheduleStandardJob(Job &job);
 };
 
 /** Given a pending connection on a socket descriptor, activate the associated job */
