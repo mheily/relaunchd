@@ -532,21 +532,3 @@ bool Manager::loadAllManifests(const std::string &path, bool overrideDisabled, b
     return error;
 }
 
-// FIXME: this only handles the simple case of an implicit StartAfter requirement.
-std::vector<std::string> Manager::getMissingDependencies(Job &job) {
-    std::vector<std::string> result;
-    for (const auto & [label, dep] : job.manifest.dependencies.getItemsByLabel()) {
-        if (!jobExists(label)) {
-            if (dep.isRequired) {
-                result.push_back(label);
-            }
-        } else {
-            const auto & depjob = getJob(label);
-            if (dep.isRequired && dep.startAfter && !depjob.hasStarted()) {
-                result.push_back(label);
-            }
-        }
-    }
-    return result;
-}
-

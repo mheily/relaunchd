@@ -79,8 +79,6 @@ private:
 
     void setupSignalHandlers();
 
-    std::vector<std::string> getMissingDependencies(Job &job);
-
     std::unordered_map<std::string, Job> jobs;
 
     Domain domain;
