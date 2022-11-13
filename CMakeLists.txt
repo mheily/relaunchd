@@ -4,6 +4,7 @@ project(relaunchd)
 # add our own module repository to CMake's search path:
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules ${CMAKE_MODULE_PATH} )
 
+include(CTest)
 include(ExternalProject)
 include(CheckIncludeFiles)
 include(CheckIPOSupported)
