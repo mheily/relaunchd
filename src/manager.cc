@@ -171,12 +171,6 @@ void Manager::unloadJob(Job &job, bool overrideDisabled, bool forceUnload) {
     }
 
     job.unload();
-    if (job.state == JOB_STATE_KILLED) {
-        //TODO: start a timer to send a SIGKILL if it doesn't die gracefully
-        // See: https://github.com/mheily/relaunchd/issues/14
-        job.state = JOB_STATE_DEFINED;
-    }
-    job.state = JOB_STATE_DEFINED;
 }
 
 int Manager::unloadJob(const std::string &label, bool overrideDisabled, bool forceUnload) {

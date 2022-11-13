@@ -43,7 +43,6 @@ enum job_state_e {
     JOB_STATE_MISSING_DEPENDS,
     JOB_STATE_WAITING,
     JOB_STATE_RUNNING,
-    JOB_STATE_KILLED,
     JOB_STATE_EXITED,
 };
 
@@ -84,7 +83,6 @@ struct Job {
                 return false;
             case JOB_STATE_WAITING:
             case JOB_STATE_RUNNING:
-            case JOB_STATE_KILLED:
             case JOB_STATE_EXITED:
                 return true;
             default:
@@ -94,17 +92,21 @@ struct Job {
 
     //! Should the job be started automatically?
     bool shouldStart() const {
-        if (schedule == JOB_SCHEDULE_NONE && state == JOB_STATE_WAITING) {
-            return true;
-        }
-        if (schedule != JOB_SCHEDULE_NONE && state != JOB_STATE_WAITING) {
-            return true;
-        }
-        if (state == JOB_STATE_LOADED &&
-            (manifest.keep_alive.always || manifest.run_at_load)) {
-            return true;
-        } else {
-            return false;
+        switch (state) {
+            case JOB_STATE_DEFINED:
+            case JOB_STATE_MISSING_DEPENDS:    // not sure about this one...
+                return false;
+            case JOB_STATE_LOADED:
+                return (manifest.run_at_load || manifest.keep_alive.always || schedule != JOB_SCHEDULE_NONE);
+            case JOB_STATE_WAITING:
+                // If true, a non-scheduled job was scheduled due to ThrottleInterval
+                return schedule != JOB_SCHEDULE_NONE;
+            case JOB_STATE_RUNNING:
+                return false;
+            case JOB_STATE_EXITED:
+                return (manifest.keep_alive.always || schedule != JOB_SCHEDULE_NONE);
+            default:
+                throw std::logic_error("invalid state");
         }
     }
 

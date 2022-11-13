@@ -374,10 +374,10 @@ void Job::unload() {
                 log_errno("killpg(2) of pid %d", pid);
             }
         }
-        state = JOB_STATE_KILLED;
-    } else {
-        state = JOB_STATE_DEFINED;
+        //TODO: start a timer to send a SIGKILL if it doesn't die gracefully
+        // See: https://github.com/mheily/relaunchd/issues/14
     }
+    state = JOB_STATE_DEFINED;
 }
 
 void Job::run(const std::function<void()> post_fork_cleanup) {
