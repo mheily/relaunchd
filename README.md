@@ -1,6 +1,7 @@
 # relaunchd
 
 ![Linux CI](https://github.com/mheily/relaunchd/actions/workflows/ci-linux.yml/badge.svg)
+![CodeQL](https://github.com/mheily/relaunchd/workflows/CodeQL/badge.svg)
 
 ## Overview 
 
