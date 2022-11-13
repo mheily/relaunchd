@@ -22,7 +22,7 @@ jobs:
           cmake -B ${{github.workspace}}/build \
             -DCMAKE_CXX_FLAGS="-Werror" \
             -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
-          cat config.h
+          ls -l ${{github.workspace}}/build/src/config.h
 
       - name: Build the project
         run: cmake --build ${{github.workspace}}/build
