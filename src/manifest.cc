@@ -95,8 +95,8 @@ namespace manifest {
             j.at("ProgramArguments").get_to(m.program_arguments);
         }
         if (j.contains("EnableGlobbing")) {
-            throw NotSupportedError();
             j.at("EnableGlobbing").get_to(m.enable_globbing);
+            throw NotSupportedError();
         }
         if (j.contains("RunAtLoad")) {
             j.at("RunAtLoad").get_to(m.run_at_load);
@@ -115,21 +115,21 @@ namespace manifest {
             j.at("EnvironmentVariables").get_to(m.environment_variables);
         }
         if (j.contains("Umask")) {
-            throw NotSupportedError();
             std::string tmp;
             j.at("Umask").get_to(tmp);
             m.umask = std::move(tmp);
+            throw NotSupportedError();
         }
         if (j.contains("Timeout")) {
-            throw NotSupportedError();
             j.at("Timeout").get_to(m.timeout);
+            throw NotSupportedError();
         }
         if (j.contains("Disabled")) {
             j.at("Disabled").get_to(m.disabled);
         }
         if (j.contains("ExitTimeout")) {
-            throw NotSupportedError();
             j.at("ExitTimeout").get_to(m.exit_timeout);
+            throw NotSupportedError();
         }
         if (j.contains("StartInterval")) {
             j.at("StartInterval").get_to(m.start_interval);
@@ -144,16 +144,16 @@ namespace manifest {
             j.at("InitGroups").get_to(m.init_groups);
         }
         if (j.contains("WatchPaths")) {
-            throw NotSupportedError();
             j.at("WatchPaths").get_to(m.watch_paths);
+            throw NotSupportedError();
         }
         if (j.contains("QueueDirectories")) {
-            throw NotSupportedError();
             j.at("QueueDirectories").get_to(m.queue_directories);
+            throw NotSupportedError();
         }
         if (j.contains("StartOnMount")) {
-            throw NotSupportedError();
             j.at("StartOnMount").get_to(m.start_on_mount);
+            throw NotSupportedError();
         }
         if (j.contains("StandardInPath")) {
             j.at("StandardInPath").get_to(m.stdin_path);
@@ -165,13 +165,13 @@ namespace manifest {
             j.at("StandardErrorPath").get_to(m.stderr_path);
         }
         if (j.contains("AbandonProcessGroup")) {
-            throw NotSupportedError();
             j.at("AbandonProcessGroup").get_to(m.abandon_process_group);
+            throw NotSupportedError();
         }
         if (j.contains("StartCalendarInterval")) {
-            throw NotSupportedError();
             auto obj = j.at("StartCalendarInterval");
             m.calendar_interval = parse_start_calendar_interval(obj);
+            throw NotSupportedError();
         }
         if (j.contains("KeepAlive")) {
             auto keepalive = j.at("KeepAlive");
