@@ -122,7 +122,9 @@ int main(int argc, char *argv[]) noexcept {
     setlogmask(logmask);
 
     if (daemonize) {
-        chdir("/");
+        if (chdir("/") != 0) {
+            abort();
+        }
         if (pid != 1) {
             double_fork();
         }
