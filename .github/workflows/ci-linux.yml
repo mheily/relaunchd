@@ -1,11 +1,16 @@
 ---
-name: relaunchd-linux-ci
+name: CI Linux
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+    branches:
+      - master
+    paths:
+      - 'CMakeList.txt'
+      - 'cmake/*'
+      - 'src/*'
+      - 'vendor/*'
+      - '.github/workflows/ci-linux.yml'
 
 env:
   BUILD_TYPE: Release
