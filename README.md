@@ -2,6 +2,7 @@
 
 ![Linux CI](https://github.com/mheily/relaunchd/actions/workflows/ci-linux.yml/badge.svg)
 ![CodeQL](https://github.com/mheily/relaunchd/workflows/CodeQL/badge.svg)
+[![Coverity](https://scan.coverity.com/projects/8002/badge.svg)](https://scan.coverity.com/projects/mheily-relaunchd)
 
 ## Overview 
 
