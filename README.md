@@ -1,5 +1,7 @@
 # relaunchd
 
+![Linux CI](https://github.com/mheily/relaunchd/actions/workflows/ci-linux.yml/badge.svg)
+
 ## Overview 
 
 relaunchd is a service management daemon that is similar to the launchd(8)
