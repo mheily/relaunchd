@@ -3,9 +3,9 @@ name: relaunchd-linux-ci
 
 on:
   push:
-    branches: [ $default-branch ]
+    branches: [ "master" ]
   pull_request:
-    branches: [ $default-branch ]
+    branches: [ "master" ]
 
 env:
   BUILD_TYPE: Release
