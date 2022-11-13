@@ -94,6 +94,9 @@ struct Job {
 
     //! Should the job be started automatically?
     bool shouldStart() const {
+        if (schedule == JOB_SCHEDULE_NONE && state == JOB_STATE_WAITING) {
+            return true;
+        }
         if (schedule != JOB_SCHEDULE_NONE && state != JOB_STATE_WAITING) {
             return true;
         }
