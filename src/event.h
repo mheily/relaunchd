@@ -195,7 +195,12 @@ public:
                         const auto &fd = event->data.fd;
                         ssize_t n = read(fd, &expired, sizeof(expired));
                         if (n != sizeof(expired)) {
-                            throw std::system_error(errno, std::system_category(), "read()");
+                            if (errno == EAGAIN) {
+                                kqtrace::print("spurious timer wakeup");
+                                break;
+                            } else {
+                                throw std::system_error(errno, std::system_category(), "read()");
+                            }
                         }
                         (void) expired; // We don't return this to the caller, but should in the future.
                         for (const auto &[timer_id, tfd]: timerfd_map) {
@@ -281,8 +286,8 @@ public:
 
         struct epoll_event epev;
         epev.events = EPOLLIN;
-        epev.data.u32 = EVTYPE_TIMER;
-        if (epoll_ctl(epfd, EPOLL_CTL_ADD, tfd, &epev) < 0) {
+        epev.data.u32 = tfd;
+        if (epoll_ctl(timer_epfd, EPOLL_CTL_ADD, tfd, &epev) < 0) {
             throw std::system_error(errno, std::system_category(), "timerfd_settime()");
         }
         timerfd_map.insert({{timer_id, tfd}});
@@ -297,7 +302,7 @@ public:
         cleanup_fds.erase(tfd);
         if (rv < 0) {
             errno = saved_errno;
-            throw std::system_error(errno, std::system_category(), "timerfd_settime()");
+            throw std::system_error(errno, std::system_category(), "epoll_ctl()");
         }
     }
 
