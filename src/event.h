@@ -35,6 +35,7 @@
 #error No supported kernel event API detected
 #endif
 
+#include <iostream>
 #include <stdexcept>
 #include <functional>
 #include <unordered_set>
@@ -44,6 +45,19 @@
 #include <csignal>
 #include <fcntl.h>
 #include <unistd.h>
+
+// Set this to 1 to print debugging information to stderr
+#ifndef KQLITE_TRACE
+#define KQLITE_TRACE 0
+#endif
+
+namespace kqtrace {
+    static inline void print(const std::string &msg) {
+        if (KQLITE_TRACE) {
+            std::cerr << "[EVENT] " << msg << std::endl;
+        }
+    }
+}
 
 struct proc_event {
     pid_t pid;
@@ -537,6 +551,7 @@ namespace kq {
         int addTimer(int seconds, std::function<void()> callback) {
             int timer_id = getNextTimerId();
             auto milliseconds = seconds * 1000;
+            kqtrace::print("adding timer for " + std::to_string(milliseconds) + "ms");
             impl->monitorTimer(timer_id, milliseconds);
             timer_callbacks.insert({{timer_id, callback}});
             return timer_id;
@@ -544,6 +559,7 @@ namespace kq {
 
         void waitForEvent() {
             auto event = impl->waitForEvent();
+            kqtrace::print("got an event of type " + std::to_string(event.index()));
             switch (event.index()) {
                 case EVTYPE_SIGNAL: {
                     const auto &signum = std::get<signal_event>(event).signum;
