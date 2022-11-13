@@ -21,12 +21,12 @@ jobs:
         run: |
           cmake -B ${{github.workspace}}/build \
             -DCMAKE_CXX_FLAGS="-Werror" \
-            --config ${{env.BUILD_TYPE}}
+            -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
           cat config.h
 
       - name: Build the project
-        run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+        run: cmake --build ${{github.workspace}}/build
 
       - name: Run tests
         working-directory: ${{github.workspace}}/build
-        run: ctest -C ${{env.BUILD_TYPE}}
+        run: ctest .
