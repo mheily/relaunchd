@@ -16,6 +16,11 @@
 
 #ifndef CONFIG_H_
 
+
+namespace relaunch::config {
+    static inline const char *VERSION = "${CMAKE_PROJECT_VERSION}";
+}
+
 // Compile-time options
 #define PREFIX      "${CMAKE_INSTALL_PREFIX}"
 #define VARDIR		"${VARDIR}"

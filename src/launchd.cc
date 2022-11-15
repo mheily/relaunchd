@@ -120,6 +120,7 @@ int main(int argc, char *argv[]) noexcept {
     // FIXME: pid 1 logging cannot go to syslogd because of chicken+egg
     openlog("launchd", LOG_PID | LOG_NDELAY, LOG_DAEMON);
     setlogmask(logmask);
+    log_notice("relaunchd version %s starting", relaunch::config::VERSION);
 
     if (daemonize) {
         if (chdir("/") != 0) {

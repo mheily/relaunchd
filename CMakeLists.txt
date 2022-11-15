@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.13)
-project(relaunchd)
+project(relaunchd VERSION 0.7.0)
 
 # add our own module repository to CMake's search path:
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules ${CMAKE_MODULE_PATH} )

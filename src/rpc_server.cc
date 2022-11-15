@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include "config.h"
+
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -129,8 +131,9 @@ static json _rpc_op_submit(const json &args, Manager &mgr) {
 }
 
 static json _rpc_op_version(const json &, Manager &) {
-    // FIXME get version number
-    return {{"error", false},{"version", "relaunch version unknown"}};
+    static const auto version = std::string{"relaunch version "} + std::string{relaunch::config::VERSION};
+    return {{"error",   false},
+            {"version", version}};
 }
 
 // FIXME: needs a lot more error checking
