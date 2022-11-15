@@ -31,6 +31,7 @@ if (USE_PRIVATE_DEPENDENCIES)
     endif ()
 endif ()
 add_library(launch STATIC ${LAUNCH_SRC})
+target_link_libraries(launch PRIVATE nlohmann_json::nlohmann_json)
 
 if (NOT USE_PRIVATE_DEPENDENCIES)
     # we register libtinyxml2 as a public dependency of liblaunch
@@ -42,7 +43,7 @@ endif()
 
 add_executable(launchd launchd.cc)
 
-target_link_libraries(launchd launch)
+target_link_libraries(launchd PRIVATE launch nlohmann_json::nlohmann_json)
 
 # DISABLED: this symbol exists in glibc but warns that it will always fail
 # need to actually try compiling a program and using the function.
@@ -86,7 +87,7 @@ install(CODE "FILE(MAKE_DIRECTORY \$ENV{DESTDIR}\/${VARDIR}/run)")
 
 add_executable(launchctl launchctl.cc)
 
-target_link_libraries(launchctl launch)
+target_link_libraries(launchctl PRIVATE launch nlohmann_json::nlohmann_json)
 
 if(ipo_supported)
     message(STATUS "Enabling link-time optimization")
@@ -99,7 +100,7 @@ endif()
 
 if(USE_LIBKQUEUE)
 else()
-    target_link_libraries(launchctl "${LibKQueue_LIBRARIES}")
+    target_link_libraries(launchctl PRIVATE "${LibKQueue_LIBRARIES}")
 endif()
 
 install(TARGETS launchctl DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)

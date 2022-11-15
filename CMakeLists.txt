@@ -79,6 +79,7 @@ if(NOT USE_PRIVATE_DEPENDENCIES AND USE_TINYXML)
     find_package(TinyXML2 9.0.0 REQUIRED)
 endif()
 
+find_package(nlohmann_json 3.2.0 REQUIRED)
 
 # Enable code coverage automatically for debug builds
 if(ENABLE_COVERAGE)

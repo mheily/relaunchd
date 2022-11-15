@@ -18,7 +18,7 @@
 
 #include <array>
 #include <filesystem>
-#include "../vendor/json.hpp"
+#include <nlohmann/json.hpp>
 
 #include "channel.h"
 #include "domain.h"

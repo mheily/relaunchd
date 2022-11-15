@@ -58,6 +58,9 @@ Some things will probably never be implemented:
 
 ## Building from source
 
+Required library dependencies:
+* nlohmann::json (`apt install nlohmann-json3-dev` on Debian, or `brew install nlohmann-json` on MacOS)
+
 The basic commands to build and install the software are:
 ```
 	mkdir cmake-build-debug

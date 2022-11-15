@@ -20,7 +20,7 @@
 #include <grp.h>
 #include <unistd.h>
 
-#include "../vendor/json.hpp"
+#include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
 #include "../vendor/tinyxml2.h"

@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "../vendor/json.hpp"
+#include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
 

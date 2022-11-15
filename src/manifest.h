@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -27,7 +28,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
-#include "../vendor/json.hpp"
+#include <nlohmann/json.hpp>
 #include "dependency.h"
 
 using json = nlohmann::json;

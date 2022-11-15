@@ -23,7 +23,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "../vendor/json.hpp"
+#include <nlohmann/json.hpp>
+
 using json = nlohmann::json;
 
 #include "manifest.h"

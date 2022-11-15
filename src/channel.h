@@ -29,7 +29,7 @@
 #define IPC_MAX_MSGLEN  32768U
 
 #include <string>
-#include "../vendor/json.hpp"
+#include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
 class Channel {
