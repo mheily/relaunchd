@@ -26,7 +26,8 @@ jobs:
             build-essential \
             devscripts \
             fakeroot \
-            gridsite-clients
+            gridsite-clients \
+            nlohmann-json3-dev
 
       - name: Download coverity tool MD5
         run: |
