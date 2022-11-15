@@ -78,6 +78,7 @@ void redirect_stdio(pid_t pid) {
         if (pid == 1) {
             // Special case: stdio has not been fully initialized
             (void) dup2(fd, 3);
+            (void) close(fd);
             fd = 3;
         }
         (void) dup2(fd, STDIN_FILENO);
@@ -91,17 +92,11 @@ void usage() {
     printf("todo: usage\n");
 }
 
-int main(int argc, char *argv[]) noexcept {
+int main(int argc, char *argv[]) {
     int c;
     pid_t pid = getpid();
     bool daemonize = (pid != 1);
     int logmask = LOG_NOTICE;
-
-//    /* Sanitize environment variables */
-//    if ((getuid() != 0) && (access(getenv("HOME"), R_OK | W_OK | X_OK) < 0)) {
-//        fputs("Invalid value for the HOME environment variable\n", stderr);
-//        exit(1);
-//    }
 
     while ((c = getopt(argc, argv, "fv")) != -1) {
         switch (c) {
@@ -124,6 +119,7 @@ int main(int argc, char *argv[]) noexcept {
 
     if (daemonize) {
         if (chdir("/") != 0) {
+            log_error("chdir() to / failed: %s", strerror(errno));
             abort();
         }
         if (pid != 1) {
