@@ -17,8 +17,6 @@
 #include <filesystem>
 #include <unistd.h>
 #include <fstream>
-
-#include "log.h"
 #include "state_file.hpp"
 
 using json = nlohmann::json;
@@ -46,12 +44,8 @@ void StateFile::setValue(json new_value) const {
     std::ofstream ofs{tmpfilepath};
     ofs << new_value;
     ofs.close();
-    if (rename(tmpfilepath.c_str(), dataPath.c_str()) != 0) {
-        log_errno("rename(%s, %s)", tmpfilepath.c_str(), dataPath.c_str());
-        int saved_errno = errno;
-        (void) unlink(tmpfilepath.c_str());
-        throw std::system_error(saved_errno, std::system_category(), "rename(2) failed");
-    }
+    rename(tmpfilepath.c_str(), dataPath.c_str());
+    // TODO: cleanup tmpfile if an error occurs.
     currentValue = new_value;
 }
 

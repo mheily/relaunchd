@@ -356,7 +356,7 @@ void Manager::reschedulePeriodicJob(Job &job) {
 
 void Manager::rescheduleStandardJob(Job &job) {
     const Label &label = job.manifest.label;
-    time_t restart_at = job.started_at.value() + job.manifest.throttle_interval;
+    time_t restart_at = job.started_at + job.manifest.throttle_interval;
     time_t now = current_time();
     if (now >= restart_at) {
         log_debug("%s: restarting due to KeepAlive", job.manifest.label.c_str());

@@ -416,7 +416,7 @@ void Job::run(const std::function<void()> post_fork_cleanup) {
 		}
 	} else {
         started_at = current_time();
-		log_debug("job %s started at %zu with pid %d", manifest.label.c_str(), started_at.value(), pid);
+		log_debug("job %s started at %zu with pid %d", manifest.label.c_str(), started_at, pid);
 		state = JOB_STATE_RUNNING;
         // FIXME: sockets
         ///struct job_manifest_socket *jms;
