@@ -18,7 +18,8 @@
 
 
 namespace relaunch::config {
-    static inline const char *VERSION = "${CMAKE_PROJECT_VERSION}";
+    // WORKAROUND: GCC in CI test thinks this is unused, but it isn't
+    [[maybe_unused]] static inline const char *VERSION = "${CMAKE_PROJECT_VERSION}";
 }
 
 // Compile-time options
