@@ -1,5 +1,5 @@
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -g3 -O0")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g3 -O0")
 
 add_executable(TestManifest manifest_test.cc ../src/manifest.cc)
 target_link_libraries(TestManifest PRIVATE launch nlohmann_json::nlohmann_json)
