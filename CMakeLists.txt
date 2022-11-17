@@ -14,6 +14,8 @@ include(EnableSanitizers)
 
 option(ENABLE_COVERAGE "Should we enable code coverage reports" OFF)
 
+option(ENABLE_LTO "Should we enable link-time optimization?" OFF)
+
 option(USE_LIBKQUEUE "Should we use libkqueue" OFF)
 
 option(USE_TINYXML "Should we use TinyXML to support XML manifests" OFF)

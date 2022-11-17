@@ -89,7 +89,7 @@ add_executable(launchctl launchctl.cc)
 
 target_link_libraries(launchctl PRIVATE launch nlohmann_json::nlohmann_json)
 
-if(ipo_supported)
+if(ENABLE_LTO AND ipo_supported)
     message(STATUS "Enabling link-time optimization")
     set_property(TARGET launch PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
     set_property(TARGET launchctl PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
