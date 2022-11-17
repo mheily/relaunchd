@@ -9,6 +9,7 @@ on:
       - 'CMakeList.txt'
       - 'cmake/*'
       - 'src/*'
+      - 'test/*'
       - 'vendor/*'
       - '.github/workflows/ci-linux.yml'
 
