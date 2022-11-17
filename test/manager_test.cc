@@ -30,7 +30,7 @@ void testDependencies() {
     json job1_manifest = json::parse(R"(
         {
           "Label": "test.job1",
-          "Program": "/bin/true",
+          "Program": "/usr/bin/true",
           "RunAtLoad": true,
           "Dependencies": [
             "test.job2"
@@ -40,7 +40,7 @@ void testDependencies() {
     json job2_manifest = json::parse(R"(
         {
           "Label": "test.job2",
-          "Program": "/bin/true"
+          "Program": "/usr/bin/true"
         }
     )");
     std::string path = "/dev/null";
@@ -67,7 +67,7 @@ void testCyclicDependency() {
     json job1_manifest = json::parse(R"(
         {
           "Label": "test.job1",
-          "Program": "/bin/true",
+          "Program": "/usr/bin/true",
           "RunAtLoad": true,
           "Dependencies": [
             "test.job2"
@@ -77,7 +77,7 @@ void testCyclicDependency() {
     json job2_manifest = json::parse(R"(
         {
           "Label": "test.job2",
-          "Program": "/bin/true",
+          "Program": "/usr/bin/true",
           "Dependencies": [
             "test.job1"
           ]
@@ -103,14 +103,14 @@ void testShouldStart() {
     json job1_manifest = json::parse(R"(
         {
           "Label": "test.job1",
-          "Program": "/bin/true",
+          "Program": "/usr/bin/true",
           "RunAtLoad": true
         }
     )");
     json job2_manifest = json::parse(R"(
         {
           "Label": "test.job2",
-          "Program": "/bin/true",
+          "Program": "/usr/bin/true",
           "StartInterval": 60
         }
     )");
@@ -134,7 +134,7 @@ void testKeepaliveAfterExit() {
     json manifest = json::parse(R"(
         {
           "Label": "test.job1",
-          "Program": "/bin/true",
+          "Program": "/usr/bin/true",
           "RunAtLoad": true,
           "KeepAlive": true,
           "ThrottleInterval": 0
