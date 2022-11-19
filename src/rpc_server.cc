@@ -16,6 +16,7 @@
 
 #include "config.h"
 
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -74,7 +75,8 @@ static json _rpc_op_load(const json &args, Manager &mgr) {
 static json _rpc_op_unload(const json &args, Manager &mgr) {
     bool forceUnload = args[1]["Force"];
     bool overrideDisabled = args[1]["OverrideDisabled"];
-    for (const auto &path : args[1]["Paths"]) {
+    for (const auto &jsonobj : args[1]["Paths"]) {
+	const std::filesystem::path path{jsonobj.get<std::string>()};
         if (!std::filesystem::exists(path)) {
             return {{"error", true}};
         }
@@ -84,8 +86,7 @@ static json _rpc_op_unload(const json &args, Manager &mgr) {
                 mgr.unloadJob(file.path(), overrideDisabled, forceUnload);
             }
         } else {
-            std::filesystem::path p{path.get<std::string>()};
-            mgr.unloadJob(p, overrideDisabled, forceUnload);
+            mgr.unloadJob(path, overrideDisabled, forceUnload);
         }
     }
     return {{"error", false}};
