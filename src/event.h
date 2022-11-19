@@ -432,6 +432,10 @@ public:
             } else if (rv == 0) {
                 continue;
             } else {
+                if (errno == EINTR) {
+                    kqtrace::print("kevent() was interrupted by a signal, will continue");
+                    continue;
+                }
                 throw std::system_error(errno, std::system_category(), "kevent()");
             }
         }
