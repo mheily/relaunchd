@@ -31,7 +31,7 @@ jobs:
           cmake -B ${{github.workspace}}/build \
             -DCMAKE_CXX_FLAGS="-Werror" \
             -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
-          ls -l ${{github.workspace}}/build/src/config.h
+          cat ${{github.workspace}}/build/src/config.h
 
       - name: Build the project
         run: cmake --build ${{github.workspace}}/build
@@ -40,6 +40,16 @@ jobs:
         working-directory: ${{github.workspace}}/build
         run: |
           failed=0
-          ctest --verbose --output-on-failure . || failed=92
+          ctest --verbose --output-on-failure . || failed=$?
+          if [ $failed != 0 ] ; then cat Testing/Temporary/LastTest.log ; fi
+          exit $failed
+
+      - name: Run tests with ASAN enabled
+        run: |
+          cmake -B ${{github.workspace}}/build-asan -DCMAKE_BUILD_TYPE=Debug
+          cmake --build ${{github.workspace}}/build-asan
+          cd ${{github.workspace}}/build-asan
+          failed=0
+          ctest --verbose --output-on-failure . || failed=$?
           if [ $failed != 0 ] ; then cat Testing/Temporary/LastTest.log ; fi
           exit $failed
