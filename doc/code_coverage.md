@@ -3,9 +3,7 @@
 Here's how to generate a code coverage report:
 
 ```
-cd cmake-build-debug
-make -C test test_all_coverage
-open ./test_all_coverage/index.html
+./create-coverage/report.sh
 ```
 
 To exclude a section of code from coverage reports,
