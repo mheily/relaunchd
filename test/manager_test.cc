@@ -96,6 +96,58 @@ void testCyclicDependency() {
     mgr.unloadAllJobs();
 }
 
+//! Test what happens if a dependency does not exist
+void testMissingDependency() {
+    //log_freopen(stdout);
+    Manager mgr{DOMAIN_TYPE_USER};
+    json job1_manifest = json::parse(R"(
+        {
+          "Label": "test.job1",
+          "Program": "/usr/bin/true",
+          "RunAtLoad": true,
+          "Dependencies": [
+            "--this-job-does-not-exist--"
+          ]
+        }
+    )");
+    std::string path = "/dev/null";
+    mgr.loadManifest(job1_manifest, path);
+    mgr.startAllJobs();
+    auto &job1 = mgr.getJob("test.job1");
+    assert(!job1.hasStarted());
+    assert(job1.state == JOB_STATE_MISSING_DEPENDS);
+}
+
+//! Verify that ThrottleInterval works
+void testThrottleInterval() {
+    //log_freopen(stdout);
+    Manager mgr{DOMAIN_TYPE_USER};
+    json job1_manifest = json::parse(R"(
+        {
+          "Label": "test.job1",
+          "Program": "/usr/bin/true",
+          "RunAtLoad": true,
+          "KeepAlive": true,
+          "ThrottleInterval": 1
+        }
+    )");
+    std::string path = "/dev/null";
+    mgr.loadManifest(job1_manifest, path);
+    mgr.startAllJobs();
+    auto &job1 = mgr.getJob("test.job1");
+    assert(job1.hasStarted());
+    assert(job1.state == JOB_STATE_RUNNING);
+    pid_t old_pid = job1.pid;
+    assert(mgr.handleEvent());      // event: reap the PID of the job
+    auto &job2 = mgr.getJob("test.job1");
+    assert(job2.state == JOB_STATE_WAITING);
+    sleep(2);
+    assert(mgr.handleEvent());      // event: timer expires due to ThrottleInterval, job restarts
+    auto &job3 = mgr.getJob("test.job1");
+    assert(job3.state == JOB_STATE_RUNNING);
+    assert(job3.pid != old_pid != 0);
+}
+
 //! Test the job.shouldStart() logic
 void testShouldStart() {
     //log_freopen(stdout);
@@ -181,6 +233,8 @@ int main(int argc, char *argv[]) {
     testKeepaliveAfterSignal();
     testKeepaliveAfterExit();
     testCyclicDependency();
+    testMissingDependency();
     testDependencies();
     testShouldStart();
+    testThrottleInterval();
 }
