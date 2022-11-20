@@ -357,31 +357,36 @@ void Manager::reschedulePeriodicJob(Job &job) {
 
 void Manager::rescheduleStandardJob(Job &job) {
     const Label &label = job.manifest.label;
-    time_t restart_at = job.started_at + job.manifest.throttle_interval;
+    if (!job.started_at) {
+        log_debug("%s: starting for the first time", job.manifest.label.c_str());
+        return startJob(job);
+    }
+
     time_t now = current_time();
+    time_t restart_at = job.started_at.value() + job.manifest.throttle_interval;
     if (now >= restart_at) {
         log_debug("%s: restarting due to KeepAlive", job.manifest.label.c_str());
-        startJob(job);
-    } else {
-        time_t delta = restart_at - now;
-        if (delta > INT_MAX || delta < 0) {
-            throw std::range_error("interval too large");
-        }
-        int seconds = static_cast<int>(delta);
-        log_debug("%s: will restart in %d seconds due to KeepAlive setting", job.manifest.label.c_str(), seconds);
-        job.state = JOB_STATE_WAITING;
-        eventmgr.addTimer(seconds, [label, this]() {
-            if (!jobExists(label)) {
-                return;
-            }
-            auto &job = getJob(label);
-            if (job.state == JOB_STATE_WAITING) {
-                startJob(job);
-            } else {
-                log_debug("attempted to restart job %s: not waiting to be started", job.manifest.label.c_str());
-            }
-        });
+        return startJob(job);
     }
+
+    time_t delta = restart_at - now;
+    if (delta > INT_MAX || delta < 0) {
+        throw std::range_error("interval too large");
+    }
+    int seconds = static_cast<int>(delta);
+    log_debug("%s: will restart in %d seconds due to KeepAlive setting", job.manifest.label.c_str(), seconds);
+    job.state = JOB_STATE_WAITING;
+    eventmgr.addTimer(seconds, [label, this]() {
+        if (!jobExists(label)) {
+            return;
+        }
+        auto &job = getJob(label);
+        if (job.state == JOB_STATE_WAITING) {
+            startJob(job);
+        } else {
+            log_debug("attempted to restart job %s: not waiting to be started", job.manifest.label.c_str());
+        }
+    });
 }
 
 void Manager::rescheduleJob(Job &job) {

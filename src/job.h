@@ -51,7 +51,7 @@ struct Job {
     Job(std::optional<std::filesystem::path> manifest_path_, Manifest manifest_);
 
     //! The time that the job started
-    time_t started_at;
+    std::optional<time_t> started_at;
 
     std::optional<std::filesystem::path> manifest_path;
     const Manifest manifest;
