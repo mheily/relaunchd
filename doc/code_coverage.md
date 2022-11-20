@@ -4,8 +4,8 @@ Here's how to generate a code coverage report:
 
 ```
 cd cmake-build-debug
-make -C test TestManager_coverage
-open ./TestManager_coverage/index.html
+make -C test test_all_coverage
+open ./test_all_coverage/index.html
 ```
 
 To exclude a section of code from coverage reports,

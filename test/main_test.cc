@@ -14,32 +14,32 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#pragma auto
+#include "common.hpp"
+#include "../src/log.h"
 
-#include <iostream>
+extern void addManagerTests(TestRunner &runner);
+extern void addManifestTests(TestRunner &runner);
 
-#include <nlohmann/json.hpp>
-using json = nlohmann::json;
 
-class TestRunner {
-public:
-    void addTest(std::string name, std::function<void()> test_func) {
-        dispatchTable.insert({name, test_func});
-    }
+void usage() {
+    std::cout << "TODO: usage" << std::endl;
+}
 
-    void runAllTests() {
-        for (const auto &[name, test_func] : dispatchTable) {
-            std::cerr << "\nRunning " << name << std::endl;
-            try {
-                test_func();
-            } catch (...) {
-                std::cerr << "*** ERROR *** Test failed: " << name << std::endl;
-                return;
-            }
+int main(int argc, char *argv[]) {
+    int c;
+    while ((c = getopt(argc, argv, "v")) != -1) {
+        switch (c) {
+            case 'v':
+                log_freopen(stderr);
+                break;
+            default:
+                usage();
+                break;
         }
-        std::cerr << "All tests completed successfully." << std::endl;
     }
-
-private:
-    std::map<std::string, std::function<void()>> dispatchTable;
-};
+    TestRunner runner;
+    addManagerTests(runner);
+    addManifestTests(runner);
+    runner.runAllTests();
+    exit(EXIT_SUCCESS);
+}

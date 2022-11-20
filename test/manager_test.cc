@@ -1,9 +1,26 @@
+/*
+ * Copyright (c) 2022 Mark Heily <mark@heily.com>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
 #undef NDEBUG
 
 #include <cassert>
 #include <filesystem>
 #include <iostream>
 
+#include "common.hpp"
 #include "manager.h"
 #include "log.h"
 
@@ -229,12 +246,12 @@ void testKeepaliveAfterSignal() {
     assert(old_pid != job.pid);
 }
 
-int main(int argc, char *argv[]) {
-    testKeepaliveAfterSignal();
-    testKeepaliveAfterExit();
-    testCyclicDependency();
-    testMissingDependency();
-    testDependencies();
-    testShouldStart();
-    testThrottleInterval();
+void addManagerTests(TestRunner &runner) {
+    runner.addTest("testKeepaliveAfterSignal", testKeepaliveAfterSignal);
+    runner.addTest("testKeepaliveAfterExit", testKeepaliveAfterExit);
+    runner.addTest("testCyclicDependency", testCyclicDependency);
+    runner.addTest("testMissingDependency", testMissingDependency);
+    runner.addTest("testDependencies", testDependencies);
+    runner.addTest("testShouldStart", testShouldStart);
+    runner.addTest("testThrottleInterval", testThrottleInterval);
 }
