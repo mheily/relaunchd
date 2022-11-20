@@ -46,7 +46,7 @@ jobs:
 
       - name: Run tests with ASAN enabled
         run: |
-          cmake -B ${{github.workspace}}/build-asan -DCMAKE_BUILD_TYPE=Debug
+          cmake -B ${{github.workspace}}/build-asan -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=yes
           cmake --build ${{github.workspace}}/build-asan
           cd ${{github.workspace}}/build-asan
           failed=0
