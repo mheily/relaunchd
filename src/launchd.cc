@@ -91,7 +91,7 @@ void usage() {
     printf("todo: usage\n");
 }
 
-int main(int argc, char *argv[]) noexcept {
+int main(int argc, char *argv[]) {
     int c;
     pid_t pid = getpid();
     bool daemonize = (pid != 1);
