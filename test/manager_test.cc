@@ -151,7 +151,7 @@ void testKeepaliveAfterExit() {
 }
 
 void testKeepaliveAfterSignal() {
-    log_freopen(stderr);
+    log_freopen(stdout);
     Manager mgr{DOMAIN_TYPE_USER};
     assert(std::filesystem::exists("/bin/sleep"));
     json manifest = json::parse(R"(
