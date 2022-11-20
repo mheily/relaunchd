@@ -281,14 +281,6 @@ namespace manifest {
         struct passwd *pwent;
         struct group *grent;
 
-        // XXX-FIXME this is a bad idea, just use the LaunchAgent and LaunchDaemon directory structure
-        //      and be explicit.
-        /* Undocumented heuristic to decide if it is an agent:
-         *  - agents cannot set the User property
-         *  - daemons must set the User and Group property
-         */
-        job_is_agent = (!user_name && !group_name);
-
         auto uid = ::geteuid();
         if (uid == 0) {
             if (!user_name) {
