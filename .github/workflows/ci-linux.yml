@@ -38,8 +38,8 @@ jobs:
 
       - name: Run tests
         working-directory: ${{github.workspace}}/build
-        run: ctest --verbose --output-on-failure .
-
-      - name: Display the test logs
-        working-directory: ${{github.workspace}}/build
-        run: cat Testing/Temporary/LastTest.log
+        run: |
+          failed=0
+          ctest --verbose --output-on-failure . || failed=92
+          if [ $failed != 0 ] ; then cat Testing/Temporary/LastTest.log ; fi
+          exit $failed
