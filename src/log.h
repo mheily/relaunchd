@@ -39,11 +39,7 @@ extern FILE *logfile;
 #define log_warning(format,...) _log_all(LOG_WARNING, "WARNING: " format, ## __VA_ARGS__)
 #define log_notice(format,...) _log_all(LOG_NOTICE, format, ## __VA_ARGS__)
 #define log_info(format,...) _log_all(LOG_INFO, format, ## __VA_ARGS__)
-#if !defined(NDEBUG)
 #define log_debug(format,...) _log_all(LOG_DEBUG, format, ## __VA_ARGS__)
-#else
-#define log_debug(format,...) do { (void)format; } while (0)
-#endif
 #define log_errno(format,...) _log_all(LOG_ERR, format": errno=%d (%s)", ## __VA_ARGS__, errno, strerror(errno))
 
 void log_freopen(FILE *new_logfile);
