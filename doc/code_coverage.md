@@ -3,7 +3,7 @@
 Here's how to generate a code coverage report:
 
 ```
-./create-coverage/report.sh
+./create-coverage-report.sh
 ```
 
 To exclude a section of code from coverage reports,
