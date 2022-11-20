@@ -132,13 +132,17 @@ namespace manifest {
             throw NotSupportedError();
         }
         if (j.contains("StartInterval")) {
-            j.at("StartInterval").get_to(m.start_interval);
+            uint32_t tmp;
+            j.at("StartInterval").get_to(tmp);
+            m.start_interval = tmp;
         }
         if (j.contains("ThrottleInterval")) {
             j.at("ThrottleInterval").get_to(m.throttle_interval);
         }
         if (j.contains("Nice")) {
-            j.at("Nice").get_to(m.nice);
+            uint32_t tmp;
+            j.at("Nice").get_to(tmp);
+            m.nice = tmp;
         }
         if (j.contains("InitGroups")) {
             j.at("InitGroups").get_to(m.init_groups);

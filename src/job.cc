@@ -39,9 +39,9 @@ static int apply_resource_limits(const Job & job) {
 	//TODO - SoftResourceLimits, HardResourceLimits
 	//TODO - LowPriorityIO
 
-	if (job.manifest.nice != 0) {
-		if (setpriority(PRIO_PROCESS, 0, job.manifest.nice) < 0) {
-			log_errno("setpriority(2) to nice=%d", job.manifest.nice);
+	if (job.manifest.nice) {
+		if (setpriority(PRIO_PROCESS, 0, job.manifest.nice.value()) < 0) {
+			log_errno("setpriority(2) to nice=%d", job.manifest.nice.value());
 			return (-1);
 		}
 	}

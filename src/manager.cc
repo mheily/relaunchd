@@ -340,9 +340,10 @@ void Manager::rescheduleCalendarJob(Job &job) {
 }
 
 void Manager::reschedulePeriodicJob(Job &job) {
-    log_debug("job %s will start after T=%u", job.manifest.label.c_str(), job.manifest.start_interval);
+    log_debug("job %s will start after T=%u",
+              job.manifest.label.c_str(), job.manifest.start_interval.value());
     const Label& label = job.manifest.label;
-    eventmgr.addTimer(job.manifest.start_interval, [label, this]() {
+    eventmgr.addTimer(job.manifest.start_interval.value(), [label, this]() {
         if (jobExists(label)) {
             auto &job = getJob(label);
             if (job.state == JOB_STATE_WAITING) {
