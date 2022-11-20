@@ -100,6 +100,8 @@ public:
 
     virtual void unblockSignal(int signum) = 0;
 
+    virtual void unblockAllSignals() = 0;
+
     virtual void ignoreSignal(int signum) = 0;
 
     virtual void monitorSocketRead(int sockfd) = 0;
@@ -112,6 +114,15 @@ public:
 
     //! Run cleanup actions between fork() and exec(), such as resetting signal handlers
     virtual void handleFork() = 0;
+
+protected:
+    // TODO: make this process-wide, since all threads share the same signal handlers
+    // Think about whether we want to allow multiple KernelEventInterface objects at all,
+    // as only one of them could realistically handle SIGCHLD and other signals.
+    // Maybe allow one object to manage signals, and any other objects will not be able to manage signals:
+    //    static std::mutex signal_mtx;
+    //    bool supports_signals = signal_mtx.try_lock();
+    std::unordered_set<int> blocked_signals; // signal handlers to restore when cleaning up
 };
 
 #if USE_EPOLL
@@ -144,15 +155,11 @@ public:
         for (auto &fd: cleanup_fds) {
             close(fd);
         }
-        for (int signum : blocked_signals) {
-            unblockSignal(signum);
-        }
+        unblockAllSignals();
     }
 
     void handleFork() override {
-        for (int signum : blocked_signals) {
-            unblockSignal(signum);
-        }
+        unblockAllSignals();
     }
 
     Event waitForEvent() override {
@@ -258,6 +265,13 @@ public:
     void unblockSignal(int signum) override {
         changeSignalMask(SIG_UNBLOCK, signum);
         blocked_signals.erase(signum);
+    }
+
+    void unblockAllSignals() override {
+        for (int signum : blocked_signals) {
+            changeSignalMask(SIG_UNBLOCK, signum);
+        }
+        blocked_signals.clear();
     }
 
     void ignoreSignal(int signum) override {
@@ -400,7 +414,6 @@ private:
     std::unordered_set<int> watch_pids; // process IDs to monitor
     std::unordered_map<int, int> timerfd_map;
     std::unordered_set<int> cleanup_fds; // file descriptors to close via the destructor
-    std::unordered_set<int> blocked_signals; // signals that need to be unblocked when cleaning up
     std::queue<Event> pending_events;
 };
 
@@ -482,6 +495,7 @@ public:
         if (signal(signum, SIG_IGN) == SIG_ERR) {
             throw std::system_error(errno, std::system_category(), "signal()");
         }
+        blocked_signals.insert(signum);
         changeKevent(signum, EVFILT_SIGNAL, EV_ADD, NOTE_EXIT);
     }
 
@@ -489,6 +503,16 @@ public:
         if (signal(signum, SIG_DFL) == SIG_ERR) {
             throw std::system_error(errno, std::system_category(), "signal()");
         }
+        blocked_signals.erase(signum);
+    }
+
+    void unblockAllSignals() override {
+        for (int signum : blocked_signals) {
+            if (signal(signum, SIG_DFL) == SIG_ERR) {
+                throw std::system_error(errno, std::system_category(), "signal()");
+            }
+        }
+        blocked_signals.clear();
     }
 
     void ignoreSignal(int signum) override {
@@ -504,7 +528,9 @@ public:
         changeKevent(timer_id, EVFILT_TIMER, EV_DELETE, 0);
     }
 
-    void handleFork() override {}
+    void handleFork() override {
+        unblockAllSignals();
+    }
 
 private:
     void changeKevent(uintptr_t ident, int filter, int flags, int fflags, intptr_t data = 0) {
