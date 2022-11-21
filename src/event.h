@@ -273,7 +273,7 @@ public:
         for (int signum : blocked_signals) {
             sigaddset(&mask, signum);
         }
-        (void)sigprocmask(SIG_UNBLOCK, &delta, NULL);
+        (void)sigprocmask(SIG_UNBLOCK, &mask, NULL);
         blocked_signals.clear();
     }
 
@@ -368,7 +368,7 @@ private:
     }
 
     static void changeSignalMask(int how, int signum) {
-        assert(how == SIG_BLOCK || how == SIG_UNBLOCK || how = SIG_SETMASK);
+        assert(how == SIG_BLOCK || how == SIG_UNBLOCK || how == SIG_SETMASK);
         sigset_t delta;
         sigemptyset(&delta);
         sigaddset(&delta, signum);

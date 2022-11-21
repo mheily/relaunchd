@@ -323,7 +323,7 @@ void Manager::rescheduleCalendarJob(Job &job) {
     }
     auto [absolute_time, relative_time] = maybe_schedule.value();
     log_debug("job %s scheduled to run in %lld minutes at t=%ld", job.manifest.label.c_str(),
-              relative_time.count(), absolute_time);
+              (long long)relative_time.count(), absolute_time);
     job.state = JOB_STATE_WAITING;
     auto &label = job.manifest.label;
     eventmgr.addTimer(relative_time, [label, this]() {
