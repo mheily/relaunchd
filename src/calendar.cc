@@ -85,7 +85,7 @@ namespace calendar {
 
         result = job_offset - cur_offset;
 
-        std::chrono::milliseconds relative_time{60 * 1000 * (int) result};   // FIXME: overflow checking
+        std::chrono::milliseconds relative_time{60 * 1000 * result};   // FIXME: overflow checking
         time_t absolute_time = current_time() + (relative_time.count() * 1000);
         return std::make_pair(absolute_time, relative_time);
     }

@@ -370,13 +370,10 @@ void Manager::rescheduleStandardJob(Job &job) {
         return startJob(job);
     }
 
-    time_t delta = restart_at - now;
-    if (delta > INT_MAX || delta < 0) {
-        throw std::range_error("interval too large");
-    }
-    int seconds = static_cast<int>(delta);
-    std::chrono::milliseconds milliseconds{seconds * 1000};
-    log_debug("%s: will restart in %d seconds due to KeepAlive setting", job.manifest.label.c_str(), seconds);
+    std::chrono::seconds seconds{restart_at - now};
+    std::chrono::milliseconds milliseconds = seconds;
+    log_debug("%s: will restart in %lld seconds due to KeepAlive setting",
+              job.manifest.label.c_str(), (long long) seconds.count());
     job.state = JOB_STATE_WAITING;
     eventmgr.addTimer(milliseconds, [label, this]() {
         if (!jobExists(label)) {
