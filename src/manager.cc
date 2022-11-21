@@ -322,8 +322,8 @@ void Manager::rescheduleCalendarJob(Job &job) {
         return;
     }
     auto [absolute_time, relative_time] = maybe_schedule.value();
-    log_debug("job %s scheduled to run in %d minutes at t=%ld", job.manifest.label.c_str(), relative_time,
-              absolute_time);
+    log_debug("job %s scheduled to run in %lld minutes at t=%ld", job.manifest.label.c_str(),
+              relative_time.count(), absolute_time);
     job.state = JOB_STATE_WAITING;
     auto &label = job.manifest.label;
     eventmgr.addTimer(relative_time, [label, this]() {
@@ -343,7 +343,8 @@ void Manager::reschedulePeriodicJob(Job &job) {
     log_debug("job %s will start after T=%u",
               job.manifest.label.c_str(), job.manifest.start_interval.value());
     const Label& label = job.manifest.label;
-    eventmgr.addTimer(job.manifest.start_interval.value(), [label, this]() {
+    std::chrono::milliseconds ms{job.manifest.start_interval.value()};
+    eventmgr.addTimer(ms, [label, this]() {
         if (jobExists(label)) {
             auto &job = getJob(label);
             if (job.state == JOB_STATE_WAITING) {
@@ -374,9 +375,10 @@ void Manager::rescheduleStandardJob(Job &job) {
         throw std::range_error("interval too large");
     }
     int seconds = static_cast<int>(delta);
+    std::chrono::milliseconds milliseconds{seconds * 1000};
     log_debug("%s: will restart in %d seconds due to KeepAlive setting", job.manifest.label.c_str(), seconds);
     job.state = JOB_STATE_WAITING;
-    eventmgr.addTimer(seconds, [label, this]() {
+    eventmgr.addTimer(milliseconds, [label, this]() {
         if (!jobExists(label)) {
             return;
         }

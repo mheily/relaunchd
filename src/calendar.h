@@ -22,5 +22,5 @@
 #include "manifest.h"
 
 namespace calendar {
-    std::optional<std::pair<time_t, int>> schedule_calendar_job(struct manifest::cron_spec &cron);
+    std::optional<std::pair<time_t, std::chrono::milliseconds>> schedule_calendar_job(struct manifest::cron_spec &cron);
 }

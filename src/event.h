@@ -108,7 +108,7 @@ public:
 
     virtual void ignoreSocketRead(int sockfd) = 0;
 
-    virtual void monitorTimer(int timer_id, int milliseconds) = 0;
+    virtual void monitorTimer(int timer_id, uint64_t milliseconds) = 0;
 
     virtual void ignoreTimer(int timer_id) = 0;
 
@@ -285,7 +285,7 @@ public:
         unblockSignal(signum);
     }
 
-    void monitorTimer(int timer_id, int milliseconds) override {
+    void monitorTimer(int timer_id, uint64_t milliseconds) override {
         int tfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
         if (tfd < 0) {
             throw std::system_error(errno, std::system_category(), "signalfd()");
@@ -520,7 +520,7 @@ public:
         changeKevent(signum, EVFILT_SIGNAL, EV_DELETE, NOTE_EXIT);
     }
 
-    void monitorTimer(int timer_id, int milliseconds) override {
+    void monitorTimer(int timer_id, uint64_t milliseconds) override {
         changeKevent(timer_id, EVFILT_TIMER, EV_ADD | EV_ONESHOT, 0, milliseconds);
     }
 
@@ -533,7 +533,7 @@ public:
     }
 
 private:
-    void changeKevent(uintptr_t ident, int filter, int flags, int fflags, intptr_t data = 0) {
+    void changeKevent(uintptr_t ident, int filter, int flags, int fflags, uint64_t data = 0) {
         struct kevent kev;
         EV_SET(&kev, ident, filter, flags, fflags, data, NULL);
         if (kevent(kqfd, &kev, 1, NULL, 0, NULL) < 0) {
@@ -583,11 +583,10 @@ namespace kq {
             socket_read_callbacks.insert({{sd, callback}});
         }
 
-        int addTimer(int seconds, std::function<void()> callback) {
+        int addTimer(const std::chrono::milliseconds milliseconds, std::function<void()> callback) {
             int timer_id = getNextTimerId();
-            auto milliseconds = seconds * 1000;
-            kqtrace::print("adding timer for " + std::to_string(milliseconds) + "ms");
-            impl->monitorTimer(timer_id, milliseconds);
+            kqtrace::print("adding timer for " + std::to_string(milliseconds.count()) + "ms");
+            impl->monitorTimer(timer_id, milliseconds.count());
             timer_callbacks.insert({{timer_id, callback}});
             return timer_id;
         }

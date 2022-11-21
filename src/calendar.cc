@@ -49,7 +49,7 @@ namespace calendar {
         return ((60 * hour) + minute);
     }
 
-    std::optional<std::pair<time_t, int>>
+    std::optional<std::pair<time_t, std::chrono::milliseconds>>
     schedule_calendar_job(struct manifest::cron_spec &cron) {
         time_t t0 = current_time();
         struct tm tm;
@@ -85,8 +85,8 @@ namespace calendar {
 
         result = job_offset - cur_offset;
 
-        int relative_time = 60 * (int) result;   // FIXME: 0..INT_MAX bounds checking
-        time_t absolute_time = current_time() + relative_time;
+        std::chrono::milliseconds relative_time{60 * 1000 * (int) result};   // FIXME: overflow checking
+        time_t absolute_time = current_time() + (relative_time.count() * 1000);
         return std::make_pair(absolute_time, relative_time);
     }
 }
