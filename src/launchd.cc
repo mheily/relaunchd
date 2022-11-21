@@ -78,6 +78,7 @@ void redirect_stdio(pid_t pid) {
         if (pid == 1) {
             // Special case: stdio has not been fully initialized
             (void) dup2(fd, 3);
+            (void) close(fd);
             fd = 3;
         }
         (void) dup2(fd, STDIN_FILENO);
