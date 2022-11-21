@@ -100,7 +100,7 @@ public:
 
     virtual void unblockSignal(int signum) = 0;
 
-    virtual void unblockAllSignals() = 0;
+    virtual void unblockAllSignals() noexcept = 0;
 
     virtual void ignoreSignal(int signum) = 0;
 
@@ -267,10 +267,13 @@ public:
         blocked_signals.erase(signum);
     }
 
-    void unblockAllSignals() override {
+    void unblockAllSignals() noexcept override {
+        sigset_t mask;
+        sigemptyset(&mask);
         for (int signum : blocked_signals) {
-            changeSignalMask(SIG_UNBLOCK, signum);
+            sigaddset(&mask, signum);
         }
+        (void)sigprocmask(SIG_UNBLOCK, &delta, NULL);
         blocked_signals.clear();
     }
 
@@ -365,12 +368,11 @@ private:
     }
 
     static void changeSignalMask(int how, int signum) {
+        assert(how == SIG_BLOCK || how == SIG_UNBLOCK || how = SIG_SETMASK);
         sigset_t delta;
         sigemptyset(&delta);
         sigaddset(&delta, signum);
-        if (sigprocmask(how, &delta, NULL) < 0) {
-            throw std::system_error(errno, std::system_category(), "sigprocmask()");
-        }
+        (void)sigprocmask(how, &delta, NULL);
     }
 
     static int epollCreate() {
@@ -506,11 +508,9 @@ public:
         blocked_signals.erase(signum);
     }
 
-    void unblockAllSignals() override {
+    void unblockAllSignals() noexcept override {
         for (int signum : blocked_signals) {
-            if (signal(signum, SIG_DFL) == SIG_ERR) {
-                throw std::system_error(errno, std::system_category(), "signal()");
-            }
+            (void) signal(signum, SIG_DFL);
         }
         blocked_signals.clear();
     }
