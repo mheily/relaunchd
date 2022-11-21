@@ -44,8 +44,10 @@ void StateFile::setValue(json new_value) const {
     std::ofstream ofs{tmpfilepath};
     ofs << new_value;
     ofs.close();
-    rename(tmpfilepath.c_str(), dataPath.c_str());
-    // TODO: cleanup tmpfile if an error occurs.
+    if (rename(tmpfilepath.c_str(), dataPath.c_str()) != 0) {
+        // TODO: cleanup tmpfile if an error occurs.
+        throw std::system_error(errno, std::system_category(), "rename()");
+    }
     currentValue = new_value;
 }
 
