@@ -290,20 +290,18 @@ void Manifest::rectify() {
 bool Manifest::validate() {
     if (!label.size()) {
         log_error("job does not have a label");
-        return false;
-    }
-
-    if (!program && !program_arguments.empty()) {
+    } else if (!program && !program_arguments.empty()) {
         // TODO: deduplicate this with rectify()
         log_error("job does not set Program or ProgramArguments");
-        return false;
-    }
-
-    if (calendar_interval && start_interval) {
+    } else if (calendar_interval && start_interval) {
         log_error("job %s has both a calendar and a non-calendar interval",
                   label.c_str());
-        return false;
+    } else if (group_name && !user_name) {
+        log_error("job %s sets GroupName but does not provide UserName",
+                  label.c_str());
+    } else {
+        return true;
     }
-    return true;
+    return false;
 }
 } // namespace manifest
