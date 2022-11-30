@@ -20,6 +20,11 @@
 
 using json = nlohmann::json;
 
+/**
+ * A state file used by a single-threaded program. The
+ * assumption is that no other process (or user) will
+ * modify the state file while this program is running.
+ */
 class StateFile {
 public:
     StateFile(std::string path, json default_value);

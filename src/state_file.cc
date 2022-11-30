@@ -23,8 +23,6 @@ using json = nlohmann::json;
 
 StateFile::StateFile(std::string path, json default_value) : dataPath(std::move(path)),
                                                              defaultValue(std::move(default_value)) {
-    // TODO: this could race with another process
-    // add some extra handling for that
     if (std::filesystem::exists(dataPath)) {
         std::ifstream ifs{dataPath};
         currentValue = json::parse(ifs);
@@ -45,7 +43,7 @@ void StateFile::setValue(json new_value) const {
     ofs << new_value;
     ofs.close();
     if (rename(tmpfilepath.c_str(), dataPath.c_str()) != 0) {
-        // TODO: cleanup tmpfile if an error occurs.
+        std::filesystem::remove(tmpfilepath);
         throw std::system_error(errno, std::system_category(), "rename()");
     }
     currentValue = new_value;
