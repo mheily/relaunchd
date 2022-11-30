@@ -70,9 +70,10 @@ struct ExecStatus {
     [[nodiscard]] std::string toString() const {
         using namespace std;
         auto s = string{"[ExecStatus: code="} + to_string(errorCode) +
-                " context=" + to_string(errorContext);
+                 " context=" + to_string(errorContext);
         if (savedErrno) {
-            s += " errno=" + string{strerror(savedErrno)} + "(" + to_string(savedErrno) + ")";
+            s += " errno=" + string{strerror(savedErrno)} + "(" +
+                 to_string(savedErrno) + ")";
         }
         s += "]";
         return s;
@@ -81,7 +82,7 @@ struct ExecStatus {
 
 //! Monitor what happens in a child process between fork() and exec()
 class ExecMonitor {
-public:
+  public:
     ExecMonitor() {
         if (pipe(pfd) != 0) {
             log_errno("pipe(2)");
@@ -91,16 +92,17 @@ public:
             if (fcntl(fd, F_SETFD, FD_CLOEXEC) != 0) {
                 log_errno("fcntl(2)");
                 int saved_errno = errno;
-                (void) close(pfd[0]);
-                (void) close(pfd[1]);
-                throw std::system_error(saved_errno, std::system_category(), "fcntl(2)");
+                (void)close(pfd[0]);
+                (void)close(pfd[1]);
+                throw std::system_error(saved_errno, std::system_category(),
+                                        "fcntl(2)");
             }
         }
     }
 
     ~ExecMonitor() {
         for (int fd : pfd) {
-            (void) close(fd);
+            (void)close(fd);
         }
     }
 
@@ -126,12 +128,15 @@ public:
         ExecStatus result;
         ssize_t bytes = read(pfd[0], &result, sizeof(result));
         if (bytes < 0) {
-            return ExecStatus{ExecStatus::ReadFailed, errno, ExecStatus::ParentProcess};
+            return ExecStatus{ExecStatus::ReadFailed, errno,
+                              ExecStatus::ParentProcess};
         } else if (bytes == 0) {
-            return ExecStatus{ExecStatus::ExecSuccess, 0, ExecStatus::ParentProcess};
+            return ExecStatus{ExecStatus::ExecSuccess, 0,
+                              ExecStatus::ParentProcess};
         } else if (bytes < (long)sizeof(result)) {
             log_error("short read from pipe");
-            return ExecStatus{ExecStatus::ReadFailed, 0, ExecStatus::ParentProcess};
+            return ExecStatus{ExecStatus::ReadFailed, 0,
+                              ExecStatus::ParentProcess};
         } else {
             return result;
         }
@@ -144,6 +149,6 @@ public:
         }
     }
 
-private:
+  private:
     int pfd[2];
 };

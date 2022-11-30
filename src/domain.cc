@@ -22,37 +22,34 @@
 #include "config.h"
 #include "domain.h"
 
-
 const std::string &Domain::to_string() const {
-    static const std::array<std::string, 3> names = {
-            "system", "user", "gui"
-    };
+    static const std::array<std::string, 3> names = {"system", "user", "gui"};
     return names.at(dtype);
 }
 
 const std::vector<std::string> &Domain::getLoadPaths() const {
     switch (dtype) {
-        case DOMAIN_TYPE_SYSTEM: {
-            static const std::vector<std::string> result = {
-                    SYSTEM_DAEMON_LOAD_PATH,
-                    VENDOR_DAEMON_LOAD_PATH,
-            };
-            return result;
-        }
-        case DOMAIN_TYPE_USER: {
-            static const std::vector<std::string> result = {
-                    SYSTEM_AGENT_LOAD_PATH,
-                    VENDOR_AGENT_LOAD_PATH,
-            };
-            return result;
-        }
-        case DOMAIN_TYPE_GUI: {
-            static const std::vector<std::string> result = {
-                    USER_AGENT_LOAD_PATH,
-            };
-            return result;
-        }
-        default:
-            throw std::range_error("invalid dtype");
+    case DOMAIN_TYPE_SYSTEM: {
+        static const std::vector<std::string> result = {
+            SYSTEM_DAEMON_LOAD_PATH,
+            VENDOR_DAEMON_LOAD_PATH,
+        };
+        return result;
+    }
+    case DOMAIN_TYPE_USER: {
+        static const std::vector<std::string> result = {
+            SYSTEM_AGENT_LOAD_PATH,
+            VENDOR_AGENT_LOAD_PATH,
+        };
+        return result;
+    }
+    case DOMAIN_TYPE_GUI: {
+        static const std::vector<std::string> result = {
+            USER_AGENT_LOAD_PATH,
+        };
+        return result;
+    }
+    default:
+        throw std::range_error("invalid dtype");
     }
 }

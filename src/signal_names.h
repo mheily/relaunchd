@@ -16,12 +16,13 @@
 
 #pragma once
 
-#include <unordered_map>
-#include <string>
 #include <csignal>
+#include <string>
+#include <unordered_map>
 
 namespace {
-    inline const std::unordered_map<std::string, int> signals_by_name = {
+inline const std::unordered_map<std::string, int> signals_by_name = {
+// clang-format off
 #define X(x) { "SIG" #x , SIG ##x }
             // Standard signals defined by POSIX
             X(ABRT), X(ALRM), X(BUS), X(CHLD), X(CONT), X(FPE), X(HUP), X(ILL),
@@ -36,8 +37,9 @@ namespace {
             X(IO), X(IOT), X(STKFLT), X(WINCH),
 #endif // __linux__
 #undef X
-    };
-}
+    // clang-format on
+};
+} // namespace
 
 //! Convert a symbolic signal name to a signal number.
 //!
@@ -48,14 +50,14 @@ namespace {
 //!
 //! \param signum_or_name a string that refers to a signal
 //! \return the signal number
-std::optional<int>
-getSignalByName(const std::string &signum_or_name) {
+std::optional<int> getSignalByName(const std::string &signum_or_name) {
     int signum = -1;
     try {
         signum = std::stoi(signum_or_name);
     } catch (...) {
         auto buf = signum_or_name;
-        for (auto &c: buf) c = (char) toupper(c);
+        for (auto &c : buf)
+            c = (char)toupper(c);
         if (buf.find("SIG") != 0) {
             buf = "SIG" + buf;
         }

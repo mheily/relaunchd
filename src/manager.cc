@@ -25,22 +25,22 @@
 #include <limits.h>
 #include <queue>
 #include <signal.h>
+#include <sstream>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <sstream>
 
 #include "calendar.h"
+#include "channel.h"
+#include "clock.h"
 #include "event.h"
-#include "log.h"
 #include "job.h"
+#include "log.h"
 #include "manager.h"
 #include "options.h"
-#include "channel.h"
 #include "rpc_server.h"
 #include "signal_names.h"
 #include "state_file.hpp"
-#include "clock.h"
 
 using json = nlohmann::json;
 
@@ -49,7 +49,8 @@ static std::unique_ptr<StateFile> STATE_FILE;
 std::optional<Label> Manager::reapChildProcess(pid_t pid, int status) {
     auto maybe_label = getLabelByPid(pid);
     if (!maybe_label) {
-        // This can happen if we are a subreaper and a child exits after their parent.
+        // This can happen if we are a subreaper and a child exits after their
+        // parent.
         log_debug("child pid %d exited but no matching job found", pid);
         return std::nullopt;
     }
@@ -62,16 +63,14 @@ std::optional<Label> Manager::reapChildProcess(pid_t pid, int status) {
     //      job.term_signal
     //  converting the above into methods that examine exit_status.
     if (WIFEXITED(status)) {
-		job.last_exit_status = WEXITSTATUS(status);
-        log_debug("job %s pid %d exited with status %d", job.manifest.label.c_str(),
-                  job.pid,
-                  job.last_exit_status);
-	} else if (WIFSIGNALED(status)) {
-		job.last_exit_status = -1;
-		job.term_signal = WTERMSIG(status);
-        log_debug("job %s pid %d was terminated by signal %d", job.manifest.label.c_str(),
-                  job.pid,
-                  job.term_signal);
+        job.last_exit_status = WEXITSTATUS(status);
+        log_debug("job %s pid %d exited with status %d",
+                  job.manifest.label.c_str(), job.pid, job.last_exit_status);
+    } else if (WIFSIGNALED(status)) {
+        job.last_exit_status = -1;
+        job.term_signal = WTERMSIG(status);
+        log_debug("job %s pid %d was terminated by signal %d",
+                  job.manifest.label.c_str(), job.pid, job.term_signal);
     } else if (WIFSTOPPED(status)) {
         int stop_signal = WSTOPSIG(status);
         log_debug("job %s pid %d was stopped by signal %d",
@@ -79,8 +78,8 @@ std::optional<Label> Manager::reapChildProcess(pid_t pid, int status) {
         return std::nullopt;
     } else {
         throw std::range_error("invalid status");
-	}
-	job.pid = 0;
+    }
+    job.pid = 0;
     job.state = JOB_STATE_EXITED;
     return label;
 }
@@ -88,40 +87,41 @@ std::optional<Label> Manager::reapChildProcess(pid_t pid, int status) {
 void Manager::setupSignalHandlers() {
     // FIXME testing eventmgr.addSignal(SIGCHLD, [](int){});
 
-    eventmgr.addSignal(SIGPIPE, [](int){
-        log_debug("caught SIGPIPE and ignored it");
-    });
+    eventmgr.addSignal(SIGPIPE,
+                       [](int) { log_debug("caught SIGPIPE and ignored it"); });
 
-    eventmgr.addSignal(SIGINT, [this](int){
+    eventmgr.addSignal(SIGINT, [this](int) {
         SHUTTING_DOWN = true;
         log_notice("caught SIGINT, exiting");
     });
 
-    eventmgr.addSignal(SIGTERM, [this](int){
+    eventmgr.addSignal(SIGTERM, [this](int) {
         SHUTTING_DOWN = true;
         log_notice("caught SIGTERM, exiting");
     });
 }
 
-
-bool Manager::loadManifest(const std::filesystem::path &path, bool overrideDisabled, bool forceLoad) {
+bool Manager::loadManifest(const std::filesystem::path &path,
+                           bool overrideDisabled, bool forceLoad) {
     json obj = manifest::parse(path);
     return loadManifest(obj, path, overrideDisabled, forceLoad);
 }
 
-bool
-Manager::loadManifest(const json &jsondata, const std::string &path, bool overrideDisabled, bool forceLoad) {
+bool Manager::loadManifest(const json &jsondata, const std::string &path,
+                           bool overrideDisabled, bool forceLoad) {
     Manifest manifest;
     try {
         manifest = jsondata.get<manifest::Manifest>();
     } catch (const std::exception &exc) {
-        log_error("failed to parse manifest at %s: %s", path.c_str(), exc.what());
+        log_error("failed to parse manifest at %s: %s", path.c_str(),
+                  exc.what());
         return false;
     }
 
     /* Check for duplicate jobs */
     if (jobs.count(manifest.label)) {
-        log_error("tried to load a duplicate job with label %s", manifest.label.c_str());
+        log_error("tried to load a duplicate job with label %s",
+                  manifest.label.c_str());
         return false;
     }
 
@@ -146,13 +146,13 @@ Manager::loadManifest(const json &jsondata, const std::string &path, bool overri
         return false;
     }
 
-    auto [it, _] = jobs.emplace(std::string{manifest.label}, Job{path, manifest});
+    auto [it, _] =
+        jobs.emplace(std::string{manifest.label}, Job{path, manifest});
     auto &job = it->second;
     job.load();
 
     return true;
 }
-
 
 void Manager::unloadJob(Job &job, bool overrideDisabled, bool forceUnload) {
     std::string label = job.manifest.label;
@@ -181,18 +181,20 @@ void Manager::unloadJob(Job &job, bool overrideDisabled, bool forceUnload) {
     job.unload();
 }
 
-int Manager::unloadJob(const std::string &label, bool overrideDisabled, bool forceUnload) {
+int Manager::unloadJob(const std::string &label, bool overrideDisabled,
+                       bool forceUnload) {
     if (!jobs.count(label)) {
         log_info("tried to unload a job that is not loaded: %s", label.c_str());
         return -1;
     }
-    auto & job = jobs.at(label);
+    auto &job = jobs.at(label);
     unloadJob(job, overrideDisabled, forceUnload);
     jobs.erase(label);
     return 0;
 }
 
-int Manager::unloadJob(const std::filesystem::path &path, bool overrideDisabled, bool forceUnload) {
+int Manager::unloadJob(const std::filesystem::path &path, bool overrideDisabled,
+                       bool forceUnload) {
     json obj = manifest::parse(path);
     std::string label;
     if (obj.contains("Label")) {
@@ -208,28 +210,25 @@ int Manager::unloadJob(const std::filesystem::path &path, bool overrideDisabled,
 
 json Manager::listJobs() {
     auto result = json::array();
-    for (const auto & [label, job] : jobs) {
+    for (const auto &[label, job] : jobs) {
         std::string pid = (job.pid == 0) ? "-" : std::to_string(job.pid);
         if (job.pid == 0) {
             pid = "-";
         } else {
             pid = std::to_string(job.pid);
         }
-        result.emplace_back(
-                json::object(
-                        {
-                                {"Label",          std::string{job.manifest.label}},
-                                {"PID",            std::move(pid)},
-                                {"LastExitStatus", job.last_exit_status},
-                        }
-                ));
+        result.emplace_back(json::object({
+            {"Label", std::string{job.manifest.label}},
+            {"PID", std::move(pid)},
+            {"LastExitStatus", job.last_exit_status},
+        }));
     }
     return result;
 }
 
 void Manager::overrideJobEnabled(const std::string &label, bool enabled) {
-    //FIXME: do we care if it exists?
-    // auto & job = manager_get_job_by_label(label);
+    // FIXME: do we care if it exists?
+    //  auto & job = manager_get_job_by_label(label);
     auto doc = STATE_FILE->getValue();
     if (doc.at("Overrides").contains(label)) {
         doc["Overrides"][label]["Enabled"] = enabled;
@@ -246,18 +245,18 @@ Manager::Manager(DomainType domain_) : domain(Domain(domain_)) {
         std::filesystem::create_directories(statedir);
     }
 
-    json defaultStateDoc = {
-            {"SchemaVersion", 1},
-            {"Overrides", json::object()}
-    };
-    STATE_FILE = std::make_unique<StateFile>(statedir + "/state.json", defaultStateDoc);
+    json defaultStateDoc = {{"SchemaVersion", 1},
+                            {"Overrides", json::object()}};
+    STATE_FILE =
+        std::make_unique<StateFile>(statedir + "/state.json", defaultStateDoc);
 
     setupSignalHandlers();
-    //setup_socket_activation(main_kqfd);
+    // setup_socket_activation(main_kqfd);
 
     // Set up the RPC server
     chan.bindAndListen(getStateDir() + "/rpc.sock", 1024);
-    eventmgr.addSocketRead(chan.getSockFD(), [this](int) { rpc_dispatch(chan, *this); });
+    eventmgr.addSocketRead(chan.getSockFD(),
+                           [this](int) { rpc_dispatch(chan, *this); });
 }
 
 Manager::~Manager() {
@@ -277,13 +276,13 @@ bool Manager::handleEvent(std::optional<std::chrono::milliseconds> timeout) {
 
 std::optional<Label> Manager::getLabelByPid(const pid_t pid) const {
     // TODO: switch to running_jobs
-//    auto it = services.find(pid);
-//    if (it != services.end()) {
-//        return it->second;
-//    } else {
-//        return std::nullopt;
-//    }
-    for (const auto & [label, job] : jobs) {
+    //    auto it = services.find(pid);
+    //    if (it != services.end()) {
+    //        return it->second;
+    //    } else {
+    //        return std::nullopt;
+    //    }
+    for (const auto &[label, job] : jobs) {
         if (job.pid == pid) {
             return label;
         }
@@ -291,13 +290,9 @@ std::optional<Label> Manager::getLabelByPid(const pid_t pid) const {
     return std::nullopt;
 }
 
-bool Manager::jobExists(const Label &label) const {
-    return jobs.count(label);
-}
+bool Manager::jobExists(const Label &label) const { return jobs.count(label); }
 
-Job & Manager::getJob(const std::string &label) {
-    return jobs.at(label);
-}
+Job &Manager::getJob(const std::string &label) { return jobs.at(label); }
 
 void Manager::wakeJob(Job &job) {
     if (job.state != JOB_STATE_WAITING) {
@@ -312,11 +307,12 @@ void Manager::unloadAllJobs() {
     log_debug("unloading all jobs");
     auto it = jobs.begin();
     while (it != jobs.end()) {
-        auto & job = it->second;
+        auto &job = it->second;
         try {
             unloadJob(job);
         } catch (...) {
-            log_error("failed to unload %s: ignoring because all jobs are being unloaded",
+            log_error("failed to unload %s: ignoring because all jobs are "
+                      "being unloaded",
                       job.manifest.label.c_str());
         }
         it = jobs.erase(it);
@@ -330,14 +326,16 @@ void Manager::rescheduleCalendarJob(Job &job) {
         return;
     }
     auto [absolute_time, relative_time] = maybe_schedule.value();
-    log_debug("job %s scheduled to run in %lld minutes at t=%ld", job.manifest.label.c_str(),
-              (long long)relative_time.count(), absolute_time);
+    log_debug("job %s scheduled to run in %lld minutes at t=%ld",
+              job.manifest.label.c_str(), (long long)relative_time.count(),
+              absolute_time);
     job.state = JOB_STATE_WAITING;
     auto &label = job.manifest.label;
     eventmgr.addTimer(relative_time, [label, this]() {
         if (jobExists(label)) {
             auto &job = getJob(label);
-            // The job may have been unloaded in the interval, or manually started by an administrator.
+            // The job may have been unloaded in the interval, or manually
+            // started by an administrator.
             if (job.state == JOB_STATE_WAITING) {
                 startJob(job);
                 rescheduleCalendarJob(job);
@@ -348,9 +346,9 @@ void Manager::rescheduleCalendarJob(Job &job) {
 }
 
 void Manager::reschedulePeriodicJob(Job &job) {
-    log_debug("job %s will start after T=%u",
-              job.manifest.label.c_str(), job.manifest.start_interval.value());
-    const Label& label = job.manifest.label;
+    log_debug("job %s will start after T=%u", job.manifest.label.c_str(),
+              job.manifest.start_interval.value());
+    const Label &label = job.manifest.label;
     std::chrono::milliseconds ms{job.manifest.start_interval.value()};
     eventmgr.addTimer(ms, [label, this]() {
         if (jobExists(label)) {
@@ -367,21 +365,23 @@ void Manager::reschedulePeriodicJob(Job &job) {
 void Manager::rescheduleStandardJob(Job &job) {
     const Label &label = job.manifest.label;
     if (!job.started_at) {
-        log_debug("%s: starting for the first time", job.manifest.label.c_str());
+        log_debug("%s: starting for the first time",
+                  job.manifest.label.c_str());
         return startJob(job);
     }
 
     time_t now = current_time();
     time_t restart_at = job.started_at.value() + job.manifest.throttle_interval;
     if (now >= restart_at) {
-        log_debug("%s: restarting due to KeepAlive", job.manifest.label.c_str());
+        log_debug("%s: restarting due to KeepAlive",
+                  job.manifest.label.c_str());
         return startJob(job);
     }
 
     std::chrono::seconds seconds{restart_at - now};
     std::chrono::milliseconds milliseconds = seconds;
     log_debug("%s: will restart in %lld seconds due to KeepAlive setting",
-              job.manifest.label.c_str(), (long long) seconds.count());
+              job.manifest.label.c_str(), (long long)seconds.count());
     job.state = JOB_STATE_WAITING;
     eventmgr.addTimer(milliseconds, [label, this]() {
         if (!jobExists(label)) {
@@ -391,7 +391,8 @@ void Manager::rescheduleStandardJob(Job &job) {
         if (job.state == JOB_STATE_WAITING) {
             startJob(job);
         } else {
-            log_debug("attempted to restart job %s: not waiting to be started", job.manifest.label.c_str());
+            log_debug("attempted to restart job %s: not waiting to be started",
+                      job.manifest.label.c_str());
         }
     });
 }
@@ -400,17 +401,17 @@ void Manager::rescheduleJob(Job &job) {
     assert(job.state == JOB_STATE_EXITED || job.state == JOB_STATE_LOADED);
     if (job.shouldStart()) {
         switch (job.schedule) {
-            case JOB_SCHEDULE_PERIODIC:
-                reschedulePeriodicJob(job);
-                break;
-            case JOB_SCHEDULE_CALENDAR:
-                rescheduleCalendarJob(job);
-                break;
-            case JOB_SCHEDULE_NONE:
-                rescheduleStandardJob(job);
-                break;
-            default:
-                throw std::logic_error("wrong job type");
+        case JOB_SCHEDULE_PERIODIC:
+            reschedulePeriodicJob(job);
+            break;
+        case JOB_SCHEDULE_CALENDAR:
+            rescheduleCalendarJob(job);
+            break;
+        case JOB_SCHEDULE_NONE:
+            rescheduleStandardJob(job);
+            break;
+        default:
+            throw std::logic_error("wrong job type");
         }
     } else {
         log_debug("job is not supposed to be (re)started");
@@ -433,23 +434,27 @@ void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
         // This is extra paranoia.
         // LCOV_EXCL_START
         if (visited.value().size() > 100) {
-            log_error("dependency chain is too long; maximum number of jobs exceeded");
+            log_error("dependency chain is too long; maximum number of jobs "
+                      "exceeded");
             return;
         }
         // LCOV_EXCL_STOP
     }
 
     // Start all dependencies
-    for (const auto & [label, dep] : job.manifest.dependencies.getItemsByLabel()) {
+    for (const auto &[label, dep] :
+         job.manifest.dependencies.getItemsByLabel()) {
         log_debug("evaluating dependency: %s", label.c_str());
         if (!jobExists(label)) {
             log_debug("dependency does not exist: %s", label.c_str());
             job.state = JOB_STATE_MISSING_DEPENDS;
             return;
         }
-        auto & depjob = getJob(label);
+        auto &depjob = getJob(label);
         if (depjob.state == JOB_STATE_LOADED) {
-            log_debug("starting job %s as a dependency of %s", depjob.manifest.label.c_str(), job.manifest.label.c_str());
+            log_debug("starting job %s as a dependency of %s",
+                      depjob.manifest.label.c_str(),
+                      job.manifest.label.c_str());
             if (visited) {
                 visited.value().emplace_back(job.manifest.label);
                 startJob(depjob, visited);
@@ -459,14 +464,16 @@ void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
             }
         }
         if (!depjob.hasStarted()) {
-            log_debug("dependency has not started: %s is in state %d", label.c_str(), depjob.state);
+            log_debug("dependency has not started: %s is in state %d",
+                      label.c_str(), depjob.state);
             job.state = JOB_STATE_MISSING_DEPENDS;
             return;
         }
     }
 
     if (job.schedule != JOB_SCHEDULE_NONE) {
-        // To "start" a scheduled job means scheduling it, not actually starting it.
+        // To "start" a scheduled job means scheduling it, not actually starting
+        // it.
         return rescheduleJob(job);
     }
 
@@ -488,7 +495,7 @@ void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
 }
 
 void Manager::startAllJobs() {
-    for (auto & [label, job] : jobs) {
+    for (auto &[label, job] : jobs) {
         if (job.shouldStart() && !job.hasStarted()) {
             startJob(job);
         }
@@ -496,26 +503,28 @@ void Manager::startAllJobs() {
 }
 
 void Manager::loadDefaultManifests() {
-    log_info("loading default manifests for domain %s", domain.to_string().c_str());
+    log_info("loading default manifests for domain %s",
+             domain.to_string().c_str());
     auto paths = domain.getLoadPaths();
     for (const auto &path : paths) {
-        (void) loadAllManifests(path);
+        (void)loadAllManifests(path);
     }
 }
 
-bool Manager::loadAllManifests(const std::string &path, bool overrideDisabled, bool forceLoad) {
+bool Manager::loadAllManifests(const std::string &path, bool overrideDisabled,
+                               bool forceLoad) {
     log_debug("loading all in %s", path.c_str());
 
     // FIXME: do this elsewhere
     // Replace ~ with the actual HOME
-//    if (str.rfind("~", 0)) {
-//        char *home = getenv("HOME");
-//        if (!home) {
-//            continue;
-//        }
-//            str.replace(0, 5, getenv("HOME"));
-//        }
-//    }
+    //    if (str.rfind("~", 0)) {
+    //        char *home = getenv("HOME");
+    //        if (!home) {
+    //            continue;
+    //        }
+    //            str.replace(0, 5, getenv("HOME"));
+    //        }
+    //    }
 
     bool error = false;
     if (!std::filesystem::exists(path)) {
@@ -525,13 +534,14 @@ bool Manager::loadAllManifests(const std::string &path, bool overrideDisabled, b
     if (std::filesystem::is_directory(path)) {
         log_notice("loading all manifests in %s/", path.c_str());
         using std::filesystem::directory_iterator;
-        for (const auto &file: directory_iterator(path)) {
+        for (const auto &file : directory_iterator(path)) {
             try {
                 if (!loadManifest(file.path(), overrideDisabled, forceLoad)) {
                     error = true;
                 }
             } catch (...) {
-                log_error("unhandled exception while parsing %s", file.path().c_str());
+                log_error("unhandled exception while parsing %s",
+                          file.path().c_str());
                 error = true;
             }
         }
@@ -550,7 +560,8 @@ bool Manager::loadAllManifests(const std::string &path, bool overrideDisabled, b
     return error;
 }
 
-bool Manager::killJob(const Label &label, const std::string &signame_or_number) {
+bool Manager::killJob(const Label &label,
+                      const std::string &signame_or_number) {
     auto maybe_signum = getSignalByName(signame_or_number);
     if (!maybe_signum) {
         return false;
@@ -562,9 +573,6 @@ bool Manager::killJob(const Label &label, const std::string &signame_or_number) 
     Job &job = getJob(label);
     bool success = job.killJob(maybe_signum.value());
     log_debug("sent signal %s to job %s with success=%d",
-              signame_or_number.c_str(),
-              label.c_str(),
-              success);
+              signame_or_number.c_str(), label.c_str(), success);
     return success;
 }
-

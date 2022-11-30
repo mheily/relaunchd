@@ -25,8 +25,8 @@ std::string getStateDir() {
     if (getuid() == 0) {
         statedir = PKGSTATEDIR;
     } else {
-        // The subdirectory under $HOME where state for the user domains are stored
-        // Can be overridden by setting the $XDG_STATE_HOME variable
+        // The subdirectory under $HOME where state for the user domains are
+        // stored Can be overridden by setting the $XDG_STATE_HOME variable
         const char *xdg_state_home = getenv("XDG_STATE_HOME");
         if (xdg_state_home) {
             statedir = std::string{xdg_state_home};
@@ -36,7 +36,9 @@ std::string getStateDir() {
                 statedir = std::string{getenv("HOME")} + "/.local/state";
             } else {
                 char *tmpdir_p = getenv("TMPDIR");
-                statedir = tmpdir_p ? std::string{tmpdir_p} : std::string{"/tmp/relaunchd-" + std::to_string(getuid())};
+                statedir = tmpdir_p ? std::string{tmpdir_p}
+                                    : std::string{"/tmp/relaunchd-" +
+                                                  std::to_string(getuid())};
             }
         }
         statedir += "/relaunchd";
@@ -44,14 +46,13 @@ std::string getStateDir() {
     return statedir;
 }
 
-
 std::string getConfigDir() {
     std::string configdir;
     if (getuid() == 0) {
         return "/etc/relaunchd"; // TODO: add to config.h
     } else {
-        // The subdirectory under $HOME where configuration for the user domains are stored
-        // Can be overridden by setting the $XDG_CONFIG_HOME variable
+        // The subdirectory under $HOME where configuration for the user domains
+        // are stored Can be overridden by setting the $XDG_CONFIG_HOME variable
         const char *xdg_config_home = getenv("XDG_CONFIG_HOME");
         if (xdg_config_home) {
             configdir = std::string{xdg_config_home};
@@ -62,4 +63,3 @@ std::string getConfigDir() {
     }
     return configdir;
 }
-

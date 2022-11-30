@@ -20,73 +20,74 @@
 #include <sys/limits.h>
 #else
 #endif
-#include <sys/types.h>
 #include <ctime>
+#include <sys/types.h>
 
+#include "calendar.h"
 #include "clock.h"
+#include "job.h"
 #include "log.h"
 #include "manager.h"
-#include "calendar.h"
-#include "job.h"
 
 namespace calendar {
-    static inline time_t
-    find_next_time(const struct manifest::cron_spec &cron, const struct tm *now) {
-        uint32_t hour, minute;
+static inline time_t find_next_time(const struct manifest::cron_spec &cron,
+                                    const struct tm *now) {
+    uint32_t hour, minute;
 
-        if (cron.hour == CRON_SPEC_WILDCARD) {
-            hour = now->tm_hour;
-        } else {
-            hour = cron.hour;
-        }
-
-        if (cron.minute == CRON_SPEC_WILDCARD) {
-            minute = now->tm_min;
-        } else {
-            minute = cron.minute;
-        }
-
-        return ((60 * hour) + minute);
+    if (cron.hour == CRON_SPEC_WILDCARD) {
+        hour = now->tm_hour;
+    } else {
+        hour = cron.hour;
     }
 
-    std::optional<std::pair<time_t, std::chrono::milliseconds>>
-    schedule_calendar_job(struct manifest::cron_spec &cron) {
-        time_t t0 = current_time();
-        struct tm tm;
-        time_t result;
-
-        localtime_r(&t0, &tm);
-
-        // XXX - FIXME -- this requires at least a daily rescheduling timer to be executed by the manager
-        // otherwise the job will never be scheduled.
-        // See: https://github.com/mheily/relaunchd/issues/13
-
-        /* Try to disqualify the job from running based on the current day */
-        if (cron.month != CRON_SPEC_WILDCARD && cron.month != tm.tm_mon) {
-            return std::nullopt;
-        }
-        if (cron.day != CRON_SPEC_WILDCARD && cron.day != tm.tm_mday) {
-            return std::nullopt;
-        }
-        if (cron.weekday != CRON_SPEC_WILDCARD && cron.weekday != tm.tm_wday) {
-            return std::nullopt;
-        }
-
-        /* Get the offset in minutes of the current time and the next job time,
-         * where 0 represents 00:00 of the current day.
-         */
-        time_t cur_offset = (60 * tm.tm_hour) + tm.tm_min;
-        time_t job_offset = find_next_time(cron, &tm);
-
-        /* Disqualify jobs that are scheduled in the past */
-        if (cur_offset > job_offset) {
-            return std::nullopt;
-        }
-
-        result = job_offset - cur_offset;
-
-        std::chrono::milliseconds relative_time{60 * 1000 * result};   // FIXME: overflow checking
-        time_t absolute_time = current_time() + (relative_time.count() * 1000);
-        return std::make_pair(absolute_time, relative_time);
+    if (cron.minute == CRON_SPEC_WILDCARD) {
+        minute = now->tm_min;
+    } else {
+        minute = cron.minute;
     }
+
+    return ((60 * hour) + minute);
 }
+
+std::optional<std::pair<time_t, std::chrono::milliseconds>>
+schedule_calendar_job(struct manifest::cron_spec &cron) {
+    time_t t0 = current_time();
+    struct tm tm;
+    time_t result;
+
+    localtime_r(&t0, &tm);
+
+    // XXX - FIXME -- this requires at least a daily rescheduling timer to be
+    // executed by the manager otherwise the job will never be scheduled. See:
+    // https://github.com/mheily/relaunchd/issues/13
+
+    /* Try to disqualify the job from running based on the current day */
+    if (cron.month != CRON_SPEC_WILDCARD && cron.month != tm.tm_mon) {
+        return std::nullopt;
+    }
+    if (cron.day != CRON_SPEC_WILDCARD && cron.day != tm.tm_mday) {
+        return std::nullopt;
+    }
+    if (cron.weekday != CRON_SPEC_WILDCARD && cron.weekday != tm.tm_wday) {
+        return std::nullopt;
+    }
+
+    /* Get the offset in minutes of the current time and the next job time,
+     * where 0 represents 00:00 of the current day.
+     */
+    time_t cur_offset = (60 * tm.tm_hour) + tm.tm_min;
+    time_t job_offset = find_next_time(cron, &tm);
+
+    /* Disqualify jobs that are scheduled in the past */
+    if (cur_offset > job_offset) {
+        return std::nullopt;
+    }
+
+    result = job_offset - cur_offset;
+
+    std::chrono::milliseconds relative_time{60 * 1000 *
+                                            result}; // FIXME: overflow checking
+    time_t absolute_time = current_time() + (relative_time.count() * 1000);
+    return std::make_pair(absolute_time, relative_time);
+}
+} // namespace calendar

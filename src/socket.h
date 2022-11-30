@@ -19,34 +19,36 @@
 
 struct job;
 
-
 /** An element in the Sockets dictionary */
 struct job_manifest_socket {
-	/** The socket descriptor */
-	int sd;
+    /** The socket descriptor */
+    int sd;
 
-	/** The port number, based on the value of <sock_service_name> */
-	int port;
+    /** The port number, based on the value of <sock_service_name> */
+    int port;
 
-	/* Key/value pairs from the manifest: */
-	char *	label;				/* the unique key in the Sockets dictionary for this structure */
-	int		sock_type;			/*  default: SOCK_STREAM values: SOCK_STREAM, SOCK_DGRAM, SOCK_SEQPACKET */
-	bool	sock_passive;		/* default: true */
-	char *	sock_node_name;		/* optional */
-	char *	sock_service_name;	/* optional */
-	int		sock_family;		/* optional; default: PF_INET ; allowed: PF_UNIX, PF_INET, PF_INET6 */
-	char	sock_protocol;		/* FIXME: duplicate of sock_type?? default: 'TCP'; */
-	char *	sock_path_name;		/* optional; only for PF_UNIX */
-	char *	secure_socket_with_key;		/* optional; only for PF_UNIX */
-	int		sock_path_mode;		/* optional; only for PF_UNIX */
-	/* Not implemented: Bonjour */
-	char *	multicast_group;	/* optional */
+    /* Key/value pairs from the manifest: */
+    char *
+        label; /* the unique key in the Sockets dictionary for this structure */
+    int sock_type;     /*  default: SOCK_STREAM values: SOCK_STREAM, SOCK_DGRAM,
+                          SOCK_SEQPACKET */
+    bool sock_passive; /* default: true */
+    char *sock_node_name;    /* optional */
+    char *sock_service_name; /* optional */
+    int sock_family; /* optional; default: PF_INET ; allowed: PF_UNIX, PF_INET,
+                        PF_INET6 */
+    char sock_protocol;   /* FIXME: duplicate of sock_type?? default: 'TCP'; */
+    char *sock_path_name; /* optional; only for PF_UNIX */
+    char *secure_socket_with_key; /* optional; only for PF_UNIX */
+    int sock_path_mode;           /* optional; only for PF_UNIX */
+    /* Not implemented: Bonjour */
+    char *multicast_group; /* optional */
 };
 
 void setup_socket_activation(int kqfd);
 int socket_activation_handler();
 
-struct job_manifest_socket * job_manifest_socket_new();
+struct job_manifest_socket *job_manifest_socket_new();
 void job_manifest_socket_free(struct job_manifest_socket *);
 int job_manifest_socket_open(struct job *, struct job_manifest_socket *);
 int job_manifest_socket_close(struct job_manifest_socket *);

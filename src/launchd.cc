@@ -14,14 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-
+#include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sysexits.h>
 #include <syslog.h>
 #include <unistd.h>
-#include <fcntl.h>
 
 #if defined(__linux__)
 #include <sys/prctl.h>
@@ -40,12 +39,12 @@ int become_a_subreaper();
 int become_a_subreaper() {
 #if defined(__FreeBSD__)
     if (procctl(P_PID, getpid(), PROC_REAP_ACQUIRE, 0) < 0) {
-            log_errno("procctl(2)");
+        log_errno("procctl(2)");
     }
     return 0;
 #elif defined(__linux__)
     if (prctl(PR_SET_CHILD_SUBREAPER, 1) < 0) {
-            log_errno("prctl(2)");
+        log_errno("prctl(2)");
     }
     return 0;
 #else
@@ -57,13 +56,13 @@ int become_a_subreaper() {
 void double_fork(void) {
     for (int i = 0; i < 2; i++) {
         switch (fork()) {
-            case -1:
-                log_errno("fork(2)");
-                abort();
-            case 0:
-                break;
-            default:
-                _exit(0);
+        case -1:
+            log_errno("fork(2)");
+            abort();
+        case 0:
+            break;
+        default:
+            _exit(0);
         }
     }
 }
@@ -77,20 +76,18 @@ void redirect_stdio(pid_t pid) {
         // todo: check if dup2 fails
         if (pid == 1) {
             // Special case: stdio has not been fully initialized
-            (void) dup2(fd, 3);
-            (void) close(fd);
+            (void)dup2(fd, 3);
+            (void)close(fd);
             fd = 3;
         }
-        (void) dup2(fd, STDIN_FILENO);
-        (void) dup2(fd, STDOUT_FILENO);
-        (void) dup2(fd, STDERR_FILENO);
-        (void) close(fd);
+        (void)dup2(fd, STDIN_FILENO);
+        (void)dup2(fd, STDOUT_FILENO);
+        (void)dup2(fd, STDERR_FILENO);
+        (void)close(fd);
     }
 }
 
-void usage() {
-    printf("todo: usage\n");
-}
+void usage() { printf("todo: usage\n"); }
 
 int main(int argc, char *argv[]) {
     int c;
@@ -98,23 +95,25 @@ int main(int argc, char *argv[]) {
     bool daemonize = (pid != 1);
     int logmask = LOG_NOTICE;
 
-//    /* Sanitize environment variables */
-//    if ((getuid() != 0) && (access(getenv("HOME"), R_OK | W_OK | X_OK) < 0)) {
-//        fputs("Invalid value for the HOME environment variable\n", stderr);
-//        exit(1);
-//    }
+    //    /* Sanitize environment variables */
+    //    if ((getuid() != 0) && (access(getenv("HOME"), R_OK | W_OK | X_OK) <
+    //    0))
+    //    {
+    //        fputs("Invalid value for the HOME environment variable\n",
+    //        stderr); exit(1);
+    //    }
 
     while ((c = getopt(argc, argv, "fv")) != -1) {
         switch (c) {
-            case 'f':
-                daemonize = false;
-                break;
-            case 'v':
-                logmask = LOG_DEBUG;
-                break;
-            default:
-                usage();
-                break;
+        case 'f':
+            daemonize = false;
+            break;
+        case 'v':
+            logmask = LOG_DEBUG;
+            break;
+        default:
+            usage();
+            break;
         }
     }
 
@@ -135,7 +134,7 @@ int main(int argc, char *argv[]) {
         log_freopen(stdout);
     }
 
-    (void) become_a_subreaper();
+    (void)become_a_subreaper();
 
     DomainType domain;
     if (getuid() == 0) {
@@ -154,7 +153,8 @@ int main(int argc, char *argv[]) {
     mgr.loadDefaultManifests();
     mgr.startAllJobs();
 
-    while (mgr.handleEvent()) {}
+    while (mgr.handleEvent()) {
+    }
 
     exit(EXIT_SUCCESS);
 }

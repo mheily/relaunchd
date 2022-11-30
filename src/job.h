@@ -27,15 +27,15 @@
 
 using json = nlohmann::json;
 
-#include "manifest.h"
 #include "log.h"
+#include "manifest.h"
 
 typedef std::string Label;
 
 typedef enum {
-	JOB_SCHEDULE_NONE = 0,
-	JOB_SCHEDULE_PERIODIC,
-	JOB_SCHEDULE_CALENDAR
+    JOB_SCHEDULE_NONE = 0,
+    JOB_SCHEDULE_PERIODIC,
+    JOB_SCHEDULE_CALENDAR
 } job_schedule_t;
 
 enum job_state_e {
@@ -48,7 +48,8 @@ enum job_state_e {
 };
 
 struct Job {
-    Job(std::optional<std::filesystem::path> manifest_path_, Manifest manifest_);
+    Job(std::optional<std::filesystem::path> manifest_path_,
+        Manifest manifest_);
 
     //! The time that the job started
     std::optional<time_t> started_at;
@@ -78,45 +79,47 @@ struct Job {
     //       non-started state.
     bool hasStarted() const {
         switch (state) {
-            case JOB_STATE_DEFINED:
-            case JOB_STATE_LOADED:
-            case JOB_STATE_MISSING_DEPENDS:
-                return false;
-            case JOB_STATE_WAITING:
-            case JOB_STATE_RUNNING:
-            case JOB_STATE_EXITED:
-                return true;
-            default:
-                // LCOV_EXCL_START
-                throw std::runtime_error("unhandled case");
-                // LCOV_EXCL_STOP
+        case JOB_STATE_DEFINED:
+        case JOB_STATE_LOADED:
+        case JOB_STATE_MISSING_DEPENDS:
+            return false;
+        case JOB_STATE_WAITING:
+        case JOB_STATE_RUNNING:
+        case JOB_STATE_EXITED:
+            return true;
+        default:
+            // LCOV_EXCL_START
+            throw std::runtime_error("unhandled case");
+            // LCOV_EXCL_STOP
         }
     }
 
     //! Should the job be started automatically?
     bool shouldStart() const {
         switch (state) {
-            case JOB_STATE_DEFINED:
-                return false;
-            case JOB_STATE_MISSING_DEPENDS:    // not sure about this one...
-                return false;
-            case JOB_STATE_LOADED:
-                return (manifest.run_at_load || manifest.keep_alive.always || schedule != JOB_SCHEDULE_NONE);
-            case JOB_STATE_WAITING:
-                // If true, a non-scheduled job was scheduled due to ThrottleInterval
-                return schedule != JOB_SCHEDULE_NONE;
-            case JOB_STATE_RUNNING:
-                return false;
-            case JOB_STATE_EXITED:
-                return (manifest.keep_alive.always || schedule != JOB_SCHEDULE_NONE);
-            default:
-                // LCOV_EXCL_START
-                throw std::logic_error("invalid state");
-                // LCOV_EXCL_STOP
+        case JOB_STATE_DEFINED:
+            return false;
+        case JOB_STATE_MISSING_DEPENDS: // not sure about this one...
+            return false;
+        case JOB_STATE_LOADED:
+            return (manifest.run_at_load || manifest.keep_alive.always ||
+                    schedule != JOB_SCHEDULE_NONE);
+        case JOB_STATE_WAITING:
+            // If true, a non-scheduled job was scheduled due to
+            // ThrottleInterval
+            return schedule != JOB_SCHEDULE_NONE;
+        case JOB_STATE_RUNNING:
+            return false;
+        case JOB_STATE_EXITED:
+            return (manifest.keep_alive.always ||
+                    schedule != JOB_SCHEDULE_NONE);
+        default:
+            // LCOV_EXCL_START
+            throw std::logic_error("invalid state");
+            // LCOV_EXCL_STOP
         }
     }
 
-private:
+  private:
     job_schedule_t _set_schedule() const;
 };
-

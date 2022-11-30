@@ -18,21 +18,21 @@
 #include <fcntl.h>
 #include <grp.h>
 #include <pwd.h>
-#include <sys/types.h>
-#include <sys/time.h>
 #include <sys/resource.h>
+#include <sys/time.h>
+#include <sys/types.h>
 
 #ifdef __FreeBSD__
 #include <sys/param.h>
 #endif
 
-#include "config.h"
 #include "calendar.h"
+#include "clock.h"
+#include "config.h"
 #include "exec_monitor.h"
 #include "job.h"
 #include "log.h"
 #include "manager.h"
-#include "clock.h"
 
 extern void keepalive_remove_job(const Job &job);
 
@@ -42,40 +42,38 @@ extern void keepalive_remove_job(const Job &job);
  * job invocation.
  */
 static void
-add_standard_environment_variables(std::vector<std::string> envvar)
-{
-	static const char *keys[] = { 
-		"DISPLAY",
-		/* Locale-related variables */
-		"LC_ALL", "LC_COLLATE", "LC_CTYPE", "LC_MESSAGES", "LC_MONETARY",
-		"LC_NUMERIC", "LC_TIME", "NLSPATH", "LANG",
-		/* Misc */
-		"TZ",
-		NULL };
-	const char **key = NULL, *envp = NULL;
+add_standard_environment_variables(std::vector<std::string> envvar) {
+    static const char *keys[] = {"DISPLAY",
+                                 /* Locale-related variables */
+                                 "LC_ALL", "LC_COLLATE", "LC_CTYPE",
+                                 "LC_MESSAGES", "LC_MONETARY", "LC_NUMERIC",
+                                 "LC_TIME", "NLSPATH", "LANG",
+                                 /* Misc */
+                                 "TZ", NULL};
+    const char **key = NULL, *envp = NULL;
 
-	for (key = keys; *key != NULL; key++) {
-		if ((envp = getenv(*key))) {
+    for (key = keys; *key != NULL; key++) {
+        if ((envp = getenv(*key))) {
             auto keyval = std::string{*key} + "=" + std::string{envp};
             envvar.emplace_back(keyval);
-		}
-	}
+        }
+    }
 }
 
-static std::vector<std::string> setup_environment_variables(const Job & job, const struct passwd *pwent)
-{
+static std::vector<std::string>
+setup_environment_variables(const Job &job, const struct passwd *pwent) {
     std::vector<std::string> result;
     for (const auto &[key, val] : job.manifest.environment_variables) {
         std::string kv = std::string{key}.append("=").append(val);
         result.emplace_back(std::move(kv));
     }
 
-	/* KLUDGE: when running as root, assume we are a system daemon and avoid adding any
-	 * 	session-related variables.
-	 * This is why we need a proper Domain variable for each job.
-	 *
-	 * The removal of these variables conforms to daemon(8) behavior on FreeBSD.
-	 */
+    /* KLUDGE: when running as root, assume we are a system daemon and avoid
+     * adding any session-related variables. This is why we need a proper Domain
+     * variable for each job.
+     *
+     * The removal of these variables conforms to daemon(8) behavior on FreeBSD.
+     */
     if (!pwent || pwent->pw_uid > 0) {
         std::string pw_name, pw_dir, pw_shell;
         if (pwent) {
@@ -99,7 +97,8 @@ static std::vector<std::string> setup_environment_variables(const Job & job, con
             result.emplace_back(std::string{"HOME="} + pw_dir);
         }
         if (!job.manifest.environment_variables.count("PATH")) {
-            result.emplace_back(std::string{"PATH=/usr/bin:/bin:/usr/local/bin"});
+            result.emplace_back(
+                std::string{"PATH=/usr/bin:/bin:/usr/local/bin"});
         }
         if (!job.manifest.environment_variables.count("SHELL")) {
             result.emplace_back(std::string{"HOME="} + pw_shell);
@@ -113,7 +112,7 @@ static std::vector<std::string> setup_environment_variables(const Job & job, con
         }
     }
 
-	add_standard_environment_variables(result);
+    add_standard_environment_variables(result);
 
 #if 0
     // FIXME
@@ -133,17 +132,17 @@ static std::vector<std::string> setup_environment_variables(const Job & job, con
 	}
 #endif
 
-	return result;
+    return result;
 }
 
-static std::optional<ExecStatus>
-replace_fd(int oldfd, const std::string &path, int flags, int mode) {
+static std::optional<ExecStatus> replace_fd(int oldfd, const std::string &path,
+                                            int flags, int mode) {
     int newfd = open(path.c_str(), flags, mode);
     if (newfd < 0) {
         return ExecStatus{ExecStatus::OpenFailed, errno};
     }
     if (dup2(newfd, oldfd) < 0) {
-        (void) close(newfd);
+        (void)close(newfd);
         return ExecStatus{ExecStatus::Dup2Failed, errno};
     }
     if (close(newfd) < 0) {
@@ -153,14 +152,15 @@ replace_fd(int oldfd, const std::string &path, int flags, int mode) {
 }
 
 static std::optional<ExecStatus>
-start_child_process(const Job &job, const std::vector<std::string> &final_env, const struct passwd *pwent,
-                    const struct group *grent) {
+start_child_process(const Job &job, const std::vector<std::string> &final_env,
+                    const struct passwd *pwent, const struct group *grent) {
     const Manifest &manifest = job.manifest;
 
     if (setsid() < 0) {
         return ExecStatus{ExecStatus::CreateSessionFailed, errno};
     }
-    if (manifest.nice && setpriority(PRIO_PROCESS, 0, manifest.nice.value()) < 0) {
+    if (manifest.nice &&
+        setpriority(PRIO_PROCESS, 0, manifest.nice.value()) < 0) {
         return ExecStatus{ExecStatus::SetPriorityFailed, errno};
     }
     if (manifest.working_directory &&
@@ -178,7 +178,8 @@ start_child_process(const Job &job, const std::vector<std::string> &final_env, c
         } else {
             new_gid = pwent->pw_gid;
         }
-        if (manifest.init_groups && initgroups(manifest.user_name->c_str(), new_gid) < 0) {
+        if (manifest.init_groups &&
+            initgroups(manifest.user_name->c_str(), new_gid) < 0) {
             return ExecStatus{ExecStatus::InitGroupsFailed, errno};
         }
         if (setgid(new_gid) < 0) {
@@ -197,25 +198,29 @@ start_child_process(const Job &job, const std::vector<std::string> &final_env, c
     //(void) umask(job.manifest.umask);
 
     std::optional<ExecStatus> maybe_error;
-    maybe_error = replace_fd(STDIN_FILENO, job.manifest.stdin_path, O_RDONLY, 0);
+    maybe_error =
+        replace_fd(STDIN_FILENO, job.manifest.stdin_path, O_RDONLY, 0);
     if (maybe_error) {
         maybe_error->errorContext = ExecStatus::RedirectStdin;
         return maybe_error;
     }
 
-    maybe_error = replace_fd(STDOUT_FILENO, job.manifest.stdout_path, O_CREAT | O_WRONLY, 0600);
+    maybe_error = replace_fd(STDOUT_FILENO, job.manifest.stdout_path,
+                             O_CREAT | O_WRONLY, 0600);
     if (maybe_error) {
         maybe_error->errorContext = ExecStatus::RedirectStdout;
         return maybe_error;
     }
 
-    maybe_error = replace_fd(STDERR_FILENO, job.manifest.stderr_path, O_CREAT | O_WRONLY, 0600);
+    maybe_error = replace_fd(STDERR_FILENO, job.manifest.stderr_path,
+                             O_CREAT | O_WRONLY, 0600);
     if (maybe_error) {
         maybe_error->errorContext = ExecStatus::RedirectStderr;
         return maybe_error;
     }
 
-    char **envp = static_cast<char **>(calloc(final_env.size() + 1, sizeof(char *)));
+    char **envp =
+        static_cast<char **>(calloc(final_env.size() + 1, sizeof(char *)));
     if (!envp) {
         return ExecStatus{ExecStatus::MemoryAllocationFailed, errno};
     }
@@ -223,7 +228,8 @@ start_child_process(const Job &job, const std::vector<std::string> &final_env, c
         envp[i] = const_cast<char *>(final_env[i].c_str());
     }
 
-    char **argv = static_cast<char **>(calloc(job.manifest.program_arguments.size() + 1, sizeof(char *)));
+    char **argv = static_cast<char **>(
+        calloc(job.manifest.program_arguments.size() + 1, sizeof(char *)));
     if (!argv) {
         return ExecStatus{ExecStatus::MemoryAllocationFailed, errno};
     }
@@ -233,7 +239,7 @@ start_child_process(const Job &job, const std::vector<std::string> &final_env, c
 
     char *path;
     if (job.manifest.program) {
-        path = (char *) job.manifest.program.value().c_str();
+        path = (char *)job.manifest.program.value().c_str();
     } else {
         path = argv[0];
     }
@@ -242,25 +248,25 @@ start_child_process(const Job &job, const std::vector<std::string> &final_env, c
         throw std::logic_error("path cannot be empty");
     }
     if (job.manifest.enable_globbing) {
-        //TODO: globbing
+        // TODO: globbing
     }
 #if DEBUG_EXEC_CALL
     log_debug("exec: %s", path);
 
-log_debug("argv[]:");
-for (char **item = argv; *item; item++) {
-    log_debug(" - arg: %s", *item);
-}
-log_debug("envp[]:");
-for (char **item = envp; *item; item++) {
-    log_debug(" - env: %s", *item);
-}
+    log_debug("argv[]:");
+    for (char **item = argv; *item; item++) {
+        log_debug(" - arg: %s", *item);
+    }
+    log_debug("envp[]:");
+    for (char **item = envp; *item; item++) {
+        log_debug(" - env: %s", *item);
+    }
 #endif
 
     // TODO: reenable this if openlog() doesn't set FD_CLOEXEC
-    //closelog();
+    // closelog();
 
-    (void) execve(path, argv, envp);
+    (void)execve(path, argv, envp);
     int saved_errno = errno;
     free(argv);
     free(envp);
@@ -268,10 +274,9 @@ for (char **item = envp; *item; item++) {
 }
 
 void Job::load() {
-	/* TODO: This is the place to setup on-demand watches for the following keys:
-			WatchPaths
-			QueueDirectories
-	*/
+    /* TODO: This is the place to setup on-demand watches for the following
+       keys: WatchPaths QueueDirectories
+    */
 // FIXME: sockets
 #if 0
     struct job_manifest_socket *jms;
@@ -289,9 +294,9 @@ void Job::load() {
 	}
 #endif
 
-	state = JOB_STATE_LOADED;
-	log_debug("loaded %s", manifest.label.c_str());
-	dump();
+    state = JOB_STATE_LOADED;
+    log_debug("loaded %s", manifest.label.c_str());
+    dump();
 }
 
 void Job::unload() {
@@ -303,15 +308,15 @@ void Job::unload() {
                 log_errno("killpg(2) of pid %d", pid);
             }
         }
-        //TODO: start a timer to send a SIGKILL if it doesn't die gracefully
-        // See: https://github.com/mheily/relaunchd/issues/14
+        // TODO: start a timer to send a SIGKILL if it doesn't die gracefully
+        //  See: https://github.com/mheily/relaunchd/issues/14
     }
     state = JOB_STATE_DEFINED;
 }
 
 bool Job::run(const std::function<void()> post_fork_cleanup) {
     struct passwd *pwent = NULL;
-	struct group *grent = NULL;
+    struct group *grent = NULL;
 
     if (manifest.user_name) {
         pwent = ::getpwnam(manifest.user_name.value().c_str());
@@ -324,10 +329,10 @@ bool Job::run(const std::function<void()> post_fork_cleanup) {
     auto final_env = setup_environment_variables(*this, pwent);
     ExecMonitor ipcpipe;
 
-	pid = fork();
-	if (pid < 0) {
+    pid = fork();
+    if (pid < 0) {
         throw std::system_error(errno, std::system_category(), "fork(2)");
-	} else if (pid == 0) {
+    } else if (pid == 0) {
         // This is the child process.
         ipcpipe.becomeChild();
         try {
@@ -339,26 +344,27 @@ bool Job::run(const std::function<void()> post_fork_cleanup) {
         auto maybe_error = start_child_process(*this, final_env, pwent, grent);
         if (maybe_error) {
             ipcpipe.writeStatus(*maybe_error);
-		}
+        }
         exit(127);
-	} else {
+    } else {
         // This is the parent process.
         started_at = current_time();
-        log_debug("job %s started at %zu with pid %d", manifest.label.c_str(), started_at.value(), pid);
+        log_debug("job %s started at %zu with pid %d", manifest.label.c_str(),
+                  started_at.value(), pid);
 
         ipcpipe.becomeParent();
         ExecStatus status = ipcpipe.readStatus();
         if (status.errorCode == ExecStatus::ExecSuccess) {
             return true;
         } else {
-            log_error("job %s failed to start: %s",
-                      manifest.label.c_str(), status.toString().c_str());
+            log_error("job %s failed to start: %s", manifest.label.c_str(),
+                      status.toString().c_str());
             ::kill(pid, 9);
             ::waitpid(pid, nullptr, 0);
             pid = 0;
             return false;
         }
-	}
+    }
 }
 
 job_schedule_t Job::_set_schedule() const {
@@ -371,14 +377,11 @@ job_schedule_t Job::_set_schedule() const {
     }
 }
 
-Job::Job(std::optional<std::filesystem::path> manifest_path_, Manifest manifest_) :
-        manifest_path(std::move(manifest_path_)),
-        manifest(std::move(manifest_)),
-        state(JOB_STATE_DEFINED),
-        pid(0),
-        last_exit_status(0),
-        term_signal(0),
-        schedule(_set_schedule()){}
+Job::Job(std::optional<std::filesystem::path> manifest_path_,
+         Manifest manifest_)
+    : manifest_path(std::move(manifest_path_)), manifest(std::move(manifest_)),
+      state(JOB_STATE_DEFINED), pid(0), last_exit_status(0), term_signal(0),
+      schedule(_set_schedule()) {}
 
 bool Job::killJob(int signum) const {
     if (state != JOB_STATE_RUNNING || pid == 0) {
@@ -387,9 +390,11 @@ bool Job::killJob(int signum) const {
     }
     if (::kill(pid, signum) < 0) {
         log_error("kill(2) of PID %d failed: %s", pid, strerror(errno));
-        // TODO: gracefully handle ESRCH, if the job already died but was not reaped
+        // TODO: gracefully handle ESRCH, if the job already died but was not
+        // reaped
         return false;
     }
-    log_notice("sent signal %d to process %d for job %s", signum, pid, manifest.label.c_str());
+    log_notice("sent signal %d to process %d for job %s", signum, pid,
+               manifest.label.c_str());
     return true;
 }

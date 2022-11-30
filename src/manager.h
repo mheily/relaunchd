@@ -25,38 +25,45 @@
 #include "event.h"
 #include "job.h"
 
-
 class Manager {
-public:
+  public:
     Manager(DomainType domain_);
 
     virtual ~Manager();
 
-    bool handleEvent(std::optional<std::chrono::milliseconds> timeout = std::nullopt);
+    bool handleEvent(
+        std::optional<std::chrono::milliseconds> timeout = std::nullopt);
 
     [[nodiscard]] std::optional<Label> getLabelByPid(pid_t pid) const;
 
-    Job& getJob(const std::string &label);
+    Job &getJob(const std::string &label);
 
     void unloadAllJobs();
 
     void loadDefaultManifests();
 
-    bool loadAllManifests(const std::string &load_path, bool overrideDisabled = false, bool forceLoad = false);
+    bool loadAllManifests(const std::string &load_path,
+                          bool overrideDisabled = false,
+                          bool forceLoad = false);
 
-    bool loadManifest(const std::filesystem::path &path, bool overrideDisabled = false, bool forceLoad = false);
+    bool loadManifest(const std::filesystem::path &path,
+                      bool overrideDisabled = false, bool forceLoad = false);
 
-    bool loadManifest(const json &jsondata, const std::string &path, bool overrideDisabled = false, bool forceLoad = false);
+    bool loadManifest(const json &jsondata, const std::string &path,
+                      bool overrideDisabled = false, bool forceLoad = false);
 
     void overrideJobEnabled(const std::string &label, bool enabled);
 
     json listJobs();
 
-    int unloadJob(const std::string &label, bool overrideDisabled = false, bool forceUnload = false);
+    int unloadJob(const std::string &label, bool overrideDisabled = false,
+                  bool forceUnload = false);
 
-    int unloadJob(const std::filesystem::path &path, bool overrideDisabled = false, bool forceUnload = false);
+    int unloadJob(const std::filesystem::path &path,
+                  bool overrideDisabled = false, bool forceUnload = false);
 
-    void unloadJob(Job &job, bool overrideDisabled = false, bool forceUnload = false);
+    void unloadJob(Job &job, bool overrideDisabled = false,
+                   bool forceUnload = false);
 
     bool killJob(const Label &, const std::string &signame_or_number);
 
@@ -65,9 +72,9 @@ public:
     //! Return true if the job exists
     bool jobExists(const Label &label) const;
 
-private:
-
-    void startJob(Job &job, std::optional<std::vector<Label>> visited = std::nullopt);
+  private:
+    void startJob(Job &job,
+                  std::optional<std::vector<Label>> visited = std::nullopt);
 
     void wakeJob(Job &job);
 
@@ -91,33 +98,33 @@ private:
     void rescheduleStandardJob(Job &job);
 };
 
-/** Given a pending connection on a socket descriptor, activate the associated job */
-//int manager_activate_job_by_fd(int fd);
+/** Given a pending connection on a socket descriptor, activate the associated
+ * job */
+// int manager_activate_job_by_fd(int fd);
 
 /**
  * Given a process ID, find the associated job
  *
  * @return the job, or NULL if there are no matching jobs
  */
-//std::shared_ptr<Job> manager_get_job_by_pid(pid_t pid);
+// std::shared_ptr<Job> manager_get_job_by_pid(pid_t pid);
 
 /**
  * Given a label, find the associated job
  *
  * @return the job, or NULL if there are no matching jobs
  */
-//std::shared_ptr<Job> manager_get_job_by_label(const std::string &label);
+// std::shared_ptr<Job> manager_get_job_by_label(const std::string &label);
 
 /**
  * Unload a job with a given <label>
  */
-//int manager_unload_job(const char *label);
+// int manager_unload_job(const char *label);
 
 /**
  * Wake up a job that has been waiting for an external event.
  */
-//int manager_wake_job(std::shared_ptr<Job> job);
+// int manager_wake_job(std::shared_ptr<Job> job);
 
-
-//int manager_unload_manifest(const std::filesystem::path &path);
-//int manager_unload_by_label(const std::string &label);
+// int manager_unload_manifest(const std::filesystem::path &path);
+// int manager_unload_by_label(const std::string &label);

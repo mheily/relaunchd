@@ -16,7 +16,6 @@
 
 #include "dependency.h"
 
-
 Dependency::Dependency(const json &obj) {
     obj.at("Label").get_to(jobLabel);
     if (obj.contains("Required")) {
@@ -36,7 +35,8 @@ Dependency::Dependency(const json &obj) {
 
 void Dependency::validateLogic() {
     if (startBefore && startAfter) {
-        throw std::logic_error("StartBefore and StartAfter cannot both be true");
+        throw std::logic_error(
+            "StartBefore and StartAfter cannot both be true");
     }
 }
 

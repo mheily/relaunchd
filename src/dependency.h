@@ -34,30 +34,29 @@ struct Dependency {
         validateLogic();
     }
 
-    Dependency(std::string label, bool required, bool before, bool after, bool stop_on_failure) :
-        jobLabel(std::move(label)),
-        isRequired(required),
-        startBefore(before),
-        startAfter(after),
-        stopOnFailure(stop_on_failure) {
+    Dependency(std::string label, bool required, bool before, bool after,
+               bool stop_on_failure)
+        : jobLabel(std::move(label)), isRequired(required), startBefore(before),
+          startAfter(after), stopOnFailure(stop_on_failure) {
         validateLogic();
     }
 
-    explicit Dependency(const json& obj);
+    explicit Dependency(const json &obj);
 
-private:
+  private:
     void validateLogic();
 };
 
 struct DependencyList {
     DependencyList() = default;
 
-    explicit DependencyList(const json& obj);
+    explicit DependencyList(const json &obj);
 
-    [[nodiscard]] const std::unordered_map<std::string, Dependency> &getItemsByLabel() const {
+    [[nodiscard]] const std::unordered_map<std::string, Dependency> &
+    getItemsByLabel() const {
         return itemsByLabel;
     }
 
-private:
+  private:
     std::unordered_map<std::string, Dependency> itemsByLabel;
 };

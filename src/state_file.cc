@@ -14,15 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <filesystem>
-#include <unistd.h>
-#include <fstream>
 #include "state_file.hpp"
+#include <filesystem>
+#include <fstream>
+#include <unistd.h>
 
 using json = nlohmann::json;
 
-StateFile::StateFile(std::string path, json default_value) : dataPath(std::move(path)),
-                                                             defaultValue(std::move(default_value)) {
+StateFile::StateFile(std::string path, json default_value)
+    : dataPath(std::move(path)), defaultValue(std::move(default_value)) {
     if (std::filesystem::exists(dataPath)) {
         std::ifstream ifs{dataPath};
         currentValue = json::parse(ifs);
@@ -35,10 +35,9 @@ StateFile::StateFile(std::string path, json default_value) : dataPath(std::move(
 }
 
 void StateFile::setValue(json new_value) const {
-    //TODO: randomize this filename
-    std::string tmpfilepath = std::string{dataPath}
-            .append(".tmp")
-            .append(std::to_string(getpid()));
+    // TODO: randomize this filename
+    std::string tmpfilepath =
+        std::string{dataPath}.append(".tmp").append(std::to_string(getpid()));
     std::ofstream ofs{tmpfilepath};
     ofs << new_value;
     ofs.close();
@@ -49,6 +48,4 @@ void StateFile::setValue(json new_value) const {
     currentValue = new_value;
 }
 
-const json &StateFile::getValue() const {
-    return currentValue;
-}
+const json &StateFile::getValue() const { return currentValue; }

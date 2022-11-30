@@ -23,50 +23,54 @@
 #include <string>
 #include <system_error>
 
+#include "channel.h"
 #include "log.h"
 #include "memory.h"
-#include "channel.h"
-
 
 Channel::Channel() {
     sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sockfd < 0) {
         log_errno("socket(2)");
-        throw std::system_error(errno, std::system_category(), "socket(2) failed");
+        throw std::system_error(errno, std::system_category(),
+                                "socket(2) failed");
     }
     if (fcntl(sockfd, F_SETFD, FD_CLOEXEC) < 0) {
         log_errno("fcntl(2)");
-        throw std::system_error(errno, std::system_category(), "fcntl(2) failed");
+        throw std::system_error(errno, std::system_category(),
+                                "fcntl(2) failed");
     }
     addr.sun_family = AF_UNIX;
 }
 
 void Channel::bindAndListen(const std::string &path, int backlog) {
-    strncpy((char *) &addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
+    strncpy((char *)&addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
     // FIXME check error
 
-    int rv = bind(sockfd, (struct sockaddr *) &addr, sizeof(addr));
+    int rv = bind(sockfd, (struct sockaddr *)&addr, sizeof(addr));
     if (rv < 0) {
         if (errno == EADDRINUSE) {
             // FIXME: detect another process using it
             unlink(path.c_str());
-            if (bind(sockfd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
+            if (bind(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
                 log_error("bind(2) to %s: %s", path.c_str(), strerror(errno));
-                throw std::system_error(errno, std::system_category(), "bind(2) failed");
+                throw std::system_error(errno, std::system_category(),
+                                        "bind(2) failed");
             }
         } else {
             log_error("bind(2) to %s: %s", path.c_str(), strerror(errno));
-            throw std::system_error(errno, std::system_category(), "bind(2) failed");
+            throw std::system_error(errno, std::system_category(),
+                                    "bind(2) failed");
         }
     }
     log_debug("bound to %s", path.c_str());
 
-
-    // TODO: add setsockopt(nonblocking) and handle the EWOULDBLOCK in the dispatch()
+    // TODO: add setsockopt(nonblocking) and handle the EWOULDBLOCK in the
+    // dispatch()
 
     if (listen(sockfd, backlog)) {
         log_errno("listen(2)");
-        throw std::system_error(errno, std::system_category(), "listen(2) failed");
+        throw std::system_error(errno, std::system_category(),
+                                "listen(2) failed");
     }
 }
 
@@ -76,7 +80,7 @@ void Channel::accept() {
     }
     struct sockaddr_un saun;
     socklen_t len = sizeof(saun);
-    int result = ::accept(sockfd, (struct sockaddr *) &saun, &len);
+    int result = ::accept(sockfd, (struct sockaddr *)&saun, &len);
     if (result < 0) {
         log_errno("accept(2)");
         // throw?
@@ -89,10 +93,10 @@ void Channel::accept() {
 }
 
 int Channel::connect(const std::string &path) {
-    strncpy((char *) &addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
+    strncpy((char *)&addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
     // fixme check error
 
-    if (::connect(sockfd, (struct sockaddr *) &addr, sizeof(addr))) {
+    if (::connect(sockfd, (struct sockaddr *)&addr, sizeof(addr))) {
         log_errno("connect(2)");
         return -1;
     }
@@ -106,12 +110,13 @@ json Channel::readMessage() {
     }
     int sd = (peerfd >= 0) ? peerfd : sockfd;
     char buf[IPC_MAX_MSGLEN];
-    ssize_t bytes = read(sd, (char *) &buf, sizeof(buf));
+    ssize_t bytes = read(sd, (char *)&buf, sizeof(buf));
     if (bytes < 0) {
         log_errno("read(2)");
-        throw std::system_error(errno, std::system_category(), "read(2) failed");
+        throw std::system_error(errno, std::system_category(),
+                                "read(2) failed");
     }
-    log_debug("read %zu bytes from IPC channel", (size_t) bytes);
+    log_debug("read %zu bytes from IPC channel", (size_t)bytes);
     try {
         return json::parse(buf);
     } catch (...) {
@@ -119,7 +124,6 @@ json Channel::readMessage() {
         throw std::runtime_error("JSON parse failed");
     }
 }
-
 
 void Channel::writeMessage(const json &j) {
     if (peerfd < 0 && sockfd < 0) {
@@ -129,13 +133,13 @@ void Channel::writeMessage(const json &j) {
     std::string buf = j.dump();
     size_t bufsz = buf.length() + 1;
     ssize_t bytes = write(sd, buf.data(), bufsz);
-    if ((size_t) bytes < bufsz) {
+    if ((size_t)bytes < bufsz) {
         log_error("write(2) of %zd bytes: %s", bytes, strerror(errno));
-        throw std::system_error(errno, std::system_category(), "write(2) failed");
+        throw std::system_error(errno, std::system_category(),
+                                "write(2) failed");
     }
     log_debug("wrote %ld bytes to IPC channel", bytes);
 }
-
 
 Channel::~Channel() {
     if (sockfd >= 0) {

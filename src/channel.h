@@ -22,18 +22,18 @@
 #pragma once
 
 #include <sys/socket.h>
-#include <sys/un.h>
 #include <sys/uio.h>
+#include <sys/un.h>
 
 /* Maximum length of an IPC message */
-#define IPC_MAX_MSGLEN  32768U
+#define IPC_MAX_MSGLEN 32768U
 
-#include <string>
 #include <nlohmann/json.hpp>
+#include <string>
 using json = nlohmann::json;
 
 class Channel {
-public:
+  public:
     Channel();
     ~Channel();
     void bindAndListen(const std::string &path, int backlog);
@@ -44,7 +44,7 @@ public:
     void writeMessage(const json &j);
     int getSockFD();
 
-private:
+  private:
     struct sockaddr_un addr;
     int sockfd = -1;
     int peerfd = -1; // the other side of the channel

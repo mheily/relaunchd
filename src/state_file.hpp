@@ -26,14 +26,14 @@ using json = nlohmann::json;
  * modify the state file while this program is running.
  */
 class StateFile {
-public:
+  public:
     StateFile(std::string path, json default_value);
 
     [[nodiscard]] const json &getValue() const;
 
     void setValue(json) const;
 
-private:
+  private:
     const std::string dataPath;
     const json defaultValue;
     mutable json currentValue;

@@ -108,3 +108,9 @@ endif()
 install(TARGETS launchctl DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 include(EnableSanitizers)
+
+add_custom_target(
+        format
+        COMMAND clang-format -i *.cc *.h *.hpp
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)

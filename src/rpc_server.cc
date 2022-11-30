@@ -25,10 +25,9 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "rpc_server.h"
 #include "log.h"
 #include "manager.h"
-
+#include "rpc_server.h"
 
 static json _rpc_op_disable(const json &args, Manager &mgr) {
     const auto &label = args[1]["Label"];
@@ -70,13 +69,13 @@ static json _rpc_op_unload(const json &args, Manager &mgr) {
     bool forceUnload = args[1]["Force"];
     bool overrideDisabled = args[1]["OverrideDisabled"];
     for (const auto &jsonobj : args[1]["Paths"]) {
-	const std::filesystem::path path{jsonobj.get<std::string>()};
+        const std::filesystem::path path{jsonobj.get<std::string>()};
         if (!std::filesystem::exists(path)) {
             return {{"error", true}};
         }
         if (std::filesystem::is_directory(path)) {
             using std::filesystem::directory_iterator;
-            for (const auto &file: directory_iterator(path)) {
+            for (const auto &file : directory_iterator(path)) {
                 mgr.unloadJob(file.path(), overrideDisabled, forceUnload);
             }
         } else {
@@ -120,32 +119,35 @@ static json _rpc_op_remove(const json &args, Manager &mgr) {
 }
 
 static json _rpc_op_submit(const json &args, Manager &mgr) {
-    std::string path = ""; // TODO: maybe create a fake path? do we even need this?
+    std::string path =
+        ""; // TODO: maybe create a fake path? do we even need this?
     mgr.loadManifest(args[1], path);
     return {{"error", false}};
 }
 
 static json _rpc_op_version(const json &, Manager &) {
-    static const auto version = std::string{"relaunch version "} + std::string{relaunch::config::VERSION};
-    return {{"error",   false},
-            {"version", version}};
+    static const auto version = std::string{"relaunch version "} +
+                                std::string{relaunch::config::VERSION};
+    return {{"error", false}, {"version", version}};
 }
 
 // FIXME: needs a lot more error checking
 int rpc_dispatch(Channel &chan, Manager &mgr) {
-    static const std::unordered_map<std::string, json(*)(const json &, Manager &)> handlers = {
+    static const std::unordered_map<std::string,
+                                    json (*)(const json &, Manager &)>
+        handlers = {
             {"disable", _rpc_op_disable},
             {"enable", _rpc_op_enable},
             {"kill", _rpc_op_kill},
             {"list", _rpc_op_list},
             {"load", _rpc_op_load},
             {"remove", _rpc_op_remove},
-            //FIXME:{"start", _rpc_op_start},
-            //FIXME:{"stop", _rpc_op_stop},
+            // FIXME:{"start", _rpc_op_start},
+            // FIXME:{"stop", _rpc_op_stop},
             {"submit", _rpc_op_submit},
             {"unload", _rpc_op_unload},
             {"version", _rpc_op_version},
-    };
+        };
     chan.accept();
     try {
         auto msg = chan.readMessage();
@@ -161,4 +163,3 @@ int rpc_dispatch(Channel &chan, Manager &mgr) {
 
     return 0;
 }
-

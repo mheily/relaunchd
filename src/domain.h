@@ -22,15 +22,14 @@ typedef enum {
     DOMAIN_TYPE_GUI,
 } DomainType;
 
-
 class Domain {
-public:
+  public:
     Domain(DomainType t) : dtype(t) {}
 
     [[nodiscard]] const std::string &to_string() const;
 
     [[nodiscard]] const std::vector<std::string> &getLoadPaths() const;
 
-private:
+  private:
     DomainType dtype;
 };
