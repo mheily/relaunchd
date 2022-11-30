@@ -20,9 +20,7 @@
 using namespace std;
 
 void testStateFile() {
-#warning insecure tmpfile use
-
-    const std::string statefilepath = "/tmp/test_statefile.json";
+    const std::string statefilepath = tmpdir + "/test_statefile.json";
     if (std::filesystem::exists(statefilepath)) {
         std::filesystem::remove(statefilepath);
     }
@@ -34,8 +32,7 @@ void testStateFile() {
 }
 
 void testSetValue() {
-#warning insecure tmpfile use
-    const std::string statefilepath = "/tmp/test_setValue.json";
+    const std::string statefilepath = tmpdir + "/test_setValue.json";
     if (std::filesystem::exists(statefilepath)) {
         std::filesystem::remove(statefilepath);
     }

@@ -22,6 +22,9 @@
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
+//! A directory where temporary files can be placed.
+static const inline std::string tmpdir{TMPDIR};
+
 class TestRunner {
 public:
     void addTest(std::string name, std::function<void()> test_func) {
