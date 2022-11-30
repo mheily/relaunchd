@@ -177,7 +177,7 @@ int job_manifest_socket_export(struct job_manifest_socket *jms, size_t offset)
 
 	jms->sd = new_sd;
 
-	/* Remove the O_CLOEXEC flag */
+	/* Remove the FD_CLOEXEC flag */
 	if (fcntl(jms->sd, F_SETFD, 0) < 0) {
 		log_errno("fcntl(2)");
 		return -1;

@@ -51,8 +51,11 @@ namespace manifest {
         std::optional<std::string> user_name;
         std::optional<std::string> group_name;
 
+        /// TODO: Make this std::variant
         std::optional<std::string> program;
         std::vector<std::string> program_arguments;
+        ///
+
         bool disabled = false;
         bool enable_globbing;
         bool run_at_load;
