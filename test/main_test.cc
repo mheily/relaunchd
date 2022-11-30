@@ -19,7 +19,7 @@
 
 extern void addManagerTests(TestRunner &runner);
 extern void addManifestTests(TestRunner &runner);
-
+extern void addStateFileTests(TestRunner &runner);
 
 void usage() {
     std::cout << "TODO: usage" << std::endl;
@@ -37,9 +37,24 @@ int main(int argc, char *argv[]) {
                 break;
         }
     }
+
+    std::vector<std::string> positional_args;
+    for (int i = optind; i < argc; i++) {
+        positional_args.emplace_back(argv[i]);
+    }
+
     TestRunner runner;
-    addManagerTests(runner);
-    addManifestTests(runner);
+    std::unordered_map<std::string, std::function<void(TestRunner &)>> tests = {
+            {"Manager", addManagerTests},
+            {"Manifest", addManifestTests},
+            {"StateFile", addStateFileTests},
+    };
+    for (const auto &[key, func] : tests) {
+        auto& vec = positional_args;
+        if (vec.empty() || std::find(vec.begin(), vec.end(), key) != vec.end()) {
+            func(runner);
+        }
+    }
     runner.runAllTests();
     exit(EXIT_SUCCESS);
 }

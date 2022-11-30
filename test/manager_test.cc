@@ -47,7 +47,7 @@ void testDependencies() {
     json job1_manifest = json::parse(R"(
         {
           "Label": "test.job1",
-          "Program": "/usr/bin/true",
+          "Program": "/bin/sh",
           "RunAtLoad": true,
           "Dependencies": [
             "test.job2"
@@ -57,7 +57,7 @@ void testDependencies() {
     json job2_manifest = json::parse(R"(
         {
           "Label": "test.job2",
-          "Program": "/usr/bin/true"
+          "Program": "/bin/sh"
         }
     )");
     std::string path = "/dev/null";
@@ -68,8 +68,8 @@ void testDependencies() {
     auto &job2 = mgr.getJob("test.job2");
     assert(job1.hasStarted());
     assert(job2.hasStarted());
-    assert(mgr.handleEvent());      // event: reap the PID of a job
-    assert(mgr.handleEvent());      // event: reap the PID of a job
+    assert(mgr.handleEvent(std::chrono::milliseconds{100}));      // event: reap the PID of a job
+    assert(mgr.handleEvent(std::chrono::milliseconds{100}));      // event: reap the PID of a job
     assert(0 == job1.last_exit_status);
     assert(0 == job1.pid);
     assert(0 == job2.last_exit_status);
@@ -84,7 +84,7 @@ void testCyclicDependency() {
     json job1_manifest = json::parse(R"(
         {
           "Label": "test.job1",
-          "Program": "/usr/bin/true",
+          "Program": "/bin/sh",
           "RunAtLoad": true,
           "Dependencies": [
             "test.job2"
@@ -94,7 +94,7 @@ void testCyclicDependency() {
     json job2_manifest = json::parse(R"(
         {
           "Label": "test.job2",
-          "Program": "/usr/bin/true",
+          "Program": "/bin/sh",
           "Dependencies": [
             "test.job1"
           ]
@@ -120,7 +120,7 @@ void testMissingDependency() {
     json job1_manifest = json::parse(R"(
         {
           "Label": "test.job1",
-          "Program": "/usr/bin/true",
+          "Program": "/bin/sh",
           "RunAtLoad": true,
           "Dependencies": [
             "--this-job-does-not-exist--"
@@ -142,7 +142,7 @@ void testThrottleInterval() {
     json job1_manifest = json::parse(R"(
         {
           "Label": "test.job1",
-          "Program": "/usr/bin/true",
+          "Program": "/bin/sh",
           "RunAtLoad": true,
           "KeepAlive": true,
           "ThrottleInterval": 1
@@ -172,14 +172,14 @@ void testShouldStart() {
     json job1_manifest = json::parse(R"(
         {
           "Label": "test.job1",
-          "Program": "/usr/bin/true",
+          "Program": "/bin/sh",
           "RunAtLoad": true
         }
     )");
     json job2_manifest = json::parse(R"(
         {
           "Label": "test.job2",
-          "Program": "/usr/bin/true",
+          "Program": "/bin/sh",
           "StartInterval": 60
         }
     )");
@@ -203,7 +203,7 @@ void testKeepaliveAfterExit() {
     json manifest = json::parse(R"(
         {
           "Label": "test.job1",
-          "Program": "/usr/bin/true",
+          "Program": "/bin/sh",
           "RunAtLoad": true,
           "KeepAlive": true,
           "ThrottleInterval": 0
@@ -226,7 +226,7 @@ void testKeepaliveAfterSignal() {
     json manifest = json::parse(R"(
         {
           "Label": "test.job1",
-          "ProgramArguments": ["/bin/sleep", "99"],
+          "ProgramArguments": ["/bin/sleep", "10"],
           "RunAtLoad": true,
           "KeepAlive": true,
           "ThrottleInterval": 0
@@ -238,12 +238,33 @@ void testKeepaliveAfterSignal() {
     auto &job = mgr.getJob("test.job1");
     assert(job.state == JOB_STATE_RUNNING);
     pid_t old_pid = job.pid;
-    assert(!kill(job.pid, SIGKILL));
-    log_debug("pre handling");
-    mgr.handleEvent();
-    log_debug("post handling");
+    assert(mgr.killJob("test.job1", "SIGKILL"));
+    mgr.handleEvent(std::chrono::milliseconds{100});
     assert(job.state == JOB_STATE_RUNNING);
     assert(old_pid != job.pid);
+}
+
+void testKillJobBySignal() {
+    Manager mgr{DOMAIN_TYPE_USER};
+    assert(std::filesystem::exists("/bin/sleep"));
+    json manifest = json::parse(R"(
+        {
+          "Label": "test.job1",
+          "ProgramArguments": ["/bin/sleep", "9999"],
+          "RunAtLoad": true
+        }
+    )");
+    std::string path = "/dev/null";
+    mgr.loadManifest(manifest, path);
+    mgr.startAllJobs();
+    assert(!mgr.killJob("test.job1", "A bad signal name that does not exist"));
+    assert(mgr.killJob("test.job1", "SIGKILL"));
+    assert(mgr.killJob("test.job1", "9"));
+    mgr.handleEvent();
+    auto &job = mgr.getJob("test.job1");
+    assert(job.state == JOB_STATE_EXITED);
+    assert(job.last_exit_status == -1);
+    assert(job.term_signal == 9);
 }
 
 void addManagerTests(TestRunner &runner) {
@@ -254,4 +275,5 @@ void addManagerTests(TestRunner &runner) {
     runner.addTest("testDependencies", testDependencies);
     runner.addTest("testShouldStart", testShouldStart);
     runner.addTest("testThrottleInterval", testThrottleInterval);
+    runner.addTest("testKillJobBySignal", testKillJobBySignal);
 }

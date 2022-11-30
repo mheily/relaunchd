@@ -16,6 +16,7 @@
 
 #pragma auto
 
+#include <filesystem>
 #include <iostream>
 
 #include <nlohmann/json.hpp>
@@ -30,12 +31,7 @@ public:
     void runAllTests() {
         for (const auto &[name, test_func] : dispatchTable) {
             std::cerr << "\nRunning " << name << std::endl;
-            try {
-                test_func();
-            } catch (...) {
-                std::cerr << "*** ERROR *** Test failed: " << name << std::endl;
-                return;
-            }
+            test_func();
         }
         std::cerr << "All tests completed successfully." << std::endl;
     }
