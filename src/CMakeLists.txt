@@ -16,6 +16,7 @@ set(LAUNCH_SRC
         channel.h channel.cc
         domain.h domain.cc
         event.h
+        exec_monitor.h
         job.cc job.h
         log.cc log.h
         manager.cc manager.h
