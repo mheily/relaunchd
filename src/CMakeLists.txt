@@ -22,6 +22,7 @@ set(LAUNCH_SRC
         manifest.cc manifest.h
         options.cc options.h
         rpc_server.cc rpc_server.h
+        signal_names.h
         state_file.cc state_file.hpp
         )
 if (USE_PRIVATE_DEPENDENCIES)
