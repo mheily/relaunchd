@@ -36,6 +36,12 @@
 
 extern void keepalive_remove_job(const Job &job);
 
+struct ExecutionContext {
+    std::optional<gid_t> gid;
+    std::optional<uid_t> uid;
+    std::vector<std::string> environ;
+};
+
 /* Add the standard set of environment variables that most programs expect.
  * See: http://pubs.opengroup.org/onlinepubs/009695399/basedefs/xbd_chap08.html
  * TODO: should cache these getenv() calls, so we don't do this dance for every
@@ -116,20 +122,20 @@ setup_environment_variables(const Job &job, const struct passwd *pwent) {
 
 #if 0
     // FIXME
-	SLIST_FOREACH(jms, &job.manifest.sockets, entry) {
-		job_manifest_socket_export(jms, env, offset++);
-	}
-	if (offset > 0) {
-		if (asprintf(&buf, "LISTEN_FDS=%zu", offset) < 0) goto err_out;
-		if (cvec_push(env, buf) < 0) goto err_out;
-		free(buf);
-		buf = NULL;
+    SLIST_FOREACH(jms, &job.manifest.sockets, entry) {
+        job_manifest_socket_export(jms, env, offset++);
+    }
+    if (offset > 0) {
+        if (asprintf(&buf, "LISTEN_FDS=%zu", offset) < 0) goto err_out;
+        if (cvec_push(env, buf) < 0) goto err_out;
+        free(buf);
+        buf = NULL;
 
-		if (asprintf(&buf, "LISTEN_PID=%d", getpid()) < 0) goto err_out;
-		if (cvec_push(env, buf) < 0) goto err_out;
-		free(buf);
-		buf = NULL;
-	}
+        if (asprintf(&buf, "LISTEN_PID=%d", getpid()) < 0) goto err_out;
+        if (cvec_push(env, buf) < 0) goto err_out;
+        free(buf);
+        buf = NULL;
+    }
 #endif
 
     return result;
@@ -152,8 +158,7 @@ static std::optional<ExecStatus> replace_fd(int oldfd, const std::string &path,
 }
 
 static std::optional<ExecStatus>
-start_child_process(const Job &job, const std::vector<std::string> &final_env,
-                    const struct passwd *pwent, const struct group *grent) {
+start_child_process(const Job &job, const ExecutionContext &ctx) {
     const Manifest &manifest = job.manifest;
 
     if (setsid() < 0) {
@@ -172,17 +177,11 @@ start_child_process(const Job &job, const std::vector<std::string> &final_env,
         return ExecStatus{ExecStatus::SetRootDirectoryFailed, errno};
     }
     if (manifest.user_name) {
-        gid_t new_gid;
-        if (manifest.group_name) {
-            new_gid = grent->gr_gid;
-        } else {
-            new_gid = pwent->pw_gid;
-        }
         if (manifest.init_groups &&
-            initgroups(manifest.user_name->c_str(), new_gid) < 0) {
+            initgroups(manifest.user_name->c_str(), ctx.gid.value()) < 0) {
             return ExecStatus{ExecStatus::InitGroupsFailed, errno};
         }
-        if (setgid(new_gid) < 0) {
+        if (setgid(ctx.gid.value()) < 0) {
             return ExecStatus{ExecStatus::SetGroupIdFailed, errno};
         }
 #if HAVE_SETLOGIN
@@ -190,7 +189,7 @@ start_child_process(const Job &job, const std::vector<std::string> &final_env,
             return ExecStatus{ExecStatus::SetLoginFailed, errno};
         }
 #endif
-        if (setuid(pwent->pw_uid) < 0) {
+        if (setuid(ctx.uid.value()) < 0) {
             return ExecStatus{ExecStatus::SetUserIdFailed, errno};
         }
     }
@@ -220,17 +219,18 @@ start_child_process(const Job &job, const std::vector<std::string> &final_env,
     }
 
     char **envp =
-        static_cast<char **>(calloc(final_env.size() + 1, sizeof(char *)));
+        static_cast<char **>(calloc(ctx.environ.size() + 1, sizeof(char *)));
     if (!envp) {
         return ExecStatus{ExecStatus::MemoryAllocationFailed, errno};
     }
-    for (size_t i = 0; i < final_env.size(); i++) {
-        envp[i] = const_cast<char *>(final_env[i].c_str());
+    for (size_t i = 0; i < ctx.environ.size(); i++) {
+        envp[i] = const_cast<char *>(ctx.environ[i].c_str());
     }
 
     char **argv = static_cast<char **>(
         calloc(job.manifest.program_arguments.size() + 1, sizeof(char *)));
     if (!argv) {
+        free(envp);
         return ExecStatus{ExecStatus::MemoryAllocationFailed, errno};
     }
     for (size_t i = 0; i < job.manifest.program_arguments.size(); i++) {
@@ -281,17 +281,17 @@ void Job::load() {
 #if 0
     struct job_manifest_socket *jms;
 
-	if (!SLIST_EMPTY(&job.manifest.sockets)) {
-		SLIST_FOREACH(jms, &job.manifest.sockets, entry) {
-			if (job_manifest_socket_open(job, jms) < 0) {
-				log_error("failed to open socket");
-				return (-1);
-			}
-		}
-		log_debug("job %s sockets created", job.manifest.label.c_str());
-		job->state = JOB_STATE_WAITING;
-		return (0);
-	}
+    if (!SLIST_EMPTY(&job.manifest.sockets)) {
+        SLIST_FOREACH(jms, &job.manifest.sockets, entry) {
+            if (job_manifest_socket_open(job, jms) < 0) {
+                log_error("failed to open socket");
+                return (-1);
+            }
+        }
+        log_debug("job %s sockets created", job.manifest.label.c_str());
+        job->state = JOB_STATE_WAITING;
+        return (0);
+    }
 #endif
 
     state = JOB_STATE_LOADED;
@@ -315,18 +315,34 @@ void Job::unload() {
 }
 
 bool Job::run(const std::function<void()> post_fork_cleanup) {
-    struct passwd *pwent = NULL;
-    struct group *grent = NULL;
+    std::optional<uid_t> uid;
+    std::optional<uid_t> gid;
 
-    if (manifest.user_name) {
-        pwent = ::getpwnam(manifest.user_name.value().c_str());
-    }
-
+    struct group *grent;
     if (manifest.group_name) {
         grent = ::getgrnam(manifest.group_name.value().c_str());
+    } else {
+        grent = ::getgrgid(getgid());
     }
 
-    auto final_env = setup_environment_variables(*this, pwent);
+    struct passwd *pwent;
+    if (manifest.user_name) {
+        pwent = ::getpwnam(manifest.user_name.value().c_str());
+    } else {
+        pwent = ::getpwuid(getuid());
+    }
+
+    if (manifest.user_name) {
+        uid = pwent->pw_uid;
+        if (manifest.group_name) {
+            gid = grent->gr_gid;
+        } else {
+            gid = pwent->pw_gid;
+        }
+    }
+
+    ExecutionContext ctx{uid, gid, setup_environment_variables(*this, pwent)};
+
     ExecMonitor ipcpipe;
 
     pid = fork();
@@ -341,7 +357,7 @@ bool Job::run(const std::function<void()> post_fork_cleanup) {
             log_error("post_fork_cleanup() failed");
             ipcpipe.writeStatus(ExecStatus{ExecStatus::ForkHandlerFailed});
         }
-        auto maybe_error = start_child_process(*this, final_env, pwent, grent);
+        auto maybe_error = start_child_process(*this, ctx);
         if (maybe_error) {
             ipcpipe.writeStatus(*maybe_error);
         }
