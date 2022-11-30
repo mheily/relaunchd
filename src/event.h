@@ -85,12 +85,54 @@ enum event_type {
     EVTYPE_TIMER,
 };
 
+namespace kq::error {
+    class ProcessNotFound : public std::exception {};
+};
+
+
+namespace kq {
+    //! Data and methods shared by all implementations
+    class CommonImplementation {
+    protected:
+        Event dequeueProcessEvent() {
+            const auto &it = child_status.begin();
+            auto event = Event(proc_event{it->first, it->second});
+            child_status.erase(it);
+            return event;
+        }
+
+        int waitForProcess(pid_t pid) {
+            int wstatus, rv;
+            rv = waitpid(pid, &wstatus, WNOHANG);
+            if (rv == 0 || rv == -1) {
+                std::string msg = std::string{"waitpid failed: retval="} + std::to_string(rv) +
+                                  std::string{" errno="} + std::to_string(errno);
+                kqtrace::print(msg);
+                return -1;
+            }
+            return wstatus;
+        }
+
+        // TODO: make this process-wide, since all threads share the same signal handlers
+        // Think about whether we want to allow multiple KernelEventInterface objects at all,
+        // as only one of them could realistically handle SIGCHLD and other signals.
+        // Maybe allow one object to manage signals, and any other objects will not be able to manage signals:
+        //    static std::mutex signal_mtx;
+        //    bool supports_signals = signal_mtx.try_lock();
+
+        //! waitpid(2) status information for reaped processes.
+        std::unordered_map<pid_t, int> child_status;
+
+        //! signal handlers to restore when cleaning up
+        std::unordered_set<int> blocked_signals;
+    };
+};
 
 class KernelEventInterface {
 public:
     virtual ~KernelEventInterface() = default;
 
-    virtual Event waitForEvent() = 0;
+    virtual std::optional<Event> waitForEvent(std::optional<std::chrono::milliseconds> timeout) = 0;
 
     virtual void monitorChildProcess(pid_t pid) = 0;
 
@@ -114,20 +156,11 @@ public:
 
     //! Run cleanup actions between fork() and exec(), such as resetting signal handlers
     virtual void handleFork() = 0;
-
-protected:
-    // TODO: make this process-wide, since all threads share the same signal handlers
-    // Think about whether we want to allow multiple KernelEventInterface objects at all,
-    // as only one of them could realistically handle SIGCHLD and other signals.
-    // Maybe allow one object to manage signals, and any other objects will not be able to manage signals:
-    //    static std::mutex signal_mtx;
-    //    bool supports_signals = signal_mtx.try_lock();
-    std::unordered_set<int> blocked_signals; // signal handlers to restore when cleaning up
 };
 
 #if USE_EPOLL
 
-class EpollImplementation : public KernelEventInterface {
+class EpollImplementation : public KernelEventInterface, public kq::CommonImplementation {
 public:
     EpollImplementation() {
         epfd = epollCreate();
@@ -162,7 +195,10 @@ public:
         unblockAllSignals();
     }
 
-    Event waitForEvent() override {
+    std::optional<Event> waitForEvent(std::optional<std::chrono::milliseconds> timeout) override {
+        if (!child_status.empty()) {
+            return dequeueProcessEvent();
+        }
         if (!pending_events.empty()) {
             auto event = pending_events.front();
             pending_events.pop();
@@ -171,8 +207,9 @@ public:
         for (;;) {
             int evtype;
             {
-                auto maybe_event = epollGetOne(epfd);
+                auto maybe_event = epollGetOne(epfd, timeout);
                 if (!maybe_event) {
+                    // TODO: reduce the timeout by the amount of elapsed time
                     continue;
                 }
                 const auto &event = *maybe_event;
@@ -189,14 +226,14 @@ public:
                 }
                     break;
                 case EVTYPE_SOCKET_READ: {
-                    auto event = epollGetOne(socket_read_fd);
+                    auto event = epollGetOne(socket_read_fd, timeout);
                     if (event) {
                         return Event(socket_event{static_cast<int>(event->data.fd)});
                     }
                 }
                     break;
                 case EVTYPE_TIMER: {
-                    auto event = epollGetOne(timer_epfd);
+                    auto event = epollGetOne(timer_epfd, timeout);
                     if (event) {
                         uint64_t expired;
                         const auto &fd = event->data.fd;
@@ -228,6 +265,15 @@ public:
     void monitorChildProcess(pid_t pid) override {
         // We could use pidfd_open(2) but this requires Linux 5.3+
         // For now, just use SIGCHLD and assume that all children will be reaped via SIGCHLD handling
+        if (kill(pid, 0) != 0) {
+            if (errno == ESRCH) {
+                throw kq::error::ProcessNotFound();
+            } else {
+                throw std::system_error(errno, std::system_category(), "kill()");
+            }
+        }
+        // <---- TODO: race condition here, hard to avoid unless the child waits for the parent to start monitoring.
+        // maybe just stop using watch_pids?
         watch_pids.insert(pid);
     }
 
@@ -396,9 +442,10 @@ private:
         }
     }
 
-    std::optional<epoll_event> epollGetOne(int fd) {
+    std::optional<epoll_event> epollGetOne(int fd, std::optional<std::chrono::milliseconds> timeout) {
         struct epoll_event event;
-        int rv = epoll_wait(fd, &event, 1, -1);
+        int eptimeout = timeout ? (int)(timeout->count()) : -1;
+        int rv = epoll_wait(fd, &event, 1, eptimeout);
         if (rv > 0) {
             return event;
         } else if (rv == 0) {
@@ -421,7 +468,7 @@ private:
 
 #elif USE_KQUEUE
 
-class KqueueImplementation : public KernelEventInterface {
+class KqueueImplementation : public KernelEventInterface, kq::CommonImplementation {
 public:
     KqueueImplementation() {
         kqfd = kqueue();
@@ -438,14 +485,32 @@ public:
         close(kqfd);
     }
 
-    Event waitForEvent() override {
+    std::optional<Event> waitForEvent(std::optional<std::chrono::milliseconds> timeout) override {
+        if (!child_status.empty()) {
+            return dequeueProcessEvent();
+        }
         struct kevent kev;
         for (;;) {
-            int rv = kevent(kqfd, NULL, 0, &kev, 1, NULL);
+            struct timespec ts;
+            struct timespec *tsptr;
+            if (timeout) {
+                using namespace std::chrono;
+                auto secs = duration_cast<seconds>(timeout.value());
+                auto nanosecs = duration_cast<nanoseconds>(timeout.value() - secs);
+                ts = {secs.count(), nanosecs.count()};
+                tsptr = &ts;
+            } else {
+                tsptr = nullptr;
+            }
+            int rv = kevent(kqfd, NULL, 0, &kev, 1, tsptr);
             if (rv > 0) {
                 break;
             } else if (rv == 0) {
-                continue;
+                if (timeout) {
+                    return std::nullopt;
+                } else {
+                    continue;
+                }
             } else {
                 if (errno == EINTR) {
                     kqtrace::print("kevent() was interrupted by a signal, will continue");
@@ -469,15 +534,27 @@ public:
     }
 
      void monitorChildProcess(pid_t pid) override {
-         changeKevent(pid, EVFILT_PROC, EV_ADD | EV_ONESHOT, NOTE_EXIT);
+        try {
+            changeKevent(pid, EVFILT_PROC, EV_ADD | EV_ONESHOT, NOTE_EXIT | NOTE_EXITSTATUS);
+        } catch (const std::system_error &e) {
+            if (e.code().value() == ESRCH) {
+                // The process has already exited.
+                child_status.emplace(pid, waitForProcess(pid));
+            } else {
+                throw;
+            }
+        }
     }
 
      void ignoreChildProcess(pid_t pid) override {
-        try {
-            changeKevent(pid, EVFILT_PROC, EV_DELETE, NOTE_EXIT);
-        } catch (const std::system_error &e) {
-            if (e.code().value() != ENOENT) {
-                throw;
+        auto it = child_status.find(pid);
+        if (it == child_status.end()) {
+            try {
+                changeKevent(pid, EVFILT_PROC, EV_DELETE, NOTE_EXIT);
+            } catch (const std::system_error &e) {
+                if (e.code().value() != ENOENT) {
+                    throw;
+                }
             }
         }
      }
@@ -591,8 +668,12 @@ namespace kq {
             return timer_id;
         }
 
-        void waitForEvent() {
-            auto event = impl->waitForEvent();
+        void waitForEvent(std::optional<std::chrono::milliseconds> timeout) {
+            std::optional<Event> maybe_event = impl->waitForEvent(timeout);
+            if (!maybe_event) {
+                return;
+            }
+            const Event &event = maybe_event.value();
             kqtrace::print("got an event of type " + std::to_string(event.index()));
             switch (event.index()) {
                 case EVTYPE_SIGNAL: {
