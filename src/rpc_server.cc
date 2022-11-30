@@ -45,13 +45,7 @@ static json _rpc_op_enable(const json &args, Manager &mgr) {
 static json _rpc_op_kill(const json &args, Manager &mgr) {
     const std::string &label = args[1]["Label"];
     const std::string &signame_or_num = args[1]["Signal"];
-    if (mgr.jobExists(label)) {
-        auto & job = mgr.getJob(label);
-        job.kill(signame_or_num);
-        return {{"error", false}};
-    } else {
-        return {{"error", true}};
-    }
+    return {{"error", mgr.killJob(label, signame_or_num)}};
 }
 
 static json _rpc_op_list(const json &, Manager &mgr) {

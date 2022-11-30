@@ -282,37 +282,6 @@ namespace manifest {
     }
 
     void Manifest::rectify() {
-        struct passwd *pwent;
-        struct group *grent;
-
-        auto uid = ::geteuid();
-        if (uid == 0) {
-            if (!user_name) {
-                user_name = "root";  // FIXME: use /etc/passwd|group for this
-            }
-            if (!group_name) {
-                group_name = "wheel";  // FIXME: use /etc/passwd/group for this
-            }
-        } else {
-            errno = 0;
-            pwent = ::getpwuid(uid);
-            if (pwent) {
-                // FIXME: should we fail if User is already set?
-                user_name = std::string{pwent->pw_name};
-            } else if (errno) {
-                throw std::system_error(errno, std::system_category(), "getpwuid");
-            }
-
-            errno = 0;
-            grent = ::getgrgid(getegid());
-            if (grent) {
-                // FIXME: should we fail if Group is already set?
-                group_name = std::string{grent->gr_name};
-            } else if (errno) {
-                throw std::system_error(errno, std::system_category(), "no grent");
-            }
-        }
-
         if (!program && program_arguments.empty()) {
             // TODO: convert to ManifestError
             throw std::logic_error("one of these must be set: Program and/or ProgramArguments");

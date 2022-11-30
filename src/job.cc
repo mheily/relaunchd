@@ -28,58 +28,13 @@
 
 #include "config.h"
 #include "calendar.h"
+#include "exec_monitor.h"
 #include "job.h"
 #include "log.h"
 #include "manager.h"
 #include "clock.h"
 
 extern void keepalive_remove_job(const Job &job);
-
-static int apply_resource_limits(const Job & job) {
-	//TODO - SoftResourceLimits, HardResourceLimits
-	//TODO - LowPriorityIO
-
-	if (job.manifest.nice) {
-		if (setpriority(PRIO_PROCESS, 0, job.manifest.nice.value()) < 0) {
-			log_errno("setpriority(2) to nice=%d", job.manifest.nice.value());
-			return (-1);
-		}
-	}
-
-	return (0);
-}
-
-static inline int modify_credentials(const Job & job, const struct passwd *pwent, const struct group *grent)
-{
-	if (getuid() != 0) return (0);
-
-	log_debug("setting credentials: uid=%d gid=%d", pwent->pw_uid, grent->gr_gid);
-
-    if (job.manifest.init_groups && job.manifest.user_name) {
-        if (initgroups(job.manifest.user_name.value().c_str(), grent->gr_gid) < 0) {
-            log_errno("initgroups");
-            return (-1);
-        }
-    }
-	if (setgid(grent->gr_gid) < 0) {
-		log_errno("setgid");
-		return (-1);
-	}
-#if HAVE_SETLOGIN
-	if (job.manifest.user_name) {
-        if (setlogin(job.manifest.user_name.value().c_str()) < 0) {
-            log_errno("setlogin");
-            return (-1);
-        }
-    }
-#endif
-	if (setuid(pwent->pw_uid) < 0) {
-		log_errno("setuid");
-		return (-1);
-	}
-	return (0);
-}
-
 
 /* Add the standard set of environment variables that most programs expect.
  * See: http://pubs.opengroup.org/onlinepubs/009695399/basedefs/xbd_chap08.html
@@ -128,9 +83,11 @@ static std::vector<std::string> setup_environment_variables(const Job & job, con
             pw_dir = pwent->pw_dir;
             pw_shell = pwent->pw_shell;
         } else {
+            // LCOV_EXCL_START
             pw_name = std::to_string(getuid());
             pw_dir = "/";
             pw_shell = "/bin/sh";
+            // LCOV_EXCL_STOP
         }
         if (!job.manifest.environment_variables.count("LOGNAME")) {
             result.emplace_back(std::string{"LOGNAME="} + pw_name);
@@ -179,163 +136,135 @@ static std::vector<std::string> setup_environment_variables(const Job & job, con
 	return result;
 }
 
-static inline int
-exec_job(const Job & job, const std::vector<std::string> &final_env)
-{
-	int rv;
-	char *path;
-	char **argv, **envp;
-
-	envp = static_cast<char **>(calloc(final_env.size() + 1, sizeof(char *)));
-    if (!envp) {
-        throw std::bad_alloc();
+static std::optional<ExecStatus>
+replace_fd(int oldfd, const std::string &path, int flags, int mode) {
+    int newfd = open(path.c_str(), flags, mode);
+    if (newfd < 0) {
+        return ExecStatus{ExecStatus::OpenFailed, errno};
     }
-    for (size_t i = 0; i < final_env.size(); i++) {
-        envp[i] = const_cast<char*>(final_env[i].c_str());
+    if (dup2(newfd, oldfd) < 0) {
+        (void) close(newfd);
+        return ExecStatus{ExecStatus::Dup2Failed, errno};
     }
-
-    argv = static_cast<char **>(calloc(job.manifest.program_arguments.size() + 1, sizeof(char *)));
-    if (!argv) {
-        throw std::bad_alloc();
+    if (close(newfd) < 0) {
+        return ExecStatus{ExecStatus::CloseFailed, errno};
     }
-    for (size_t i = 0; i < job.manifest.program_arguments.size(); i++) {
-        argv[i] = const_cast<char*>(job.manifest.program_arguments[i].c_str());
-    }
-	if (job.manifest.program) {
-		path = (char*)job.manifest.program.value().c_str();
-	} else {
-		path = argv[0];
-	}
-    if (!path) {
-        throw std::logic_error("path cannot be empty");
-    }
-	if (job.manifest.enable_globbing) {
-		//TODO: globbing
-	}
-	log_debug("exec: %s", path);
-
-#if DEBUG
-	log_debug("argv[]:");
-	for (char **item = argv; *item; item++) {
-		log_debug(" - arg: %s", *item);
-	}
-	log_debug("envp[]:");
-	for (char **item = envp; *item; item++) {
-		log_debug(" - env: %s", *item);
-	}
-#endif
-
-	closelog();
-
-	rv = execve(path, argv, envp);
-	if (rv < 0) {
-		log_errno("execve(2)");
-		goto err_out;
-    	}
-	log_notice("executed job");
-
-    free(argv);
-    free(envp);
-	return (0);
-
-err_out:
-    free(argv);
-    free(envp);
-	return -1;
+    return std::nullopt;
 }
 
-static inline int
-redirect_stdio(const Job & job)
-{
-	int fd;
+static std::optional<ExecStatus>
+start_child_process(const Job &job, const std::vector<std::string> &final_env, const struct passwd *pwent,
+                    const struct group *grent) {
+    const Manifest &manifest = job.manifest;
 
-    log_debug("setting stdin path to %s", job.manifest.stdin_path.c_str());
-    fd = open(job.manifest.stdin_path.c_str(), O_RDONLY);
-    if (fd < 0) goto err_out;
-    if (dup2(fd, STDIN_FILENO) < 0) {
-        log_errno("dup2(2)");
-        (void) close(fd);
-        goto err_out;
+    if (setsid() < 0) {
+        return ExecStatus{ExecStatus::CreateSessionFailed, errno};
     }
-    if (close(fd) < 0) goto err_out;
-
-    log_debug("setting stdout path to %s", job.manifest.stdout_path.c_str());
-    fd = open(job.manifest.stdout_path.c_str(), O_CREAT | O_WRONLY, 0600);
-    if (fd < 0) goto err_out;
-    if (dup2(fd, STDOUT_FILENO) < 0) {
-        log_errno("dup2(2)");
-        (void) close(fd);
-        goto err_out;
+    if (manifest.nice && setpriority(PRIO_PROCESS, 0, manifest.nice.value()) < 0) {
+        return ExecStatus{ExecStatus::SetPriorityFailed, errno};
     }
-    if (close(fd) < 0) goto err_out;
-
-    log_debug("setting stderr path to %s", job.manifest.stderr_path.c_str());
-    fd = open(job.manifest.stderr_path.c_str(), O_CREAT | O_WRONLY, 0600);
-    if (fd < 0) goto err_out;
-    if (dup2(fd, STDERR_FILENO) < 0) {
-        log_errno("dup2(2)");
-        (void) close(fd);
-        goto err_out;
+    if (manifest.working_directory &&
+        chdir(manifest.working_directory->c_str()) < 0) {
+        return ExecStatus{ExecStatus::SetWorkingDirectoryFailed, errno};
     }
-    if (close(fd) < 0) goto err_out;
-
-	return 0;
-
-err_out:
-	return -1;
-}
-
-static int
-start_child_process(const Job &job, const std::vector<std::string> &final_env, const struct passwd *pwent, const struct group *grent)
-{
-#ifndef NOFORK
-	if (setsid() < 0) {
-		log_errno("setsid");
-		goto err_out;
-	}
+    if (manifest.root_directory &&
+        chroot(manifest.root_directory->c_str()) < 0) {
+        return ExecStatus{ExecStatus::SetRootDirectoryFailed, errno};
+    }
+    if (manifest.user_name) {
+        gid_t new_gid;
+        if (manifest.group_name) {
+            new_gid = grent->gr_gid;
+        } else {
+            new_gid = pwent->pw_gid;
+        }
+        if (manifest.init_groups && initgroups(manifest.user_name->c_str(), new_gid) < 0) {
+            return ExecStatus{ExecStatus::InitGroupsFailed, errno};
+        }
+        if (setgid(new_gid) < 0) {
+            return ExecStatus{ExecStatus::SetGroupIdFailed, errno};
+        }
+#if HAVE_SETLOGIN
+        if (setlogin(manifest.user_name->c_str()) < 0) {
+            return ExecStatus{ExecStatus::SetLoginFailed, errno};
+        }
 #endif
-	if (apply_resource_limits(job) < 0) {
-		log_error("unable to apply resource limits");
-		goto err_out;
-	}
-	if (job.manifest.working_directory) {
-        auto dir = job.manifest.working_directory.value().c_str();
-		if (chdir(dir) < 0) {
-			log_error("unable to chdir to %s", dir);
-			goto err_out;
-		}
-	}
-	if (job.manifest.root_directory && getuid() == 0) {
-        auto dir = job.manifest.root_directory.value().c_str();
-        if (chroot(dir) < 0) {
-			log_error("unable to chroot to %s", dir);
-			goto err_out;
-		}
-	}
-    // FIXME: what if User provided by no Group? This will not work
-	if (getuid() == 0 && pwent && grent && (modify_credentials(job, pwent, grent) < 0)) {
-		log_error("unable to modify credentials");
-		goto err_out;
-	}
-
+        if (setuid(pwent->pw_uid) < 0) {
+            return ExecStatus{ExecStatus::SetUserIdFailed, errno};
+        }
+    }
     // FIXME: convert umask to octal
     //(void) umask(job.manifest.umask);
 
-    if (redirect_stdio(job) < 0) {
-		log_error("unable to redirect stdio");
-		goto err_out;
-	}
+    std::optional<ExecStatus> maybe_error;
+    maybe_error = replace_fd(STDIN_FILENO, job.manifest.stdin_path, O_RDONLY, 0);
+    if (maybe_error) {
+        maybe_error->errorContext = ExecStatus::RedirectStdin;
+        return maybe_error;
+    }
 
-    if (exec_job(job, final_env) < 0) {
-		log_error("exec_job() failed");
-		goto err_out;
-	}
+    maybe_error = replace_fd(STDOUT_FILENO, job.manifest.stdout_path, O_CREAT | O_WRONLY, 0600);
+    if (maybe_error) {
+        maybe_error->errorContext = ExecStatus::RedirectStdout;
+        return maybe_error;
+    }
 
-	return (0);
+    maybe_error = replace_fd(STDERR_FILENO, job.manifest.stderr_path, O_CREAT | O_WRONLY, 0600);
+    if (maybe_error) {
+        maybe_error->errorContext = ExecStatus::RedirectStderr;
+        return maybe_error;
+    }
 
-err_out:
-	log_error("job %s failed to start; see previous log message for details", job.manifest.label.c_str());
-	return (-1);
+    char **envp = static_cast<char **>(calloc(final_env.size() + 1, sizeof(char *)));
+    if (!envp) {
+        return ExecStatus{ExecStatus::MemoryAllocationFailed, errno};
+    }
+    for (size_t i = 0; i < final_env.size(); i++) {
+        envp[i] = const_cast<char *>(final_env[i].c_str());
+    }
+
+    char **argv = static_cast<char **>(calloc(job.manifest.program_arguments.size() + 1, sizeof(char *)));
+    if (!argv) {
+        return ExecStatus{ExecStatus::MemoryAllocationFailed, errno};
+    }
+    for (size_t i = 0; i < job.manifest.program_arguments.size(); i++) {
+        argv[i] = const_cast<char *>(job.manifest.program_arguments[i].c_str());
+    }
+
+    char *path;
+    if (job.manifest.program) {
+        path = (char *) job.manifest.program.value().c_str();
+    } else {
+        path = argv[0];
+    }
+    // TODO: move this to manifest load-time error
+    if (!path) {
+        throw std::logic_error("path cannot be empty");
+    }
+    if (job.manifest.enable_globbing) {
+        //TODO: globbing
+    }
+#if DEBUG_EXEC_CALL
+    log_debug("exec: %s", path);
+
+log_debug("argv[]:");
+for (char **item = argv; *item; item++) {
+    log_debug(" - arg: %s", *item);
+}
+log_debug("envp[]:");
+for (char **item = envp; *item; item++) {
+    log_debug(" - env: %s", *item);
+}
+#endif
+
+    // TODO: reenable this if openlog() doesn't set FD_CLOEXEC
+    //closelog();
+
+    (void) execve(path, argv, envp);
+    int saved_errno = errno;
+    free(argv);
+    free(envp);
+    return ExecStatus{ExecStatus::ExecFailed, saved_errno};
 }
 
 void Job::load() {
@@ -380,7 +309,7 @@ void Job::unload() {
     state = JOB_STATE_DEFINED;
 }
 
-void Job::run(const std::function<void()> post_fork_cleanup) {
+bool Job::run(const std::function<void()> post_fork_cleanup) {
     struct passwd *pwent = NULL;
 	struct group *grent = NULL;
 
@@ -393,38 +322,43 @@ void Job::run(const std::function<void()> post_fork_cleanup) {
     }
 
     auto final_env = setup_environment_variables(*this, pwent);
+    ExecMonitor ipcpipe;
 
-    // temporary for debugging
-#ifdef NOFORK
-	(void) start_child_process(*this, pwent, grent);
-#else
 	pid = fork();
 	if (pid < 0) {
         throw std::system_error(errno, std::system_category(), "fork(2)");
 	} else if (pid == 0) {
+        // This is the child process.
+        ipcpipe.becomeChild();
         try {
             post_fork_cleanup();
         } catch (...) {
-            //TODO: report failures to the parent? or is exiting good enough?
             log_error("post_fork_cleanup() failed");
-            exit(123);
+            ipcpipe.writeStatus(ExecStatus{ExecStatus::ForkHandlerFailed});
         }
-		if (start_child_process(*this, final_env, pwent, grent) < 0) {
-			//TODO: report failures to the parent? or is exiting good enough?
-            log_error("post_fork_cleanup() failed");
-            exit(124);
+        auto maybe_error = start_child_process(*this, final_env, pwent, grent);
+        if (maybe_error) {
+            ipcpipe.writeStatus(*maybe_error);
 		}
+        exit(127);
 	} else {
+        // This is the parent process.
         started_at = current_time();
-		log_debug("job %s started at %zu with pid %d", manifest.label.c_str(), started_at.value(), pid);
-		state = JOB_STATE_RUNNING;
-        // FIXME: sockets
-        ///struct job_manifest_socket *jms;
-//		SLIST_FOREACH(jms, &job.manifest.sockets, entry) {
-//			job_manifest_socket_close(jms);
-//		}
+        log_debug("job %s started at %zu with pid %d", manifest.label.c_str(), started_at.value(), pid);
+
+        ipcpipe.becomeParent();
+        ExecStatus status = ipcpipe.readStatus();
+        if (status.errorCode == ExecStatus::ExecSuccess) {
+            return true;
+        } else {
+            log_error("job %s failed to start: %s",
+                      manifest.label.c_str(), status.toString().c_str());
+            ::kill(pid, 9);
+            ::waitpid(pid, nullptr, 0);
+            pid = 0;
+            return false;
+        }
 	}
-#endif /* NOFORK */
 }
 
 job_schedule_t Job::_set_schedule() const {
@@ -446,9 +380,9 @@ Job::Job(std::optional<std::filesystem::path> manifest_path_, Manifest manifest_
         term_signal(0),
         schedule(_set_schedule()){}
 
-bool Job::kill(int signum) const {
+bool Job::killJob(int signum) const {
     if (state != JOB_STATE_RUNNING || pid == 0) {
-        log_debug("tried to kill non-running job");
+        log_error("tried to kill non-running job");
         return false;
     }
     if (::kill(pid, signum) < 0) {
@@ -456,26 +390,6 @@ bool Job::kill(int signum) const {
         // TODO: gracefully handle ESRCH, if the job already died but was not reaped
         return false;
     }
+    log_notice("sent signal %d to process %d for job %s", signum, pid, manifest.label.c_str());
     return true;
-}
-
-bool Job::kill(const std::string &signame_or_num) {
-    try {
-        return kill(std::stoi(signame_or_num));
-    } catch (...) {
-        // FIXME: need to do something like this for Linux, which does not have sys_signame
-#if HAVE_SYS_SIGNAME
-        auto s = signame_or_num;
-        if (s.find("sig") == 0 || s.find("SIG") == 0) {
-            s = s.substr(3);
-        }
-        for (int signum = 1; signum < NSIG; signum++) {
-            if (!strcasecmp(s.c_str(), sys_signame[signum])) {
-                return kill(signum);
-            }
-        }
-#endif
-    }
-    log_debug("tried to send unknown signal by name");
-    return false;
 }

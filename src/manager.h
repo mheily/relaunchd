@@ -32,7 +32,7 @@ public:
 
     virtual ~Manager();
 
-    bool handleEvent();
+    bool handleEvent(std::optional<std::chrono::milliseconds> timeout = std::nullopt);
 
     [[nodiscard]] std::optional<Label> getLabelByPid(pid_t pid) const;
 
@@ -57,6 +57,8 @@ public:
     int unloadJob(const std::filesystem::path &path, bool overrideDisabled = false, bool forceUnload = false);
 
     void unloadJob(Job &job, bool overrideDisabled = false, bool forceUnload = false);
+
+    bool killJob(const Label &, const std::string &signame_or_number);
 
     void startAllJobs();
 

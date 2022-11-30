@@ -64,11 +64,9 @@ struct Job {
         log_debug("job dump: label=%s state=%d", manifest.label.c_str(), state);
     }
 
-    bool kill(int signum) const;
+    bool killJob(int signum) const;
 
-    bool kill(const std::string &signame_or_num);
-
-    void run(std::function<void()> post_fork_cleanup);
+    bool run(std::function<void()> post_fork_cleanup);
 
     void load();
 
@@ -76,6 +74,8 @@ struct Job {
 
     //! Has the job ever been started by the manager? It might not currently
     // be running, but that is okay.
+    // TODO: Replace this with a state machine that cannot transition back to a
+    //       non-started state.
     bool hasStarted() const {
         switch (state) {
             case JOB_STATE_DEFINED:
@@ -87,7 +87,9 @@ struct Job {
             case JOB_STATE_EXITED:
                 return true;
             default:
+                // LCOV_EXCL_START
                 throw std::runtime_error("unhandled case");
+                // LCOV_EXCL_STOP
         }
     }
 
@@ -95,6 +97,7 @@ struct Job {
     bool shouldStart() const {
         switch (state) {
             case JOB_STATE_DEFINED:
+                return false;
             case JOB_STATE_MISSING_DEPENDS:    // not sure about this one...
                 return false;
             case JOB_STATE_LOADED:
@@ -107,7 +110,9 @@ struct Job {
             case JOB_STATE_EXITED:
                 return (manifest.keep_alive.always || schedule != JOB_SCHEDULE_NONE);
             default:
+                // LCOV_EXCL_START
                 throw std::logic_error("invalid state");
+                // LCOV_EXCL_STOP
         }
     }
 

@@ -38,6 +38,7 @@
 #include "options.h"
 #include "channel.h"
 #include "rpc_server.h"
+#include "signal_names.h"
 #include "state_file.hpp"
 #include "clock.h"
 
@@ -62,18 +63,23 @@ std::optional<Label> Manager::reapChildProcess(pid_t pid, int status) {
     //  converting the above into methods that examine exit_status.
     if (WIFEXITED(status)) {
 		job.last_exit_status = WEXITSTATUS(status);
+        log_debug("job %s pid %d exited with status %d", job.manifest.label.c_str(),
+                  job.pid,
+                  job.last_exit_status);
 	} else if (WIFSIGNALED(status)) {
 		job.last_exit_status = -1;
 		job.term_signal = WTERMSIG(status);
+        log_debug("job %s pid %d was terminated by signal %d", job.manifest.label.c_str(),
+                  job.pid,
+                  job.term_signal);
     } else if (WIFSTOPPED(status)) {
-        job.last_exit_status = -1;
-        job.term_signal = -1;
+        int stop_signal = WSTOPSIG(status);
+        log_debug("job %s pid %d was stopped by signal %d",
+                  job.manifest.label.c_str(), job.pid, stop_signal);
+        return std::nullopt;
     } else {
         throw std::range_error("invalid status");
 	}
-    log_debug("job %s pid %d exited with status %d", job.manifest.label.c_str(),
-              job.pid,
-              job.last_exit_status);
 	job.pid = 0;
     job.state = JOB_STATE_EXITED;
     return label;
@@ -82,7 +88,9 @@ std::optional<Label> Manager::reapChildProcess(pid_t pid, int status) {
 void Manager::setupSignalHandlers() {
     // FIXME testing eventmgr.addSignal(SIGCHLD, [](int){});
 
-    eventmgr.addSignal(SIGPIPE, [](int){});
+    eventmgr.addSignal(SIGPIPE, [](int){
+        log_debug("caught SIGPIPE and ignored it");
+    });
 
     eventmgr.addSignal(SIGINT, [this](int){
         SHUTTING_DOWN = true;
@@ -257,10 +265,10 @@ Manager::~Manager() {
     unloadAllJobs();
 }
 
-bool Manager::handleEvent() {
+bool Manager::handleEvent(std::optional<std::chrono::milliseconds> timeout) {
     log_debug("waiting for an event");
     try {
-        eventmgr.waitForEvent();
+        eventmgr.waitForEvent(timeout);
     } catch (const std::exception &e) {
         log_error("caught exception: %s", e.what());
     }
@@ -450,8 +458,8 @@ void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
                 startJob(depjob, dep_visited);
             }
         }
-        if (depjob.state != JOB_STATE_RUNNING) {
-            log_debug("dependency is not running: %s", label.c_str());
+        if (!depjob.hasStarted()) {
+            log_debug("dependency has not started: %s is in state %d", label.c_str(), depjob.state);
             job.state = JOB_STATE_MISSING_DEPENDS;
             return;
         }
@@ -465,15 +473,18 @@ void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
     std::function<void()> post_fork_cleanup = [this]() {
         eventmgr.handleFork();
     };
-    job.run(post_fork_cleanup);
-    eventmgr.addProcess(job.pid, [this](pid_t pid, int status) {
-        auto maybe_label = reapChildProcess(pid, status);
-        if (maybe_label) {
-            auto &job = getJob(maybe_label.value());
-            rescheduleJob(job);
-        }
-    });
-    job.state = JOB_STATE_RUNNING;
+    if (job.run(post_fork_cleanup)) {
+        job.state = JOB_STATE_RUNNING;
+        eventmgr.addProcess(job.pid, [this](pid_t pid, int status) {
+            auto maybe_label = reapChildProcess(pid, status);
+            if (maybe_label) {
+                auto &job = getJob(maybe_label.value());
+                rescheduleJob(job);
+            }
+        });
+    } else {
+        job.state = JOB_STATE_EXITED;
+    }
 }
 
 void Manager::startAllJobs() {
@@ -537,5 +548,23 @@ bool Manager::loadAllManifests(const std::string &path, bool overrideDisabled, b
     }
 
     return error;
+}
+
+bool Manager::killJob(const Label &label, const std::string &signame_or_number) {
+    auto maybe_signum = getSignalByName(signame_or_number);
+    if (!maybe_signum) {
+        return false;
+    }
+    if (!jobExists(label)) {
+        log_debug("tried to kill a nonexistent job: %s", label.c_str());
+        return false;
+    }
+    Job &job = getJob(label);
+    bool success = job.killJob(maybe_signum.value());
+    log_debug("sent signal %s to job %s with success=%d",
+              signame_or_number.c_str(),
+              label.c_str(),
+              success);
+    return success;
 }
 
