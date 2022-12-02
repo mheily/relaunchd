@@ -69,7 +69,7 @@ struct Job {
 
     void load();
 
-    void unload();
+    bool unload();
 
     //! Has the job ever been started by the manager? It might not currently
     // be running, but that is okay.

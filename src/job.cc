@@ -299,19 +299,12 @@ void Job::load() {
     dump();
 }
 
-void Job::unload() {
+bool Job::unload() {
+    // This could be used to cleanup resources associated with the job
+    // FIXME: assert that it is in the right state
     log_debug("unloading job: %s", manifest.label.c_str());
-    if (state == JOB_STATE_RUNNING) {
-        log_debug("sending SIGTERM to process group %d", pid);
-        if (::kill(-1 * pid, SIGTERM) < 0) {
-            if (errno != ESRCH) {
-                log_errno("killpg(2) of pid %d", pid);
-            }
-        }
-        // TODO: start a timer to send a SIGKILL if it doesn't die gracefully
-        //  See: https://github.com/mheily/relaunchd/issues/14
-    }
     state = JOB_STATE_DEFINED;
+    return true;
 }
 
 bool Job::run(const std::function<void()> post_fork_cleanup) {
@@ -400,14 +393,19 @@ Job::Job(std::optional<std::filesystem::path> manifest_path_,
       schedule(_set_schedule()) {}
 
 bool Job::killJob(int signum) const {
-    if (state != JOB_STATE_RUNNING || pid == 0) {
-        log_error("tried to kill non-running job");
-        return false;
+    // FIXME: remove any watched kernel events associated with the job (timeouts, etc..)
+    if (state != JOB_STATE_RUNNING) {
+        log_debug("tried to kill non-running job");
+        return true;
     }
     if (::kill(pid, signum) < 0) {
+        if (errno == ESRCH) {
+            log_debug("killpg(2) of pid %d: got ESRCH", pid);
+        } else {
+            log_errno("killpg(2) of pid %d", pid);
+            return false;
+        }
         log_error("kill(2) of PID %d failed: %s", pid, strerror(errno));
-        // TODO: gracefully handle ESRCH, if the job already died but was not
-        // reaped
         return false;
     }
     log_notice("sent signal %d to process %d for job %s", signum, pid,
