@@ -78,21 +78,33 @@ static json _rpc_op_load(const json &args, Manager &mgr) {
 static json _rpc_op_unload(const json &args, Manager &mgr) {
     bool forceUnload = args[1]["Force"];
     bool overrideDisabled = args[1]["OverrideDisabled"];
+    bool is_error = false;
     for (const auto &jsonobj : args[1]["Paths"]) {
         const std::filesystem::path path{jsonobj.get<std::string>()};
         if (!std::filesystem::exists(path)) {
-            return {{"error", true}};
+            log_warning("path does not exist: %s", path.c_str());
+            is_error = true;
+            break;
         }
         if (std::filesystem::is_directory(path)) {
             using std::filesystem::directory_iterator;
-            for (const auto &file : directory_iterator(path)) {
-                mgr.unloadJob(file.path(), overrideDisabled, forceUnload);
+            for (const auto &file: directory_iterator(path)) {
+                if (!mgr.unloadJob(file.path(), overrideDisabled,
+                                   forceUnload)) {
+                    log_warning("unload failed: %s", file.path().c_str());
+                    is_error = true;
+                    break;
+                }
             }
         } else {
-            mgr.unloadJob(path, overrideDisabled, forceUnload);
+            if (!mgr.unloadJob(path, overrideDisabled, forceUnload)) {
+                log_warning("unload failed: %s", path.c_str());
+                is_error = true;
+                break;
+            }
         }
     }
-    return {{"error", false}};
+    return {{"error", is_error}};
 }
 
 /* FIXME: will need to ask the manager to start/stop the job,
@@ -123,9 +135,9 @@ static json _rpc_op_stop(const json &args, Manager &mgr) {
 #endif
 
 static json _rpc_op_remove(const json &args, Manager &mgr) {
-    const std::string &label = args[1]["Label"];
-    mgr.unloadJob(label);
-    return {{"error", false}};
+    const Label label{args[1]["Label"]};
+    bool status = mgr.unloadJob(label);
+    return {{"error", status}};
 }
 
 static json _rpc_op_submit(const json &args, Manager &mgr) {

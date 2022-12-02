@@ -393,7 +393,8 @@ Job::Job(std::optional<std::filesystem::path> manifest_path_,
       schedule(_set_schedule()) {}
 
 bool Job::killJob(int signum) const {
-    // FIXME: remove any watched kernel events associated with the job (timeouts, etc..)
+    // FIXME: remove any watched kernel events associated with the job
+    // (timeouts, etc..)
     if (state != JOB_STATE_RUNNING) {
         log_debug("tried to kill non-running job");
         return true;

@@ -76,8 +76,8 @@ namespace manifest {
         int32_t hour;
         int32_t day;
         int32_t weekday;
-    int32_t month;
-};
+        int32_t month;
+    };
 
 struct Manifest {
     Label label;

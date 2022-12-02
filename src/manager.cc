@@ -155,8 +155,9 @@ bool Manager::loadManifest(const json &jsondata, const std::string &path,
     return true;
 }
 
-void Manager::unloadJob(Job &job, bool overrideDisabled, bool forceUnload) {
+bool Manager::unloadJob(Job &job, bool overrideDisabled, bool forceUnload) {
     const auto &label = static_cast<std::string>(job.manifest.label);
+
     if (overrideDisabled) {
         log_debug("%s: overriding the Disabled key", label.c_str());
         overrideJobEnabled(label, false);
@@ -175,37 +176,44 @@ void Manager::unloadJob(Job &job, bool overrideDisabled, bool forceUnload) {
 
     if (job.manifest.disabled && !forceUnload) {
         log_debug("will not unload %s: it is disabled", label.c_str());
-        return;
+        return false;
     }
 
-    job.unload();
+    return job.unload();
 }
 
-int Manager::unloadJob(const std::string &label, bool overrideDisabled,
-                       bool forceUnload) {
-    if (!jobs.count(label)) {
+bool Manager::unloadJob(const Label &label, bool overrideDisabled,
+                        bool forceUnload) {
+    if (!jobExists(label)) {
         log_info("tried to unload a job that is not loaded: %s", label.c_str());
-        return -1;
+        return false;
     }
-    auto &job = jobs.at(label);
-    unloadJob(job, overrideDisabled, forceUnload);
-    jobs.erase(label);
-    return 0;
+    auto &job = getJob(label);
+    if (!unloadJob(job, overrideDisabled, forceUnload)) {
+        log_info("failed to unload job: %s", label.c_str());
+        return false;
+    }
+    jobs.erase(static_cast<std::string>(label));
+    return true;
 }
 
-int Manager::unloadJob(const std::filesystem::path &path, bool overrideDisabled,
-                       bool forceUnload) {
-    json obj = manifest::parse(path);
-    std::string label;
+bool Manager::unloadJob(const std::filesystem::path &path,
+                        bool overrideDisabled, bool forceUnload) {
+    json obj;
+    try {
+        obj = manifest::parse(path);
+    } catch (...) {
+        log_error("error parsing %s", path.c_str());
+        return false;
+    }
+    std::string buf;
     if (obj.contains("Label")) {
-        obj.at("Label").get_to(label);
+        obj.at("Label").get_to(buf);
+        return unloadJob(Label{buf}, overrideDisabled, forceUnload);
     } else {
         log_error("manifest has no Label key");
-        return -1;
+        return false;
     }
-    unloadJob(label, overrideDisabled, forceUnload);
-    jobs.erase(label);
-    return 0;
 }
 
 json Manager::listJobs() {

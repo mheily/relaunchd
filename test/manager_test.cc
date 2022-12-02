@@ -268,7 +268,30 @@ void testKillJobBySignal() {
     assert(job.term_signal == 9);
 }
 
+
+void testUnload() {
+    Manager mgr{DOMAIN_TYPE_USER};
+    assert(!mgr.unloadJob(Label{"a job path that does not exist"}));
+    assert(!mgr.unloadJob(Label{"a job label that does not exist"}));
+    Label label{"test.job1"};
+    json manifest = json::parse(R"(
+        {
+          "Label": "test.job1",
+          "ProgramArguments": ["/bin/sh", "-c", "sleep 12"],
+          "RunAtLoad": true
+        }
+    )");
+    std::string path = "/dev/null";
+    mgr.loadManifest(manifest, path);
+    mgr.startAllJobs();
+    assert(mgr.unloadJob(label));
+    assert(!mgr.unloadJob(label));
+    assert(mgr.handleEvent(std::chrono::milliseconds{100}));
+    assert(!mgr.jobExists(label));
+}
+
 void addManagerTests(TestRunner &runner) {
+    runner.addTest("testUnload", testUnload);
     runner.addTest("testKeepaliveAfterSignal", testKeepaliveAfterSignal);
     runner.addTest("testKeepaliveAfterExit", testKeepaliveAfterExit);
     runner.addTest("testCyclicDependency", testCyclicDependency);

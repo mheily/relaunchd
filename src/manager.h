@@ -56,13 +56,13 @@ class Manager {
 
     json listJobs();
 
-    int unloadJob(const std::string &label, bool overrideDisabled = false,
-                  bool forceUnload = false);
+    bool unloadJob(const Label &label, bool overrideDisabled = false,
+                   bool forceUnload = false);
 
-    int unloadJob(const std::filesystem::path &path,
-                  bool overrideDisabled = false, bool forceUnload = false);
+    bool unloadJob(const std::filesystem::path &path,
+                   bool overrideDisabled = false, bool forceUnload = false);
 
-    void unloadJob(Job &job, bool overrideDisabled = false,
+    bool unloadJob(Job &job, bool overrideDisabled = false,
                    bool forceUnload = false);
 
     bool killJob(const Label &, const std::string &signame_or_number);
