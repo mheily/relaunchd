@@ -30,8 +30,6 @@ using json = nlohmann::json;
 #include "log.h"
 #include "manifest.h"
 
-typedef std::string Label;
-
 typedef enum {
     JOB_SCHEDULE_NONE = 0,
     JOB_SCHEDULE_PERIODIC,

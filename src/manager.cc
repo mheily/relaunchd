@@ -54,7 +54,7 @@ std::optional<Label> Manager::reapChildProcess(pid_t pid, int status) {
         log_debug("child pid %d exited but no matching job found", pid);
         return std::nullopt;
     }
-    const std::string &label = maybe_label.value();
+    const auto &label = maybe_label.value();
     auto &job = getJob(label);
     // TODO: Set this:
     //      job.exit_status = status
@@ -119,7 +119,7 @@ bool Manager::loadManifest(const json &jsondata, const std::string &path,
     }
 
     /* Check for duplicate jobs */
-    if (jobs.count(manifest.label)) {
+    if (jobExists(manifest.label)) {
         log_error("tried to load a duplicate job with label %s",
                   manifest.label.c_str());
         return false;
@@ -133,8 +133,9 @@ bool Manager::loadManifest(const json &jsondata, const std::string &path,
     // Check if the job is disabled
     if (manifest.disabled && !forceLoad) {
         auto state = STATE_FILE->getValue();
-        if (state.at("Overrides").contains(manifest.label)) {
-            const auto job_state = state["Overrides"][manifest.label];
+        const std::string &label = static_cast<std::string>(manifest.label);
+        if (state.at("Overrides").contains(label)) {
+            const auto job_state = state["Overrides"][label];
             if (job_state.at("Enabled")) {
                 forceLoad = true;
             }
@@ -155,8 +156,7 @@ bool Manager::loadManifest(const json &jsondata, const std::string &path,
 }
 
 void Manager::unloadJob(Job &job, bool overrideDisabled, bool forceUnload) {
-    std::string label = job.manifest.label;
-
+    const auto &label = static_cast<std::string>(job.manifest.label);
     if (overrideDisabled) {
         log_debug("%s: overriding the Disabled key", label.c_str());
         overrideJobEnabled(label, false);
@@ -226,9 +226,10 @@ json Manager::listJobs() {
     return result;
 }
 
-void Manager::overrideJobEnabled(const std::string &label, bool enabled) {
+void Manager::overrideJobEnabled(const Label &label_, bool enabled) {
     // FIXME: do we care if it exists?
     //  auto & job = manager_get_job_by_label(label);
+    const auto &label = static_cast<std::string>(label_);
     auto doc = STATE_FILE->getValue();
     if (doc.at("Overrides").contains(label)) {
         doc["Overrides"][label]["Enabled"] = enabled;
@@ -290,9 +291,13 @@ std::optional<Label> Manager::getLabelByPid(const pid_t pid) const {
     return std::nullopt;
 }
 
-bool Manager::jobExists(const Label &label) const { return jobs.count(label); }
+bool Manager::jobExists(const Label &label) const {
+    return jobs.count(static_cast<std::string>(label));
+}
 
-Job &Manager::getJob(const std::string &label) { return jobs.at(label); }
+Job &Manager::getJob(const Label &label) {
+    return jobs.at(static_cast<std::string>(label));
+}
 
 void Manager::wakeJob(Job &job) {
     if (job.state != JOB_STATE_WAITING) {
@@ -426,7 +431,8 @@ void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
     if (visited) {
         log_debug("checking for cycle");
         for (const auto &label : visited.value()) {
-            if (job.manifest.label == label) {
+            if (static_cast<std::string>(job.manifest.label) ==
+                static_cast<std::string>(label)) {
                 log_error("cycle detected in the job dependency graph");
                 return;
             }

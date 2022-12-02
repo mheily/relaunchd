@@ -36,7 +36,7 @@ class Manager {
 
     [[nodiscard]] std::optional<Label> getLabelByPid(pid_t pid) const;
 
-    Job &getJob(const std::string &label);
+    Job &getJob(const Label &label);
 
     void unloadAllJobs();
 
@@ -52,7 +52,7 @@ class Manager {
     bool loadManifest(const json &jsondata, const std::string &path,
                       bool overrideDisabled = false, bool forceLoad = false);
 
-    void overrideJobEnabled(const std::string &label, bool enabled);
+    void overrideJobEnabled(const Label &label, bool enabled);
 
     json listJobs();
 

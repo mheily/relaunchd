@@ -69,7 +69,11 @@ static struct cron_spec parse_start_calendar_interval(json &obj) {
 }
 
 void from_json(const json &j, Manifest &m) {
-    j.at("Label").get_to(m.label);
+    if (j.contains("Label")) {
+        std::string tmp;
+        j.at("Label").get_to(tmp);
+        m.label = tmp;
+    }
     if (j.contains("UserName")) {
         std::string tmp;
         j.at("UserName").get_to(tmp);
@@ -288,7 +292,7 @@ void Manifest::rectify() {
 }
 
 bool Manifest::validate() {
-    if (!label.size()) {
+    if (!static_cast<const std::string>(label).size()) {
         log_error("job does not have a label");
     } else if (!program && !program_arguments.empty()) {
         // TODO: deduplicate this with rectify()

@@ -64,8 +64,8 @@ void testDependencies() {
     mgr.loadManifest(job1_manifest, path);
     mgr.loadManifest(job2_manifest, path);
     mgr.startAllJobs();
-    auto &job1 = mgr.getJob("test.job1");
-    auto &job2 = mgr.getJob("test.job2");
+    auto &job1 = mgr.getJob({"test.job1"});
+    auto &job2 = mgr.getJob({"test.job2"});
     assert(job1.hasStarted());
     assert(job2.hasStarted());
     assert(mgr.handleEvent(std::chrono::milliseconds{100}));      // event: reap the PID of a job
@@ -104,8 +104,8 @@ void testCyclicDependency() {
     mgr.loadManifest(job1_manifest, path);
     mgr.loadManifest(job2_manifest, path);
     mgr.startAllJobs();
-    auto &job1 = mgr.getJob("test.job1");
-    auto &job2 = mgr.getJob("test.job2");
+    auto &job1 = mgr.getJob({"test.job1"});
+    auto &job2 = mgr.getJob({"test.job2"});
     assert(!job1.hasStarted());
     assert(!job2.hasStarted());
     assert(job1.state == JOB_STATE_MISSING_DEPENDS);
@@ -130,7 +130,7 @@ void testMissingDependency() {
     std::string path = "/dev/null";
     mgr.loadManifest(job1_manifest, path);
     mgr.startAllJobs();
-    auto &job1 = mgr.getJob("test.job1");
+    auto &job1 = mgr.getJob({"test.job1"});
     assert(!job1.hasStarted());
     assert(job1.state == JOB_STATE_MISSING_DEPENDS);
 }
@@ -151,16 +151,16 @@ void testThrottleInterval() {
     std::string path = "/dev/null";
     mgr.loadManifest(job1_manifest, path);
     mgr.startAllJobs();
-    auto &job1 = mgr.getJob("test.job1");
+    auto &job1 = mgr.getJob({"test.job1"});
     assert(job1.hasStarted());
     assert(job1.state == JOB_STATE_RUNNING);
     pid_t old_pid = job1.pid;
     assert(mgr.handleEvent());      // event: reap the PID of the job
-    auto &job2 = mgr.getJob("test.job1");
+    auto &job2 = mgr.getJob({"test.job1"});
     assert(job2.state == JOB_STATE_WAITING);
     sleep(2);
     assert(mgr.handleEvent());      // event: timer expires due to ThrottleInterval, job restarts
-    auto &job3 = mgr.getJob("test.job1");
+    auto &job3 = mgr.getJob({"test.job1"});
     assert(job3.state == JOB_STATE_RUNNING);
     assert(job3.pid != old_pid != 0);
 }
@@ -186,8 +186,8 @@ void testShouldStart() {
     std::string path = "/dev/null";
     mgr.loadManifest(job1_manifest, path);
     mgr.loadManifest(job2_manifest, path);
-    auto &job1 = mgr.getJob("test.job1");
-    auto &job2 = mgr.getJob("test.job2");
+    auto &job1 = mgr.getJob({"test.job1"});
+    auto &job2 = mgr.getJob({"test.job2"});
     assert(job1.shouldStart());
     assert(job2.shouldStart());
     mgr.startAllJobs();
@@ -212,7 +212,7 @@ void testKeepaliveAfterExit() {
     std::string path = "/dev/null";
     mgr.loadManifest(manifest, path);
     mgr.startAllJobs();
-    auto &job = mgr.getJob("test.job1");
+    auto &job = mgr.getJob({"test.job1"});
     assert(job.state == JOB_STATE_RUNNING);
     pid_t old_pid = job.pid;
     mgr.handleEvent();
@@ -235,10 +235,10 @@ void testKeepaliveAfterSignal() {
     std::string path = "/dev/null";
     mgr.loadManifest(manifest, path);
     mgr.startAllJobs();
-    auto &job = mgr.getJob("test.job1");
+    auto &job = mgr.getJob({"test.job1"});
     assert(job.state == JOB_STATE_RUNNING);
     pid_t old_pid = job.pid;
-    assert(mgr.killJob("test.job1", "SIGKILL"));
+    assert(mgr.killJob({"test.job1"}, "SIGKILL"));
     mgr.handleEvent(std::chrono::milliseconds{100});
     assert(job.state == JOB_STATE_RUNNING);
     assert(old_pid != job.pid);
@@ -254,14 +254,15 @@ void testKillJobBySignal() {
           "RunAtLoad": true
         }
     )");
+    Label label{"test.job1"};
     std::string path = "/dev/null";
     mgr.loadManifest(manifest, path);
     mgr.startAllJobs();
-    assert(!mgr.killJob("test.job1", "A bad signal name that does not exist"));
-    assert(mgr.killJob("test.job1", "SIGKILL"));
-    assert(mgr.killJob("test.job1", "9"));
+    assert(!mgr.killJob(label, "A bad signal name that does not exist"));
+    assert(mgr.killJob(label, "SIGKILL"));
+    assert(mgr.killJob(label, "9"));
     mgr.handleEvent();
-    auto &job = mgr.getJob("test.job1");
+    auto &job = mgr.getJob(label);
     assert(job.state == JOB_STATE_EXITED);
     assert(job.last_exit_status == -1);
     assert(job.term_signal == 9);

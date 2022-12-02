@@ -30,19 +30,29 @@
 #include "rpc_server.h"
 
 static json _rpc_op_disable(const json &args, Manager &mgr) {
-    const auto &label = args[1]["Label"];
-    mgr.overrideJobEnabled(label, false);
+    try {
+        Label label{args[1]["Label"]};
+        mgr.overrideJobEnabled(label, false);
+    } catch (...) {
+        // TODO: logging
+        return {{"error", true}};
+    };
     return {{"error", false}};
 }
 
 static json _rpc_op_enable(const json &args, Manager &mgr) {
-    const auto &label = args[1]["Label"];
-    mgr.overrideJobEnabled(label, true);
+    try {
+        Label label{args[1]["Label"]};
+        mgr.overrideJobEnabled(label, true);
+    } catch (...) {
+        // TODO: logging
+        return {{"error", true}};
+    };
     return {{"error", false}};
 }
 
 static json _rpc_op_kill(const json &args, Manager &mgr) {
-    const std::string &label = args[1]["Label"];
+    const Label label{args[1]["Label"]};
     const std::string &signame_or_num = args[1]["Signal"];
     return {{"error", mgr.killJob(label, signame_or_num)}};
 }
