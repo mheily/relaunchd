@@ -21,42 +21,44 @@
 
 #include "log.h"
 
+enum class ExecErrorCode {
+    //! There were no errors
+    ExecSuccess = 0,
+    //! setsid(2) failed
+    CreateSessionFailed,
+    //! chdir(2) to the WorkingDirectory failed
+    SetWorkingDirectoryFailed,
+    //! chroot(2) to the RootDirectory failed
+    SetRootDirectoryFailed,
+    //! setpriority(2) failed
+    SetPriorityFailed,
+    //! initgroups(3) failed
+    InitGroupsFailed,
+    //! setgid(2) failed
+    SetGroupIdFailed,
+    //! setlogin(2) failed
+    SetLoginFailed,
+    //! setuid(2) failed
+    SetUserIdFailed,
+    //! open(2) failed
+    OpenFailed,
+    //! read(2) failed
+    ReadFailed,
+    //! close(2) failed
+    CloseFailed,
+    //! dup2(2) failed
+    Dup2Failed,
+    //! Failed malloc() call or similar
+    MemoryAllocationFailed,
+    //! Failed execve() call or similar
+    ExecFailed,
+    //! The post-fork cleanup handler failed
+    ForkHandlerFailed,
+};
+
 //! An error message passed from the child process to the parent prior to exec()
 struct ExecStatus {
-    enum {
-        //! There were no errors
-        ExecSuccess = 0,
-        //! setsid(2) failed
-        CreateSessionFailed,
-        //! chdir(2) to the WorkingDirectory failed
-        SetWorkingDirectoryFailed,
-        //! chroot(2) to the RootDirectory failed
-        SetRootDirectoryFailed,
-        //! setpriority(2) failed
-        SetPriorityFailed,
-        //! initgroups(3) failed
-        InitGroupsFailed,
-        //! setgid(2) failed
-        SetGroupIdFailed,
-        //! setlogin(2) failed
-        SetLoginFailed,
-        //! setuid(2) failed
-        SetUserIdFailed,
-        //! open(2) failed
-        OpenFailed,
-        //! read(2) failed
-        ReadFailed,
-        //! close(2) failed
-        CloseFailed,
-        //! dup2(2) failed
-        Dup2Failed,
-        //! Failed malloc() call or similar
-        MemoryAllocationFailed,
-        //! Failed execve() call or similar
-        ExecFailed,
-        //! The post-fork cleanup handler failed
-        ForkHandlerFailed,
-    } errorCode;
+    ExecErrorCode errorCode;
     int savedErrno = 0;
     enum {
         ChildProcess = 0,
@@ -66,10 +68,47 @@ struct ExecStatus {
         ParentProcess = 4,
     } errorContext = ChildProcess;
 
+    [[nodiscard]] std::string getErrorCode() const {
+        switch (errorCode) {
+        case ExecErrorCode::ExecSuccess:
+            return "ExecSuccess";
+        case ExecErrorCode::CreateSessionFailed:
+            return "CreateSessionFailed";
+        case ExecErrorCode::SetWorkingDirectoryFailed:
+            return "SetWorkingDirectoryFailed";
+        case ExecErrorCode::SetRootDirectoryFailed:
+            return "SetRootDirectoryFailed";
+        case ExecErrorCode::SetPriorityFailed:
+            return "SetPriorityFailed";
+        case ExecErrorCode::InitGroupsFailed:
+            return "InitGroupsFailed";
+        case ExecErrorCode::SetGroupIdFailed:
+            return "SetGroupIdFailed";
+        case ExecErrorCode::SetLoginFailed:
+            return "SetLoginFailed";
+        case ExecErrorCode::SetUserIdFailed:
+            return "SetUserIdFailed";
+        case ExecErrorCode::OpenFailed:
+            return "OpenFailed";
+        case ExecErrorCode::ReadFailed:
+            return "ReadFailed";
+        case ExecErrorCode::CloseFailed:
+            return "CloseFailed";
+        case ExecErrorCode::Dup2Failed:
+            return "Dup2Failed";
+        case ExecErrorCode::MemoryAllocationFailed:
+            return "MemoryAllocationFailed";
+        case ExecErrorCode::ExecFailed:
+            return "ExecFailed";
+        case ExecErrorCode::ForkHandlerFailed:
+            return "ForkHandlerFailed";
+        }
+    }
+
     //! Convert the status to a string
     [[nodiscard]] std::string toString() const {
         using namespace std;
-        auto s = string{"[ExecStatus: code="} + to_string(errorCode) +
+        auto s = string{"[ExecStatus: code="} + getErrorCode() +
                  " context=" + to_string(errorContext);
         if (savedErrno) {
             s += " errno=" + string{strerror(savedErrno)} + "(" +
@@ -128,14 +167,14 @@ class ExecMonitor {
         ExecStatus result;
         ssize_t bytes = read(pfd[0], &result, sizeof(result));
         if (bytes < 0) {
-            return ExecStatus{ExecStatus::ReadFailed, errno,
+            return ExecStatus{ExecErrorCode::ReadFailed, errno,
                               ExecStatus::ParentProcess};
         } else if (bytes == 0) {
-            return ExecStatus{ExecStatus::ExecSuccess, 0,
+            return ExecStatus{ExecErrorCode::ExecSuccess, 0,
                               ExecStatus::ParentProcess};
         } else if (bytes < (long)sizeof(result)) {
             log_error("short read from pipe");
-            return ExecStatus{ExecStatus::ReadFailed, 0,
+            return ExecStatus{ExecErrorCode::ReadFailed, 0,
                               ExecStatus::ParentProcess};
         } else {
             return result;

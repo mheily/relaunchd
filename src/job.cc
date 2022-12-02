@@ -145,14 +145,14 @@ static std::optional<ExecStatus> replace_fd(int oldfd, const std::string &path,
                                             int flags, int mode) {
     int newfd = open(path.c_str(), flags, mode);
     if (newfd < 0) {
-        return ExecStatus{ExecStatus::OpenFailed, errno};
+        return ExecStatus{ExecErrorCode::OpenFailed, errno};
     }
     if (dup2(newfd, oldfd) < 0) {
         (void)close(newfd);
-        return ExecStatus{ExecStatus::Dup2Failed, errno};
+        return ExecStatus{ExecErrorCode::Dup2Failed, errno};
     }
     if (close(newfd) < 0) {
-        return ExecStatus{ExecStatus::CloseFailed, errno};
+        return ExecStatus{ExecErrorCode::CloseFailed, errno};
     }
     return std::nullopt;
 }
@@ -162,35 +162,35 @@ start_child_process(const Job &job, const ExecutionContext &ctx) {
     const Manifest &manifest = job.manifest;
 
     if (setsid() < 0) {
-        return ExecStatus{ExecStatus::CreateSessionFailed, errno};
+        return ExecStatus{ExecErrorCode::CreateSessionFailed, errno};
     }
     if (manifest.nice &&
         setpriority(PRIO_PROCESS, 0, manifest.nice.value()) < 0) {
-        return ExecStatus{ExecStatus::SetPriorityFailed, errno};
+        return ExecStatus{ExecErrorCode::SetPriorityFailed, errno};
     }
     if (manifest.working_directory &&
         chdir(manifest.working_directory->c_str()) < 0) {
-        return ExecStatus{ExecStatus::SetWorkingDirectoryFailed, errno};
+        return ExecStatus{ExecErrorCode::SetWorkingDirectoryFailed, errno};
     }
     if (manifest.root_directory &&
         chroot(manifest.root_directory->c_str()) < 0) {
-        return ExecStatus{ExecStatus::SetRootDirectoryFailed, errno};
+        return ExecStatus{ExecErrorCode::SetRootDirectoryFailed, errno};
     }
     if (manifest.user_name) {
         if (manifest.init_groups &&
             initgroups(manifest.user_name->c_str(), ctx.gid.value()) < 0) {
-            return ExecStatus{ExecStatus::InitGroupsFailed, errno};
+            return ExecStatus{ExecErrorCode::InitGroupsFailed, errno};
         }
         if (setgid(ctx.gid.value()) < 0) {
-            return ExecStatus{ExecStatus::SetGroupIdFailed, errno};
+            return ExecStatus{ExecErrorCode::SetGroupIdFailed, errno};
         }
 #if HAVE_SETLOGIN
         if (setlogin(manifest.user_name->c_str()) < 0) {
-            return ExecStatus{ExecStatus::SetLoginFailed, errno};
+            return ExecStatus{ExecErrorCode::SetLoginFailed, errno};
         }
 #endif
         if (setuid(ctx.uid.value()) < 0) {
-            return ExecStatus{ExecStatus::SetUserIdFailed, errno};
+            return ExecStatus{ExecErrorCode::SetUserIdFailed, errno};
         }
     }
     // FIXME: convert umask to octal
@@ -221,7 +221,7 @@ start_child_process(const Job &job, const ExecutionContext &ctx) {
     char **envp =
         static_cast<char **>(calloc(ctx.environ.size() + 1, sizeof(char *)));
     if (!envp) {
-        return ExecStatus{ExecStatus::MemoryAllocationFailed, errno};
+        return ExecStatus{ExecErrorCode::MemoryAllocationFailed, errno};
     }
     for (size_t i = 0; i < ctx.environ.size(); i++) {
         envp[i] = const_cast<char *>(ctx.environ[i].c_str());
@@ -231,7 +231,7 @@ start_child_process(const Job &job, const ExecutionContext &ctx) {
         calloc(job.manifest.program_arguments.size() + 1, sizeof(char *)));
     if (!argv) {
         free(envp);
-        return ExecStatus{ExecStatus::MemoryAllocationFailed, errno};
+        return ExecStatus{ExecErrorCode::MemoryAllocationFailed, errno};
     }
     for (size_t i = 0; i < job.manifest.program_arguments.size(); i++) {
         argv[i] = const_cast<char *>(job.manifest.program_arguments[i].c_str());
@@ -270,7 +270,7 @@ start_child_process(const Job &job, const ExecutionContext &ctx) {
     int saved_errno = errno;
     free(argv);
     free(envp);
-    return ExecStatus{ExecStatus::ExecFailed, saved_errno};
+    return ExecStatus{ExecErrorCode::ExecFailed, saved_errno};
 }
 
 void Job::load() {
@@ -355,7 +355,7 @@ bool Job::run(const std::function<void()> post_fork_cleanup) {
             post_fork_cleanup();
         } catch (...) {
             log_error("post_fork_cleanup() failed");
-            ipcpipe.writeStatus(ExecStatus{ExecStatus::ForkHandlerFailed});
+            ipcpipe.writeStatus(ExecStatus{ExecErrorCode::ForkHandlerFailed});
         }
         auto maybe_error = start_child_process(*this, ctx);
         if (maybe_error) {
@@ -370,7 +370,7 @@ bool Job::run(const std::function<void()> post_fork_cleanup) {
 
         ipcpipe.becomeParent();
         ExecStatus status = ipcpipe.readStatus();
-        if (status.errorCode == ExecStatus::ExecSuccess) {
+        if (status.errorCode == ExecErrorCode::ExecSuccess) {
             return true;
         } else {
             log_error("job %s failed to start: %s", manifest.label.c_str(),
