@@ -302,7 +302,8 @@ void Job::load() {
 bool Job::unload() {
     // This could be used to cleanup resources associated with the job
     // FIXME: assert that it is in the right state
-    log_debug("unloading job: %s", manifest.label.c_str());
+    assert(state != JOB_STATE_DEFINED); // check for double unload
+    log_debug("unloaded job: %s", manifest.label.c_str());
     state = JOB_STATE_DEFINED;
     return true;
 }

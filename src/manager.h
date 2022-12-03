@@ -26,7 +26,7 @@
 #include "job.h"
 
 class Manager {
-public:
+  public:
     Manager(Domain domain_);
 
     Manager() : Manager(Domain{}) {}
@@ -34,13 +34,11 @@ public:
     virtual ~Manager();
 
     bool handleEvent(
-            std::optional<std::chrono::milliseconds> timeout = std::nullopt);
+        std::optional<std::chrono::milliseconds> timeout = std::nullopt);
 
     [[nodiscard]] std::optional<Label> getLabelByPid(pid_t pid) const;
 
     Job &getJob(const Label &label);
-
-    void unloadAllJobs();
 
     void loadDefaultManifests();
 
@@ -66,6 +64,11 @@ public:
 
     bool unloadJob(Job &job, bool overrideDisabled = false,
                    bool forceUnload = false);
+
+    bool unloadJob(std::unordered_map<std::string, Job>::iterator &it,
+                   bool overrideDisabled = false, bool forceUnload = false);
+
+    bool unloadAllJobs();
 
     bool killJob(const Label &, const std::string &signame_or_number);
 

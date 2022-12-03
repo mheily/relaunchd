@@ -112,6 +112,8 @@ void testCyclicDependency() {
     std::string path = "/dev/null";
     mgr.loadManifest(job1_manifest, path);
     mgr.loadManifest(job2_manifest, path);
+    auto &job1_before = mgr.getJob({"test.job1"});
+    auto &job2_before = mgr.getJob({"test.job2"});
     mgr.startAllJobs();
     auto &job1 = mgr.getJob({"test.job1"});
     auto &job2 = mgr.getJob({"test.job2"});
@@ -297,9 +299,34 @@ void testUnload() {
     assert(!mgr.unloadJob(label));
     assert(mgr.handleEvent(std::chrono::milliseconds{100}));
     assert(!mgr.jobExists(label));
+// TODO: test load/unload with overridedisabled and forceunload
+}
+
+void testUnloadWithOverrideDisabled() {
+    auto mgr = getManager();
+    Label label{"testUnloadWithOverrideDisabled"};
+    json manifest = json::parse(R"(
+        {
+          "Label": "testUnloadWithOverrideDisabled",
+          "ProgramArguments": ["/bin/sh", "-c", "sleep 12"],
+          "RunAtLoad": true,
+          "Disabled": true
+        }
+    )");
+    std::string path = "/dev/null";
+    mgr.loadManifest(manifest, path);
+    // Since it was disabled, the job should not exist.
+    assert(!mgr.jobExists(label));
+    mgr.loadManifest(manifest, path, true, true);
+    assert(mgr.jobExists(label));
+    mgr.startAllJobs();
+    mgr.unloadJob(label, true, true);
+    assert(mgr.handleEvent(std::chrono::milliseconds{100}));
+    assert(!mgr.jobExists(label));
 }
 
 void addManagerTests(TestRunner &runner) {
+    runner.addTest("testUnloadWithOverrideDisabled", testUnloadWithOverrideDisabled);
     runner.addTest("testUnload", testUnload);
     runner.addTest("testKeepaliveAfterSignal", testKeepaliveAfterSignal);
     runner.addTest("testKeepaliveAfterExit", testKeepaliveAfterExit);

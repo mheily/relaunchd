@@ -117,23 +117,22 @@ bool Manager::loadManifest(const json &jsondata, const std::string &path,
                   exc.what());
         return false;
     }
+    const auto &label = static_cast<std::string>(manifest.label);
 
     /* Check for duplicate jobs */
     if (jobExists(manifest.label)) {
-        log_error("tried to load a duplicate job with label %s",
-                  manifest.label.c_str());
+        log_error("tried to load a duplicate job with label %s", label.c_str());
         return false;
     }
 
     if (overrideDisabled) {
-        log_debug("%s: overriding the Disabled key", manifest.label.c_str());
+        log_debug("%s: overriding the Disabled key", label.c_str());
         overrideJobEnabled(manifest.label, true);
     }
 
     // Check if the job is disabled
     if (manifest.disabled && !forceLoad) {
         auto state = STATE_FILE->getValue();
-        const std::string &label = static_cast<std::string>(manifest.label);
         if (state.at("Overrides").contains(label)) {
             const auto job_state = state["Overrides"][label];
             if (job_state.at("Enabled")) {
@@ -143,19 +142,20 @@ bool Manager::loadManifest(const json &jsondata, const std::string &path,
     }
 
     if (manifest.disabled && !forceLoad) {
-        log_debug("will not load %s: it is disabled", manifest.label.c_str());
+        log_debug("will not load %s: it is disabled", label.c_str());
         return false;
     }
 
-    auto [it, _] =
-        jobs.emplace(std::string{manifest.label}, Job{path, manifest});
+    auto [it, _] = jobs.emplace(label, Job{path, manifest});
     auto &job = it->second;
     job.load();
 
     return true;
 }
 
-bool Manager::unloadJob(Job &job, bool overrideDisabled, bool forceUnload) {
+bool Manager::unloadJob(std::unordered_map<std::string, Job>::iterator &it,
+                        bool overrideDisabled, bool forceUnload) {
+    Job &job = it->second;
     const auto &label = static_cast<std::string>(job.manifest.label);
 
     if (overrideDisabled) {
@@ -178,8 +178,25 @@ bool Manager::unloadJob(Job &job, bool overrideDisabled, bool forceUnload) {
         log_debug("will not unload %s: it is disabled", label.c_str());
         return false;
     }
+    if (!job.unload()) {
+        log_error("failed to unload %s", label.c_str());
+        return false;
+    }
 
-    return job.unload();
+    it = jobs.erase(it);
+
+    return true;
+}
+
+bool Manager::unloadJob(Job &job, bool overrideDisabled, bool forceUnload) {
+    auto it = jobs.find(static_cast<std::string>(job.manifest.label));
+    if (it != jobs.end()) {
+        return unloadJob(it, overrideDisabled, forceUnload);
+    } else {
+        log_info("tried to unload a job that is not loaded: %s",
+                 job.manifest.label.c_str());
+        return false;
+    }
 }
 
 bool Manager::unloadJob(const Label &label, bool overrideDisabled,
@@ -189,12 +206,7 @@ bool Manager::unloadJob(const Label &label, bool overrideDisabled,
         return false;
     }
     auto &job = getJob(label);
-    if (!unloadJob(job, overrideDisabled, forceUnload)) {
-        log_info("failed to unload job: %s", label.c_str());
-        return false;
-    }
-    jobs.erase(static_cast<std::string>(label));
-    return true;
+    return unloadJob(job, overrideDisabled, forceUnload);
 }
 
 bool Manager::unloadJob(const std::filesystem::path &path,
@@ -255,17 +267,15 @@ Manager::Manager(Domain domain_) : domain(std::move(domain_)) {
     }
 
     json defaultStateDoc = {{"SchemaVersion", 1},
-                            {"Overrides",     json::object()}};
-    auto statefilepath =
-            std::filesystem::path{domain.statedir}.append("state.json");
+                            {"Overrides", json::object()}};
+    auto statefilepath = domain.statedir / "state.json";
     STATE_FILE = std::make_unique<StateFile>(statefilepath, defaultStateDoc);
 
     setupSignalHandlers();
     // setup_socket_activation(main_kqfd);
 
     // Set up the RPC server
-    auto sockfilename =
-            std::filesystem::path{domain.statedir}.append("rpc.sock");
+    auto sockfilename = domain.statedir / "rpc.sock";
     chan.bindAndListen(sockfilename, 1024);
     eventmgr.addSocketRead(chan.getSockFD(),
                            [this](int) { rpc_dispatch(chan, *this); });
@@ -319,20 +329,20 @@ void Manager::wakeJob(Job &job) {
     startJob(job);
 }
 
-void Manager::unloadAllJobs() {
+bool Manager::unloadAllJobs() {
+    bool success = true;
     log_debug("unloading all jobs");
     auto it = jobs.begin();
     while (it != jobs.end()) {
         auto &job = it->second;
-        try {
-            unloadJob(job);
-        } catch (...) {
+        if (!unloadJob(it)) {
             log_error("failed to unload %s: ignoring because all jobs are "
                       "being unloaded",
                       job.manifest.label.c_str());
+            success = false;
         }
-        it = jobs.erase(it);
     }
+    return success;
 }
 
 void Manager::rescheduleCalendarJob(Job &job) {
