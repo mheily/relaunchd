@@ -136,20 +136,7 @@ int main(int argc, char *argv[]) {
 
     (void)become_a_subreaper();
 
-    DomainType domain;
-    if (getuid() == 0) {
-        domain = DOMAIN_TYPE_SYSTEM;
-    } else {
-        // XXX-FIXME probably need to implement "launchctl bootstrap"
-        // to initialize these correctly.
-        if (getenv("DISPLAY")) {
-            domain = DOMAIN_TYPE_GUI;
-        } else {
-            domain = DOMAIN_TYPE_USER;
-        }
-    }
-
-    Manager mgr{domain};
+    Manager mgr;
     mgr.loadDefaultManifests();
     mgr.startAllJobs();
 

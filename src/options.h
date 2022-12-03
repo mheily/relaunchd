@@ -18,6 +18,4 @@
 
 #include <string>
 
-std::string getStateDir();
-
 std::string getConfigDir();

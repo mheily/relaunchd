@@ -35,10 +35,10 @@ using json = nlohmann::json;
 
 //! A unique identifier for a job
 class Label {
-private:
+  private:
     std::string value;
 
-public:
+  public:
     Label() : value(std::string{""}) {}
 
     Label(std::string s) : value(std::move(s)) {
@@ -47,7 +47,7 @@ public:
         }
         if (value.find('/') != value.npos) {
             throw std::runtime_error(
-                    "Labels may not include the '/' character");
+                "Labels may not include the '/' character");
         }
     }
 
@@ -71,13 +71,13 @@ namespace manifest {
 /** A wildcard value in a crontab(5) specification */
 #define CRON_SPEC_WILDCARD INT32_MAX
 
-    struct cron_spec {
-        int32_t minute;
-        int32_t hour;
-        int32_t day;
-        int32_t weekday;
-        int32_t month;
-    };
+struct cron_spec {
+    int32_t minute;
+    int32_t hour;
+    int32_t day;
+    int32_t weekday;
+    int32_t month;
+};
 
 struct Manifest {
     Label label;

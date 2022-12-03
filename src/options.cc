@@ -20,32 +20,6 @@
 #include "config.h"
 #include "options.h"
 
-std::string getStateDir() {
-    std::string statedir;
-    if (getuid() == 0) {
-        statedir = PKGSTATEDIR;
-    } else {
-        // The subdirectory under $HOME where state for the user domains are
-        // stored Can be overridden by setting the $XDG_STATE_HOME variable
-        const char *xdg_state_home = getenv("XDG_STATE_HOME");
-        if (xdg_state_home) {
-            statedir = std::string{xdg_state_home};
-        } else {
-            char *home_p = getenv("HOME");
-            if (home_p && !access(home_p, W_OK | X_OK)) {
-                statedir = std::string{getenv("HOME")} + "/.local/state";
-            } else {
-                char *tmpdir_p = getenv("TMPDIR");
-                statedir = tmpdir_p ? std::string{tmpdir_p}
-                                    : std::string{"/tmp/relaunchd-" +
-                                                  std::to_string(getuid())};
-            }
-        }
-        statedir += "/relaunchd";
-    }
-    return statedir;
-}
-
 std::string getConfigDir() {
     std::string configdir;
     if (getuid() == 0) {

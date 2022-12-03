@@ -88,7 +88,7 @@ static json _rpc_op_unload(const json &args, Manager &mgr) {
         }
         if (std::filesystem::is_directory(path)) {
             using std::filesystem::directory_iterator;
-            for (const auto &file: directory_iterator(path)) {
+            for (const auto &file : directory_iterator(path)) {
                 if (!mgr.unloadJob(file.path(), overrideDisabled,
                                    forceUnload)) {
                     log_warning("unload failed: %s", file.path().c_str());

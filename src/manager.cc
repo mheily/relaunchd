@@ -247,23 +247,26 @@ void Manager::overrideJobEnabled(const Label &label_, bool enabled) {
     STATE_FILE->setValue(doc);
 }
 
-Manager::Manager(DomainType domain_) : domain(Domain(domain_)) {
-    auto statedir = getStateDir();
+Manager::Manager(Domain domain_) : domain(std::move(domain_)) {
+    const auto &statedir = domain.statedir;
     if (getuid() != 0 && !std::filesystem::exists(statedir)) {
         log_debug("creating %s", statedir.c_str());
         std::filesystem::create_directories(statedir);
     }
 
     json defaultStateDoc = {{"SchemaVersion", 1},
-                            {"Overrides", json::object()}};
-    STATE_FILE =
-        std::make_unique<StateFile>(statedir + "/state.json", defaultStateDoc);
+                            {"Overrides",     json::object()}};
+    auto statefilepath =
+            std::filesystem::path{domain.statedir}.append("state.json");
+    STATE_FILE = std::make_unique<StateFile>(statefilepath, defaultStateDoc);
 
     setupSignalHandlers();
     // setup_socket_activation(main_kqfd);
 
     // Set up the RPC server
-    chan.bindAndListen(getStateDir() + "/rpc.sock", 1024);
+    auto sockfilename =
+            std::filesystem::path{domain.statedir}.append("rpc.sock");
+    chan.bindAndListen(sockfilename, 1024);
     eventmgr.addSocketRead(chan.getSockFD(),
                            [this](int) { rpc_dispatch(chan, *this); });
 }

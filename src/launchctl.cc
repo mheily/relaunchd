@@ -19,6 +19,7 @@
 #include <iostream>
 
 #include "channel.h"
+#include "domain.h"
 #include "options.h"
 
 namespace subcommand {
@@ -208,8 +209,10 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 
+    Domain domain;
     Channel chan;
-    chan.connect(getStateDir() + "/rpc.sock");
+    auto statedir = domain.statedir;
+    chan.connect(statedir.append("rpc.sock"));
 
     std::vector<std::string> args(argv + 2, argv + argc);
     auto subcommand = std::string(argv[1]);

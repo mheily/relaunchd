@@ -41,9 +41,18 @@ using namespace std;
 //    }
 //}
 
+Manager getManager() {
+    Domain domain{DomainType::User, TMPDIR};
+    auto statefile = domain.statedir / "state.json";
+    if (std::filesystem::exists(statefile)) {
+        std::filesystem::remove(statefile);
+    }
+    return Manager{domain};
+}
+
 void testDependencies() {
     //log_freopen(stdout);
-    Manager mgr{DOMAIN_TYPE_USER};
+    auto mgr = getManager();
     json job1_manifest = json::parse(R"(
         {
           "Label": "test.job1",
@@ -80,7 +89,7 @@ void testDependencies() {
 
 void testCyclicDependency() {
     //log_freopen(stdout);
-    Manager mgr{DOMAIN_TYPE_USER};
+    auto mgr = getManager();
     json job1_manifest = json::parse(R"(
         {
           "Label": "test.job1",
@@ -116,7 +125,7 @@ void testCyclicDependency() {
 //! Test what happens if a dependency does not exist
 void testMissingDependency() {
     //log_freopen(stdout);
-    Manager mgr{DOMAIN_TYPE_USER};
+    auto mgr = getManager();
     json job1_manifest = json::parse(R"(
         {
           "Label": "test.job1",
@@ -138,7 +147,7 @@ void testMissingDependency() {
 //! Verify that ThrottleInterval works
 void testThrottleInterval() {
     //log_freopen(stdout);
-    Manager mgr{DOMAIN_TYPE_USER};
+    auto mgr = getManager();
     json job1_manifest = json::parse(R"(
         {
           "Label": "test.job1",
@@ -168,7 +177,7 @@ void testThrottleInterval() {
 //! Test the job.shouldStart() logic
 void testShouldStart() {
     //log_freopen(stdout);
-    Manager mgr{DOMAIN_TYPE_USER};
+    auto mgr = getManager();
     json job1_manifest = json::parse(R"(
         {
           "Label": "test.job1",
@@ -199,7 +208,7 @@ void testShouldStart() {
 
 void testKeepaliveAfterExit() {
     //log_freopen(stdout);
-    Manager mgr{DOMAIN_TYPE_USER};
+    auto mgr = getManager();
     json manifest = json::parse(R"(
         {
           "Label": "test.job1",
@@ -221,7 +230,7 @@ void testKeepaliveAfterExit() {
 
 void testKeepaliveAfterSignal() {
     //log_freopen(stderr);
-    Manager mgr{DOMAIN_TYPE_USER};
+    auto mgr = getManager();
     assert(std::filesystem::exists("/bin/sleep"));
     json manifest = json::parse(R"(
         {
@@ -245,7 +254,7 @@ void testKeepaliveAfterSignal() {
 }
 
 void testKillJobBySignal() {
-    Manager mgr{DOMAIN_TYPE_USER};
+    auto mgr = getManager();
     assert(std::filesystem::exists("/bin/sleep"));
     json manifest = json::parse(R"(
         {
@@ -270,7 +279,7 @@ void testKillJobBySignal() {
 
 
 void testUnload() {
-    Manager mgr{DOMAIN_TYPE_USER};
+    auto mgr = getManager();
     assert(!mgr.unloadJob(Label{"a job path that does not exist"}));
     assert(!mgr.unloadJob(Label{"a job label that does not exist"}));
     Label label{"test.job1"};

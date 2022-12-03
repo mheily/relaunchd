@@ -16,20 +16,29 @@
 
 #pragma once
 
-typedef enum {
-    DOMAIN_TYPE_SYSTEM,
-    DOMAIN_TYPE_USER,
-    DOMAIN_TYPE_GUI,
-} DomainType;
+#include <filesystem>
+
+enum class DomainType {
+    System,
+    User,
+    GUI,
+};
 
 class Domain {
   public:
-    Domain(DomainType t) : dtype(t) {}
+    Domain(DomainType t, std::filesystem::path statedir_);
+
+    Domain() : Domain(detectDomainType(), detectStateDir()) {}
 
     [[nodiscard]] const std::string &to_string() const;
 
     [[nodiscard]] const std::vector<std::string> &getLoadPaths() const;
 
+    const DomainType dtype;
+    const std::filesystem::path statedir;
+
   private:
-    DomainType dtype;
+    static DomainType detectDomainType();
+
+    std::filesystem::path detectStateDir();
 };

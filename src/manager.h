@@ -26,13 +26,15 @@
 #include "job.h"
 
 class Manager {
-  public:
-    Manager(DomainType domain_);
+public:
+    Manager(Domain domain_);
+
+    Manager() : Manager(Domain{}) {}
 
     virtual ~Manager();
 
     bool handleEvent(
-        std::optional<std::chrono::milliseconds> timeout = std::nullopt);
+            std::optional<std::chrono::milliseconds> timeout = std::nullopt);
 
     [[nodiscard]] std::optional<Label> getLabelByPid(pid_t pid) const;
 
@@ -90,7 +92,7 @@ class Manager {
 
     std::unordered_map<std::string, Job> jobs;
 
-    Domain domain;
+    const Domain domain;
     kq::EventManager eventmgr;
     Channel chan;
     bool SHUTTING_DOWN = false;
