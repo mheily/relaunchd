@@ -37,6 +37,8 @@ const std::string &Domain::to_string() const {
         static const std::string str{"gui"};
         return str;
     }
+    default:
+        throw std::runtime_error("Invalid domain type");
     }
 }
 
@@ -62,6 +64,8 @@ const std::vector<std::string> &Domain::getLoadPaths() const {
         };
         return result;
     }
+    default:
+        throw std::runtime_error("Invalid domain type");
     }
 }
 

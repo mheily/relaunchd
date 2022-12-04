@@ -102,6 +102,8 @@ struct ExecStatus {
             return "ExecFailed";
         case ExecErrorCode::ForkHandlerFailed:
             return "ForkHandlerFailed";
+        default:
+            throw std::runtime_error("Invalid error code");
         }
     }
 
