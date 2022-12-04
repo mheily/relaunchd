@@ -33,6 +33,9 @@
 
 using json = nlohmann::json;
 
+//! The default value of ExitTimeout, in seconds
+#define DEFAULT_EXIT_TIMEOUT 20
+
 //! A unique identifier for a job
 class Label {
   private:
@@ -100,7 +103,8 @@ struct Manifest {
 
     std::optional<std::string> umask = "022";
     uint32_t timeout; // DEPRECATED -- remove this
-    uint32_t exit_timeout = 20;
+    std::chrono::seconds exit_timeout =
+        std::chrono::seconds{DEFAULT_EXIT_TIMEOUT};
     std::optional<uint32_t> start_interval;
     uint32_t throttle_interval = 10;
     std::optional<uint32_t> nice;

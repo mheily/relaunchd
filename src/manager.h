@@ -94,7 +94,7 @@ class Manager {
     void setupSignalHandlers();
 
     std::unordered_map<std::string, Job> jobs;
-
+    std::vector<pid_t> pending_sigkill;
     const Domain domain;
     kq::EventManager eventmgr;
     Channel chan;

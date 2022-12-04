@@ -126,8 +126,9 @@ void from_json(const json &j, Manifest &m) {
         j.at("Disabled").get_to(m.disabled);
     }
     if (j.contains("ExitTimeout")) {
-        j.at("ExitTimeout").get_to(m.exit_timeout);
-        throw NotSupportedError();
+        uint32_t tmp;
+        j.at("ExitTimeout").get_to(tmp);
+        m.exit_timeout = std::chrono::seconds{tmp};
     }
     if (j.contains("StartInterval")) {
         uint32_t tmp;

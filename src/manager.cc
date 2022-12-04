@@ -178,6 +178,22 @@ bool Manager::unloadJob(std::unordered_map<std::string, Job>::iterator &it,
         log_debug("will not unload %s: it is disabled", label.c_str());
         return false;
     }
+    if (job.pid) {
+        job.killJob(SIGTERM);
+        pid_t pid = job.pid;
+        // TODO: this could scale poorly
+        //  maybe add to a heap structure with an absolute time when the pid can
+        //  be killed, then wakeup somewhere else?
+        pending_sigkill.emplace_back(pid);
+        eventmgr.addTimer(job.manifest.exit_timeout, [pid, this]() {
+            ::kill(pid, SIGKILL);
+            auto it =
+                std::find(pending_sigkill.begin(), pending_sigkill.end(), pid);
+            if (it != pending_sigkill.end()) {
+                pending_sigkill.erase(it);
+            }
+        });
+    }
     if (!job.unload()) {
         log_error("failed to unload %s", label.c_str());
         return false;
@@ -284,6 +300,13 @@ Manager::Manager(Domain domain_) : domain(std::move(domain_)) {
 Manager::~Manager() {
     log_debug("manager shutting down");
     unloadAllJobs();
+    // Terminate all remaining child processes.
+    // TODO: there should be a graceful shutdown() method that waits the
+    // ExitInterval time
+    for (auto pid : pending_sigkill) {
+        (void)::kill(pid, SIGKILL);
+        (void)::waitpid(pid, nullptr, 0);
+    }
 }
 
 bool Manager::handleEvent(std::optional<std::chrono::milliseconds> timeout) {
