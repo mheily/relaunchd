@@ -26,7 +26,6 @@
 #include <sys/param.h>
 #endif
 
-#include "calendar.h"
 #include "clock.h"
 #include "config.h"
 #include "exec_monitor.h"

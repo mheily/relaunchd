@@ -30,7 +30,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#include "calendar.h"
 #include "channel.h"
 #include "clock.h"
 #include "event.h"
@@ -367,32 +366,32 @@ bool Manager::unloadAllJobs() {
     }
     return success;
 }
-
-void Manager::rescheduleCalendarJob(Job &job) {
-    auto interval = job.manifest.calendar_interval.value();
-    auto maybe_schedule = calendar::schedule_calendar_job(interval);
-    if (!maybe_schedule) {
-        return;
-    }
-    auto [absolute_time, relative_time] = maybe_schedule.value();
-    log_debug("job %s scheduled to run in %lld minutes at t=%ld",
-              job.manifest.label.c_str(), (long long)relative_time.count(),
-              absolute_time);
-    job.state = JOB_STATE_WAITING;
-    auto &label = job.manifest.label;
-    eventmgr.addTimer(relative_time, [label, this]() {
-        if (jobExists(label)) {
-            auto &job = getJob(label);
-            // The job may have been unloaded in the interval, or manually
-            // started by an administrator.
-            if (job.state == JOB_STATE_WAITING) {
-                startJob(job);
-                rescheduleCalendarJob(job);
-            }
-        }
-    });
-    // XXX-FIXME: update StateFile to set the absolute start time.
-}
+//
+//void Manager::rescheduleCalendarJob(Job &job) {
+//    auto interval = job.manifest.calendar_interval.value();
+//    auto maybe_schedule = calendar::schedule_calendar_job(interval);
+//    if (!maybe_schedule) {
+//        return;
+//    }
+//    auto [absolute_time, relative_time] = maybe_schedule.value();
+//    log_debug("job %s scheduled to run in %lld minutes at t=%ld",
+//              job.manifest.label.c_str(), (long long)relative_time.count(),
+//              absolute_time);
+//    job.state = JOB_STATE_WAITING;
+//    auto &label = job.manifest.label;
+//    eventmgr.addTimer(relative_time, [label, this]() {
+//        if (jobExists(label)) {
+//            auto &job = getJob(label);
+//            // The job may have been unloaded in the interval, or manually
+//            // started by an administrator.
+//            if (job.state == JOB_STATE_WAITING) {
+//                startJob(job);
+//                rescheduleCalendarJob(job);
+//            }
+//        }
+//    });
+//    // XXX-FIXME: update StateFile to set the absolute start time.
+//}
 
 void Manager::reschedulePeriodicJob(Job &job) {
     log_debug("job %s will start after T=%u", job.manifest.label.c_str(),
@@ -453,9 +452,9 @@ void Manager::rescheduleJob(Job &job) {
         case JOB_SCHEDULE_PERIODIC:
             reschedulePeriodicJob(job);
             break;
-        case JOB_SCHEDULE_CALENDAR:
-            rescheduleCalendarJob(job);
-            break;
+//        case JOB_SCHEDULE_CALENDAR:
+//            rescheduleCalendarJob(job);
+//            break;
         case JOB_SCHEDULE_NONE:
             rescheduleStandardJob(job);
             break;

@@ -8,10 +8,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall -Wextra -Werror")
 
 check_include_files(sys/limits.h, HAVE_SYS_LIMITS_H)
 
-# NOTE: socket.{cc,h} are currently disabled
-# See: https://github.com/mheily/relaunchd/issues/17
 set(LAUNCH_SRC
-        calendar.cc calendar.h
         dependency.cc dependency.h
         channel.h channel.cc
         domain.h domain.cc
