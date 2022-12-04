@@ -378,8 +378,8 @@ bool Job::run(const std::function<void()> post_fork_cleanup) {
 job_schedule_t Job::_set_schedule() const {
     if (manifest.start_interval > 0) {
         return JOB_SCHEDULE_PERIODIC;
-    } else if (manifest.calendar_interval) {
-        return JOB_SCHEDULE_CALENDAR;
+//    } else if (manifest.calendar_interval) {
+//        return JOB_SCHEDULE_CALENDAR;
     } else {
         return JOB_SCHEDULE_NONE;
     }

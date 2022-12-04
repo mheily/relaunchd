@@ -39,34 +39,34 @@ class NotSupportedError : public std::exception {
     const char *what() const throw() { return "Not currently supported"; }
 };
 
-/** Parse a field within a crontab(5) specification */
-static int32_t parse_cron_field(json &obj, const char *key, int64_t start,
-                                int64_t end) {
-    if (obj.contains(key)) {
-        int32_t val;
-        obj.at(key).get_to(val);
-        if (val < start || val > end) {
-            throw std::range_error(key);
-        }
-        return val;
-    } else {
-        return CRON_SPEC_WILDCARD;
-    }
-}
+///** Parse a field within a crontab(5) specification */
+//static int32_t parse_cron_field(json &obj, const char *key, int64_t start,
+//                                int64_t end) {
+//    if (obj.contains(key)) {
+//        int32_t val;
+//        obj.at(key).get_to(val);
+//        if (val < start || val > end) {
+//            throw std::range_error(key);
+//        }
+//        return val;
+//    } else {
+//        return CRON_SPEC_WILDCARD;
+//    }
+//}
 
-static struct cron_spec parse_start_calendar_interval(json &obj) {
-    struct cron_spec cron = {
-        .minute = parse_cron_field(obj, "Minute", 0, 59),
-        .hour = parse_cron_field(obj, "Hour", 0, 23),
-        .day = parse_cron_field(obj, "Day", 1, 31),
-        .weekday = parse_cron_field(obj, "Weekday", 0, 7),
-        .month = parse_cron_field(obj, "Month", 1, 12),
-    };
-    /* Normalize Sunday to always be 0 */
-    if (cron.weekday == 7)
-        cron.weekday = 0;
-    return cron;
-}
+//static struct cron_spec parse_start_calendar_interval(json &obj) {
+//    struct cron_spec cron = {
+//        .minute = parse_cron_field(obj, "Minute", 0, 59),
+//        .hour = parse_cron_field(obj, "Hour", 0, 23),
+//        .day = parse_cron_field(obj, "Day", 1, 31),
+//        .weekday = parse_cron_field(obj, "Weekday", 0, 7),
+//        .month = parse_cron_field(obj, "Month", 1, 12),
+//    };
+//    /* Normalize Sunday to always be 0 */
+//    if (cron.weekday == 7)
+//        cron.weekday = 0;
+//    return cron;
+//}
 
 void from_json(const json &j, Manifest &m) {
     if (j.contains("Label")) {
@@ -113,13 +113,13 @@ void from_json(const json &j, Manifest &m) {
         j.at("EnvironmentVariables").get_to(m.environment_variables);
     }
     if (j.contains("Umask")) {
-        std::string tmp;
-        j.at("Umask").get_to(tmp);
-        m.umask = std::move(tmp);
+//        std::string tmp;
+//        j.at("Umask").get_to(tmp);
+//        m.umask = std::move(tmp);
         throw NotSupportedError();
     }
     if (j.contains("Timeout")) {
-        j.at("Timeout").get_to(m.timeout);
+        //j.at("Timeout").get_to(m.timeout);
         throw NotSupportedError();
     }
     if (j.contains("Disabled")) {
@@ -147,15 +147,15 @@ void from_json(const json &j, Manifest &m) {
         j.at("InitGroups").get_to(m.init_groups);
     }
     if (j.contains("WatchPaths")) {
-        j.at("WatchPaths").get_to(m.watch_paths);
+        //j.at("WatchPaths").get_to(m.watch_paths);
         throw NotSupportedError();
     }
     if (j.contains("QueueDirectories")) {
-        j.at("QueueDirectories").get_to(m.queue_directories);
+        //j.at("QueueDirectories").get_to(m.queue_directories);
         throw NotSupportedError();
     }
     if (j.contains("StartOnMount")) {
-        j.at("StartOnMount").get_to(m.start_on_mount);
+        //j.at("StartOnMount").get_to(m.start_on_mount);
         throw NotSupportedError();
     }
     if (j.contains("StandardInPath")) {
@@ -168,12 +168,12 @@ void from_json(const json &j, Manifest &m) {
         j.at("StandardErrorPath").get_to(m.stderr_path);
     }
     if (j.contains("AbandonProcessGroup")) {
-        j.at("AbandonProcessGroup").get_to(m.abandon_process_group);
+        //j.at("AbandonProcessGroup").get_to(m.abandon_process_group);
         throw NotSupportedError();
     }
     if (j.contains("StartCalendarInterval")) {
-        auto obj = j.at("StartCalendarInterval");
-        m.calendar_interval = parse_start_calendar_interval(obj);
+//        auto obj = j.at("StartCalendarInterval");
+//        m.calendar_interval = parse_start_calendar_interval(obj);
         throw NotSupportedError();
     }
     if (j.contains("KeepAlive")) {
@@ -301,9 +301,9 @@ bool Manifest::validate() {
     } else if (!program && !program_arguments.empty()) {
         // TODO: deduplicate this with rectify()
         log_error("job does not set Program or ProgramArguments");
-    } else if (calendar_interval && start_interval) {
-        log_error("job %s has both a calendar and a non-calendar interval",
-                  label.c_str());
+//    } else if (calendar_interval && start_interval) {
+//        log_error("job %s has both a calendar and a non-calendar interval",
+//                  label.c_str());
     } else if (group_name && !user_name) {
         log_error("job %s sets GroupName but does not provide UserName",
                   label.c_str());

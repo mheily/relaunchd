@@ -101,22 +101,22 @@ struct Manifest {
 
     std::unordered_map<std::string, std::string> environment_variables;
 
-    std::optional<std::string> umask = "022";
-    uint32_t timeout; // DEPRECATED -- remove this
+    //std::optional<std::string> umask = "022";
+    //uint32_t timeout; // DEPRECATED -- remove this
     std::chrono::seconds exit_timeout =
         std::chrono::seconds{DEFAULT_EXIT_TIMEOUT};
     std::optional<uint32_t> start_interval;
     uint32_t throttle_interval = 10;
     std::optional<uint32_t> nice;
     bool init_groups = true;
-    std::vector<std::string> watch_paths;
-    std::vector<std::string> queue_directories;
-    bool start_on_mount = false;
+    //std::vector<std::string> watch_paths;
+    //std::vector<std::string> queue_directories;
+    //bool start_on_mount = false;
     std::string stdin_path = "/dev/null";
     std::string stdout_path = "/dev/null";
     std::string stderr_path = "/dev/null";
-    bool abandon_process_group = true;
-    std::optional<struct cron_spec> calendar_interval;
+    //bool abandon_process_group = true;
+    //std::optional<struct cron_spec> calendar_interval;
     struct {
         bool always = false; /* Equivalent to setting { "KeepAlive": true } */
                              /* TODO: various other conditions */
