@@ -35,6 +35,7 @@
 #error No supported kernel event API detected
 #endif
 
+#include <chrono>
 #include <functional>
 #include <iostream>
 #include <stdexcept>
