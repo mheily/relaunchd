@@ -357,8 +357,8 @@ bool Job::run(const std::function<void()> post_fork_cleanup) {
     } else {
         // This is the parent process.
         started_at = current_time();
-        log_debug("job %s started at %zu with pid %d", manifest.label.c_str(),
-                  started_at.value(), pid);
+        log_debug("job %s started at %lld with pid %d", manifest.label.c_str(),
+                  static_cast<long long>(started_at.value()), pid);
 
         ipcpipe.becomeParent();
         ExecStatus status = ipcpipe.readStatus();
