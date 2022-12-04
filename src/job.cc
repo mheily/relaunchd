@@ -246,9 +246,9 @@ start_child_process(const Job &job, const ExecutionContext &ctx) {
     if (!path) {
         throw std::logic_error("path cannot be empty");
     }
-    if (job.manifest.enable_globbing) {
-        // TODO: globbing
-    }
+//    if (job.manifest.enable_globbing) {
+//        // TODO: globbing
+//    }
 #if DEBUG_EXEC_CALL
     log_debug("exec: %s", path);
 

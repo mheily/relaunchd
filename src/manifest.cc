@@ -93,7 +93,7 @@ void from_json(const json &j, Manifest &m) {
         j.at("ProgramArguments").get_to(m.program_arguments);
     }
     if (j.contains("EnableGlobbing")) {
-        j.at("EnableGlobbing").get_to(m.enable_globbing);
+        //j.at("EnableGlobbing").get_to(m.enable_globbing);
         throw NotSupportedError();
     }
     if (j.contains("RunAtLoad")) {
@@ -188,6 +188,9 @@ void from_json(const json &j, Manifest &m) {
     }
     if (j.contains("Dependencies")) {
         m.dependencies = DependencyList(j.at("Dependencies"));
+    }
+    if (j.contains("Sockets")) {
+        throw NotSupportedError();
     }
     m.rectify();
     if (!m.validate()) {
