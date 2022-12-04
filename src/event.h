@@ -27,10 +27,12 @@
 #include <sys/epoll.h>
 #include <sys/signalfd.h>
 #include <sys/timerfd.h>
-#include <sys/wait.h>
 #elif __has_include(<sys/event.h>)
 #define USE_KQUEUE 1
 #include <sys/event.h>
+#ifndef NOTE_EXITSTATUS
+#define NOTE_EXITSTATUS 0
+#endif
 #else
 #error No supported kernel event API detected
 #endif
@@ -45,6 +47,7 @@
 
 #include <csignal>
 #include <fcntl.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 // Set this to 1 to print debugging information to stderr
