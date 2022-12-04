@@ -59,8 +59,14 @@ Some things will probably never be implemented:
 ## Building from source
 
 Required library dependencies:
-* nlohmann::json (`apt install nlohmann-json3-dev` on Debian, or `brew install nlohmann-json` on MacOS)
+* nlohmann::json (`apt install nlohmann-json3-dev` on Debian/Ubuntu, or `brew install nlohmann-json` on MacOS)
 
+If you are not able to install `nlohmann::json` in a systemwide location,
+you can tell CMake to download and use a private copy. Add the following flag to your CMake
+invocation:
+```
+-DUSE_PRIVATE_NLOHMANN_JSON=YES
+```
 The basic commands to build and install the software are:
 ```
 	mkdir cmake-build-debug

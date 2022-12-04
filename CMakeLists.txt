@@ -81,7 +81,16 @@ if(NOT USE_PRIVATE_DEPENDENCIES AND USE_TINYXML)
     find_package(TinyXML2 9.0.0 REQUIRED)
 endif()
 
+option(USE_PRIVATE_NLOHMANN_JSON "Should we use a private copy of nlohmann::json?" OFF)
+if(USE_PRIVATE_NLOHMANN_JSON)
+include(FetchContent)
+FetchContent_Declare(json
+        URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz
+        DOWNLOAD_EXTRACT_TIMESTAMP true)
+FetchContent_MakeAvailable(json)
+else()
 find_package(nlohmann_json 3.2.0 REQUIRED)
+endif()
 
 # Enable code coverage automatically for debug builds
 if(ENABLE_COVERAGE)
