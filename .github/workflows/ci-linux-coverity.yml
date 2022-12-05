@@ -85,7 +85,7 @@ jobs:
             --form token="$TOKEN" \
             --form email="mark@heily.com" \
             --form file=@cov-int.tar.gz \
-            --form version="0.8.0rc1" \
+            --form version="0.7.0" \
             --form description="${GITHUB_REPOSITORY}" \
             https://scan.coverity.com/builds?project=`urlencode ${GITHUB_REPOSITORY}`
         env:
