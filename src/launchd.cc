@@ -24,6 +24,8 @@
 
 #if defined(__linux__)
 #include <sys/prctl.h>
+#elif defined(__FreeBSD__)
+#include <sys/procctl.h>
 #endif
 
 #include "config.h"

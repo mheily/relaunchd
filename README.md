@@ -23,6 +23,7 @@ the current release.
 
 relaunchd has been built on the following platforms:
 * OpenBSD 7.2
+* FreeBSD 13.1-RELEASE
 * CentOS Stream 8
 * Alpine Linux
 * Ubuntu Linux
@@ -50,6 +51,11 @@ Some things will probably never be implemented:
 * Darwin-specific things - EnableTransactions
 
 ## Building from source
+
+When building on FreeBSD, run the following command to install dependencies:
+```
+# pkg install nlohmann-json git cmake
+```
 
 Required library dependencies:
 * nlohmann::json (`apt install nlohmann-json3-dev` on Debian/Ubuntu, or `brew install nlohmann-json` on MacOS)
