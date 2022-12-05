@@ -31,6 +31,9 @@ if (USE_PRIVATE_DEPENDENCIES)
 endif ()
 add_library(launch STATIC ${LAUNCH_SRC})
 target_link_libraries(launch PRIVATE nlohmann_json::nlohmann_json)
+if (USE_EXTERNAL_CXX17_FILESYSTEM)
+    target_link_libraries(launch PRIVATE stdc++fs)
+endif ()
 
 if (NOT USE_PRIVATE_DEPENDENCIES)
     # we register libtinyxml2 as a public dependency of liblaunch

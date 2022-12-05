@@ -85,8 +85,7 @@ option(USE_PRIVATE_NLOHMANN_JSON "Should we use a private copy of nlohmann::json
 if(USE_PRIVATE_NLOHMANN_JSON)
 include(FetchContent)
 FetchContent_Declare(json
-        URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz
-        DOWNLOAD_EXTRACT_TIMESTAMP true)
+        URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz)
 FetchContent_MakeAvailable(json)
 else()
 find_package(nlohmann_json 3.2.0 REQUIRED)

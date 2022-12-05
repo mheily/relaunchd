@@ -21,11 +21,12 @@ software.
 See the [release notes](./CHANGELOG.md) for details about
 the current release.
 
-relaunchd aims to support the following platforms:
-* FreeBSD 9, 10, and 11-CURRENT
-* OpenBSD 5.8
-* NetBSD 7.0
-* Linux (various flavors)
+relaunchd has been built on the following platforms:
+* OpenBSD 7.2
+* CentOS Stream 8
+* Alpine Linux
+* Ubuntu Linux
+* MacOS Ventura
 
 The core functionality is working:
 * loading and unloading jobs with launchctl
@@ -67,6 +68,15 @@ invocation:
 ```
 -DUSE_PRIVATE_NLOHMANN_JSON=YES
 ```
+
+If you are using an older version of GCC, such as the one
+found in CentOS Stream 8, you will need to enable linking
+against the external std::filesystem library. Add the following
+flag to your CMake invocation:
+```
+-DUSE_EXTERNAL_CXX17_FILESYSTEM=YES
+```
+
 The basic commands to build and install the software are:
 ```
 	mkdir cmake-build-debug
