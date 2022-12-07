@@ -123,7 +123,9 @@ std::filesystem::path Domain::detectStateDir() {
     return state_home / "relaunchd";
 }
 
-Domain::Domain(DomainType t, std::filesystem::path statedir_)
-    : dtype(t), statedir(std::move(statedir_)) {
+Domain::Domain(std::optional<DomainType> t,
+               std::optional<std::filesystem::path> statedir_)
+    : dtype(t ? *t : detectDomainType()),
+      statedir(statedir_ ? std::move(*statedir_) : detectStateDir()) {
     // FIXME: validate permissions of statedir
 }

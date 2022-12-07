@@ -17,6 +17,7 @@
 #pragma once
 
 #include <filesystem>
+#include <optional>
 
 enum class DomainType {
     System,
@@ -26,9 +27,8 @@ enum class DomainType {
 
 class Domain {
   public:
-    Domain(DomainType t, std::filesystem::path statedir_);
-
-    Domain() : Domain(detectDomainType(), detectStateDir()) {}
+    Domain(std::optional<DomainType> t = std::nullopt,
+           std::optional<std::filesystem::path> statedir_ = std::nullopt);
 
     [[nodiscard]] const std::string &to_string() const;
 
