@@ -83,7 +83,7 @@ class Manager {
 
     void wakeJob(Job &job);
 
-    //void rescheduleCalendarJob(Job &job);
+    // void rescheduleCalendarJob(Job &job);
 
     void reschedulePeriodicJob(Job &job);
 

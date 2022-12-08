@@ -367,7 +367,7 @@ bool Manager::unloadAllJobs() {
     return success;
 }
 //
-//void Manager::rescheduleCalendarJob(Job &job) {
+// void Manager::rescheduleCalendarJob(Job &job) {
 //    auto interval = job.manifest.calendar_interval.value();
 //    auto maybe_schedule = calendar::schedule_calendar_job(interval);
 //    if (!maybe_schedule) {
@@ -452,9 +452,9 @@ void Manager::rescheduleJob(Job &job) {
         case JOB_SCHEDULE_PERIODIC:
             reschedulePeriodicJob(job);
             break;
-//        case JOB_SCHEDULE_CALENDAR:
-//            rescheduleCalendarJob(job);
-//            break;
+            //        case JOB_SCHEDULE_CALENDAR:
+            //            rescheduleCalendarJob(job);
+            //            break;
         case JOB_SCHEDULE_NONE:
             rescheduleStandardJob(job);
             break;
