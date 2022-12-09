@@ -14,10 +14,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <cstdlib>
 #include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/wait.h>
 #include <sysexits.h>
 #include <syslog.h>
 #include <unistd.h>
@@ -89,13 +91,34 @@ void redirect_stdio(pid_t pid) {
     }
 }
 
+static bool run_boot_script(const char *path) {
+    int status = system(path);
+    if (status < 0) {
+        std::cout << path << "system(3) failed: " << strerror(errno)
+                  << std::endl;
+    } else {
+        if (WIFEXITED(status)) {
+            if (WEXITSTATUS(status) == 0) {
+                return true;
+            } else {
+                std::cout << path
+                          << " abnormal exit code: " << WEXITSTATUS(status)
+                          << std::endl;
+            }
+        } else {
+            std::cout << path << " abnormal exit" << std::endl;
+        }
+    }
+    return false;
+}
+
 void usage() { printf("todo: usage\n"); }
 
 int main(int argc, char *argv[]) {
     int c;
     pid_t pid = getpid();
     bool daemonize = (pid != 1);
-    int logmask = LOG_NOTICE;
+    bool boot_manager = false;
 
     //    /* Sanitize environment variables */
     //    if ((getuid() != 0) && (access(getenv("HOME"), R_OK | W_OK | X_OK) <
@@ -105,13 +128,16 @@ int main(int argc, char *argv[]) {
     //        stderr); exit(1);
     //    }
 
-    while ((c = getopt(argc, argv, "fv")) != -1) {
+    while ((c = getopt(argc, argv, "bfv")) != -1) {
         switch (c) {
+        case 'b':
+            boot_manager = true;
+            break;
         case 'f':
             daemonize = false;
             break;
         case 'v':
-            logmask = LOG_DEBUG;
+            //            logmask = LOG_DEBUG;
             break;
         default:
             usage();
@@ -120,9 +146,15 @@ int main(int argc, char *argv[]) {
     }
 
     // FIXME: pid 1 logging cannot go to syslogd because of chicken+egg
-    openlog("launchd", LOG_PID | LOG_NDELAY, LOG_DAEMON);
-    setlogmask(logmask);
-    log_notice("relaunchd version %s starting", relaunch::config::VERSION);
+    //    int logmask = LOG_NOTICE;
+    //    openlog("launchd", LOG_PID | LOG_NDELAY, LOG_DAEMON);
+    //    setlogmask(logmask);
+    //    log_notice("relaunchd version %s starting",
+    //    relaunch::config::VERSION);
+
+    if (boot_manager && !run_boot_script("/lib/relaunchd/bootstrap")) {
+        err(1, "bootstrap failed");
+    }
 
     if (daemonize) {
         if (chdir("/") != 0) {
@@ -143,6 +175,10 @@ int main(int argc, char *argv[]) {
     mgr.startAllJobs();
 
     while (mgr.handleEvent()) {
+    }
+
+    if (boot_manager && !run_boot_script("/lib/relaunchd/bootout")) {
+        err(1, "bootout failed");
     }
 
     exit(EXIT_SUCCESS);
