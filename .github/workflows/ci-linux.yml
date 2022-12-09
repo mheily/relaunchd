@@ -23,6 +23,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Update metadata about packages
+        run: sudo apt-get update
+
       - name: Install package dependencies
         run: sudo apt-get install -y nlohmann-json3-dev
 
@@ -53,3 +56,4 @@ jobs:
           ctest --verbose --output-on-failure . || failed=$?
           if [ $failed != 0 ] ; then cat Testing/Temporary/LastTest.log ; fi
           exit $failed
+
