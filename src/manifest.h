@@ -95,7 +95,7 @@ struct Manifest {
 
     bool disabled = false;
     // bool enable_globbing;
-    bool run_at_load;
+    bool run_at_load = false;
     std::optional<std::string> working_directory;
     std::optional<std::string> root_directory;
 
