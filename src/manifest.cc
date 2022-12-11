@@ -118,10 +118,6 @@ void from_json(const json &j, Manifest &m) {
         //        m.umask = std::move(tmp);
         throw NotSupportedError();
     }
-    if (j.contains("Timeout")) {
-        // j.at("Timeout").get_to(m.timeout);
-        throw NotSupportedError();
-    }
     if (j.contains("Disabled")) {
         j.at("Disabled").get_to(m.disabled);
     }

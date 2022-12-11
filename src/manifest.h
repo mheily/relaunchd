@@ -102,7 +102,6 @@ struct Manifest {
     std::unordered_map<std::string, std::string> environment_variables;
 
     // std::optional<std::string> umask = "022";
-    // uint32_t timeout; // DEPRECATED -- remove this
     std::chrono::seconds exit_timeout =
         std::chrono::seconds{DEFAULT_EXIT_TIMEOUT};
     std::optional<uint32_t> start_interval;
