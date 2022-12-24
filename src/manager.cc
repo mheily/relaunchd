@@ -186,6 +186,8 @@ bool Manager::unloadJob(std::unordered_map<std::string, Job>::iterator &it,
         log_debug("will not unload %s: it is disabled", label.c_str());
         return false;
     }
+    // FIXME: This should not be allowed. A job with a pid should not be
+    // unloaded ever.
     if (job.pid) {
         job.killJob(SIGTERM);
         pid_t pid = job.pid;
