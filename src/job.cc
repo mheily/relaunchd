@@ -160,6 +160,11 @@ static std::optional<ExecStatus>
 start_child_process(const Job &job, const ExecutionContext &ctx) {
     const Manifest &manifest = job.manifest;
 
+    if (job.manifest.umask) {
+        (void)::umask(job.manifest.umask.value());
+    } else {
+        (void)::umask(S_IWGRP | S_IWOTH);
+    }
     if (setsid() < 0) {
         return ExecStatus{ExecErrorCode::CreateSessionFailed, errno};
     }

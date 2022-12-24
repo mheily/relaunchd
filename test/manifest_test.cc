@@ -60,7 +60,31 @@ void testParseSimpleDependency() {
     DependencyList deplist{obj};
 }
 
+void testParseUmaskFromStr() {
+    json manifest = json{
+            {"Label", "testParseUmaskFromStr"},
+            {"Program", "/bin/cat"},
+            {"Umask", "0755"}
+    };
+    Manifest m;
+    manifest::from_json(manifest, m);
+    assert(m.umask.value() == 493);
+}
+
+void testParseUmaskFromInt() {
+    json manifest = json{
+            {"Label", "testParseUmaskFromStr"},
+            {"Program", "/bin/cat"},
+            {"Umask", 493}
+    };
+    Manifest m;
+    manifest::from_json(manifest, m);
+    assert(m.umask.value() == 493);
+}
+
 void addManifestTests(TestRunner &runner) {
+    runner.addTest("testParseUmaskFromStr", testParseUmaskFromStr);
+    runner.addTest("testParseUmaskFromInt", testParseUmaskFromInt);
     runner.addTest("testParseComplexDependency", testParseComplexDependency);
     runner.addTest("testParseSimpleDependency", testParseSimpleDependency);
 }

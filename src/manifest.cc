@@ -113,10 +113,18 @@ void from_json(const json &j, Manifest &m) {
         j.at("EnvironmentVariables").get_to(m.environment_variables);
     }
     if (j.contains("Umask")) {
-        //        std::string tmp;
-        //        j.at("Umask").get_to(tmp);
-        //        m.umask = std::move(tmp);
-        throw NotSupportedError();
+        auto elem = j.at("Umask");
+        mode_t value;
+        if (elem.type() == json::value_t::number_integer) {
+            elem.get_to(value);
+        } else if (elem.type() == json::value_t::string) {
+            std::string buf;
+            elem.get_to(buf);
+            value = std::stoul(buf, nullptr, 8);
+        } else {
+            throw std::runtime_error("unsupported Umask type");
+        }
+        m.umask = value;
     }
     if (j.contains("Disabled")) {
         j.at("Disabled").get_to(m.disabled);
