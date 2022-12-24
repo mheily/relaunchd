@@ -18,7 +18,10 @@
 
 #include <cassert>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <sstream>
+#include <string>
 
 #include "common.hpp"
 #include "manager.h"
@@ -325,7 +328,39 @@ void testUnloadWithOverrideDisabled() {
     assert(!mgr.jobExists(label));
 }
 
+// Ensure that the process group is killed when AbandonProcessGroup == false
+void testAbandonProcessGroup() {
+    auto mgr = getManager();
+    Label label{"testAbandonProcessGroup"};
+    std::filesystem::path pidfile = tmpdir + "/" + static_cast<std::string>(label) + ".pid";
+    json manifest = json{
+            {"Label", label},
+            {"AbandonProcessGroup", false},
+            {"ProgramArguments", json::array({
+                "/bin/sh", "-c",
+                "nohup sleep 291 &\n"
+                "echo $! > " + static_cast<std::string>(pidfile),
+            })},
+            {"RunAtLoad", true}
+    };
+    std::string path = "/dev/null";
+    mgr.loadManifest(manifest, path);
+    mgr.startAllJobs();
+    assert(mgr.handleEvent(std::chrono::milliseconds{500}));
+    auto &job = mgr.getJob(label);
+    assert(job.state == JOB_STATE_EXITED);
+
+    // Verify the subprocess was killed
+    assert(std::filesystem::exists(pidfile));
+    std::ifstream ifs(pidfile);
+    std::ostringstream line;
+    line << ifs.rdbuf();
+    pid_t pid = std::stoi(line.str());
+    assert(killpg(pid, SIGTERM) == -1 && errno == ESRCH);
+}
+
 void addManagerTests(TestRunner &runner) {
+    runner.addTest("testAbandonProcessGroup", testAbandonProcessGroup);
     runner.addTest("testUnloadWithOverrideDisabled", testUnloadWithOverrideDisabled);
     runner.addTest("testUnload", testUnload);
     runner.addTest("testKeepaliveAfterSignal", testKeepaliveAfterSignal);

@@ -80,6 +80,15 @@ std::optional<Label> Manager::reapChildProcess(pid_t pid, int status) {
     }
     job.pid = 0;
     job.state = JOB_STATE_EXITED;
+    if (job.pgid >= 0 && !job.manifest.abandon_process_group) {
+        log_debug("sending SIGKILL to process group %d", job.pgid);
+        if (killpg(job.pgid, SIGKILL) == -1) {
+            if (errno != ESRCH && errno != EPERM) {
+                log_errno("killpg(pgid=%d)", job.pgid);
+            }
+        }
+        job.pgid = -1;
+    }
     return label;
 }
 

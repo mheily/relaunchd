@@ -55,7 +55,7 @@ struct Job {
     std::optional<std::filesystem::path> manifest_path;
     const Manifest manifest;
     enum job_state_e state;
-    pid_t pid;
+    pid_t pid, pgid;
     int last_exit_status, term_signal;
     job_schedule_t schedule;
 

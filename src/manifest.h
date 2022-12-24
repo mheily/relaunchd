@@ -114,7 +114,7 @@ struct Manifest {
     std::string stdin_path = "/dev/null";
     std::string stdout_path = "/dev/null";
     std::string stderr_path = "/dev/null";
-    // bool abandon_process_group = true;
+    bool abandon_process_group = false;
     // std::optional<struct cron_spec> calendar_interval;
     struct {
         bool always = false; /* Equivalent to setting { "KeepAlive": true } */

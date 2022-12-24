@@ -363,6 +363,10 @@ bool Job::run(const std::function<void()> post_fork_cleanup) {
         ipcpipe.becomeParent();
         ExecStatus status = ipcpipe.readStatus();
         if (status.errorCode == ExecErrorCode::ExecSuccess) {
+            pgid = getpgid(pid);
+            if (pgid < 0) {
+                log_errno("getpgid(pid=%d) failed", pid);
+            }
             return true;
         } else {
             log_error("job %s failed to start: %s", manifest.label.c_str(),
@@ -400,9 +404,9 @@ bool Job::killJob(int signum) const {
     }
     if (::kill(pid, signum) < 0) {
         if (errno == ESRCH) {
-            log_debug("killpg(2) of pid %d: got ESRCH", pid);
+            log_debug("kill(2) of pid %d: got ESRCH", pid);
         } else {
-            log_errno("killpg(2) of pid %d", pid);
+            log_errno("kill(2) of pid %d", pid);
             return false;
         }
         log_error("kill(2) of PID %d failed: %s", pid, strerror(errno));

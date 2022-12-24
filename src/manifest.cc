@@ -164,8 +164,7 @@ void from_json(const json &j, Manifest &m) {
         j.at("StandardErrorPath").get_to(m.stderr_path);
     }
     if (j.contains("AbandonProcessGroup")) {
-        // j.at("AbandonProcessGroup").get_to(m.abandon_process_group);
-        throw NotSupportedError();
+        j.at("AbandonProcessGroup").get_to(m.abandon_process_group);
     }
     if (j.contains("StartCalendarInterval")) {
         //        auto obj = j.at("StartCalendarInterval");
