@@ -354,16 +354,23 @@ void Manager::wakeJob(Job &job) {
     startJob(job);
 }
 
-bool Manager::unloadAllJobs() {
+bool Manager::unloadAllJobs() noexcept {
     bool success = true;
     log_debug("unloading all jobs");
     auto it = jobs.begin();
     while (it != jobs.end()) {
         auto &job = it->second;
-        if (!unloadJob(it)) {
+        bool result;
+        try {
+            result = unloadJob(it);
+        } catch (...) {
+            log_error("unhandled exception unloading %s", job.getLabel());
+            result = false;
+        }
+        if (!result) {
             log_error("failed to unload %s: ignoring because all jobs are "
                       "being unloaded",
-                      job.manifest.label.c_str());
+                      job.getLabel());
             success = false;
         }
     }

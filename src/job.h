@@ -59,6 +59,8 @@ struct Job {
     int last_exit_status, term_signal;
     job_schedule_t schedule;
 
+    const char *getLabel() const { return manifest.label.c_str(); }
+
     void dump() const {
         log_debug("job dump: label=%s state=%d", manifest.label.c_str(), state);
     }
