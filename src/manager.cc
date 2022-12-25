@@ -555,6 +555,25 @@ void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
     }
 }
 
+bool Manager::jobHasReverseDependencies(const Job &job) const {
+    for (const auto &[other_label, other_job] : jobs) {
+        if (other_job.manifest.label == job.manifest.label) {
+            continue;
+        }
+        if (other_job.state != JOB_STATE_DEFINED) {
+            auto deplist = other_job.manifest.dependencies.getItemsByLabel();
+            for (const auto &[dep_label, dep] : deplist) {
+                if (job.manifest.label == dep_label) {
+                    if (dep.isRequired) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+
 void Manager::startAllJobs() {
     for (auto &[label, job] : jobs) {
         if (job.shouldStart() && !job.hasStarted()) {

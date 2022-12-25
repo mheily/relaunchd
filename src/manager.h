@@ -77,6 +77,9 @@ class Manager {
     //! Return true if the job exists
     bool jobExists(const Label &label) const;
 
+    //! Returns true if there is at least one other job that depends on this job
+    bool jobHasReverseDependencies(const Job &job) const;
+
   private:
     void startJob(Job &job,
                   std::optional<std::vector<Label>> visited = std::nullopt);

@@ -359,16 +359,44 @@ void testAbandonProcessGroup() {
     assert(killpg(pid, SIGTERM) == -1 && errno == ESRCH);
 }
 
+// Test the jobHasReverseDependencies() method.
+void testJobHasReverseDependencies() {
+    auto mgr = getManager();
+    Label labelA{"jobHasReverseDependencies.A"};
+    Label labelB{"jobHasReverseDependencies.B"};
+    json manifestA = json{
+            {"Label", labelA},
+            {"Program", "/bin/sh"},
+            {"Dependencies", json::array({labelB.str()})},
+    };
+    json manifestB = json{
+            {"Label", labelB},
+            {"Program", "/bin/sh"},
+    };
+    std::string path = "/dev/null";
+    mgr.loadManifest(manifestA, path);
+    mgr.loadManifest(manifestB, path);
+    auto &jobA = mgr.getJob(labelA);
+    auto &jobB = mgr.getJob(labelB);
+    assert(!mgr.jobHasReverseDependencies(jobA));
+    assert(mgr.jobHasReverseDependencies(jobB));
+    mgr.unloadJob(jobA);
+    assert(!mgr.jobHasReverseDependencies(jobB));
+}
+
 void addManagerTests(TestRunner &runner) {
-    runner.addTest("testAbandonProcessGroup", testAbandonProcessGroup);
-    runner.addTest("testUnloadWithOverrideDisabled", testUnloadWithOverrideDisabled);
-    runner.addTest("testUnload", testUnload);
-    runner.addTest("testKeepaliveAfterSignal", testKeepaliveAfterSignal);
-    runner.addTest("testKeepaliveAfterExit", testKeepaliveAfterExit);
-    runner.addTest("testCyclicDependency", testCyclicDependency);
-    runner.addTest("testMissingDependency", testMissingDependency);
-    runner.addTest("testDependencies", testDependencies);
-    runner.addTest("testShouldStart", testShouldStart);
-    runner.addTest("testThrottleInterval", testThrottleInterval);
-    runner.addTest("testKillJobBySignal", testKillJobBySignal);
+#define X(y) runner.addTest("" # y, y)
+    X(testJobHasReverseDependencies);
+    X(testAbandonProcessGroup);
+    X(testUnloadWithOverrideDisabled);
+    X(testUnload);
+    X(testKeepaliveAfterSignal);
+    X(testKeepaliveAfterExit);
+    X(testCyclicDependency);
+    X(testMissingDependency);
+    X(testDependencies);
+    X(testShouldStart);
+    X(testThrottleInterval);
+    X(testKillJobBySignal);
+#undef X
 }

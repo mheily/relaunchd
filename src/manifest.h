@@ -59,6 +59,10 @@ class Label {
         return value.c_str();
     }
 
+    const std::string &str() const { return value; }
+
+    bool operator==(const Label &label) const { return value == label.value; }
+
     explicit operator const std::string() const {
         assert(!value.empty());
         return value;
