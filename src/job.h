@@ -63,9 +63,9 @@ struct Job {
         log_debug("job dump: label=%s state=%d", manifest.label.c_str(), state);
     }
 
-    bool killJob(int signum) const;
+    bool killJob(int signum) const noexcept;
 
-    bool killProcessGroup();
+    bool killProcessGroup() const noexcept;
 
     bool run(std::function<void()> post_fork_cleanup);
 

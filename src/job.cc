@@ -400,7 +400,7 @@ Job::Job(std::optional<std::filesystem::path> manifest_path_,
       state(JOB_STATE_DEFINED), pid(0), pgid(-1), last_exit_status(0),
       term_signal(0), schedule(_set_schedule()) {}
 
-bool Job::killJob(int signum) const {
+bool Job::killJob(int signum) const noexcept {
     // FIXME: remove any watched kernel events associated with the job
     // (timeouts, etc..)
     if (state != JOB_STATE_RUNNING) {
@@ -422,7 +422,7 @@ bool Job::killJob(int signum) const {
     return true;
 }
 
-bool Job::killProcessGroup() {
+bool Job::killProcessGroup() const noexcept {
     if (pgid < 0) {
         log_warning("job %s has no process group ID", manifest.label.c_str());
         return false;
@@ -438,6 +438,5 @@ bool Job::killProcessGroup() {
             return false;
         }
     }
-    pgid = -1;
     return true;
 }
