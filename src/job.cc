@@ -397,8 +397,8 @@ job_schedule_t Job::_set_schedule() const {
 Job::Job(std::optional<std::filesystem::path> manifest_path_,
          Manifest manifest_)
     : manifest_path(std::move(manifest_path_)), manifest(std::move(manifest_)),
-      state(JOB_STATE_DEFINED), pid(0), pgid(-1), last_exit_status(0), term_signal(0),
-      schedule(_set_schedule()) {}
+      state(JOB_STATE_DEFINED), pid(0), pgid(-1), last_exit_status(0),
+      term_signal(0), schedule(_set_schedule()) {}
 
 bool Job::killJob(int signum) const {
     // FIXME: remove any watched kernel events associated with the job
