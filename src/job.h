@@ -65,6 +65,8 @@ struct Job {
 
     bool killJob(int signum) const;
 
+    bool killProcessGroup();
+
     bool run(std::function<void()> post_fork_cleanup);
 
     void load();

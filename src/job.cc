@@ -421,3 +421,23 @@ bool Job::killJob(int signum) const {
                manifest.label.c_str());
     return true;
 }
+
+bool Job::killProcessGroup() {
+    if (pgid < 0) {
+        log_warning("job %s has no process group ID", manifest.label.c_str());
+        return false;
+    }
+    if (manifest.abandon_process_group) {
+        log_info("process group %d will be abandoned", pgid);
+        return false;
+    }
+    log_debug("sending SIGKILL to process group %d", pgid);
+    if (killpg(pgid, SIGKILL) == -1) {
+        if (errno != ESRCH && errno != EPERM) {
+            log_errno("killpg(pgid=%d)", pgid);
+            return false;
+        }
+    }
+    pgid = -1;
+    return true;
+}
