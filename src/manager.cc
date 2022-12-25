@@ -498,9 +498,18 @@ void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
          job.manifest.dependencies.getItemsByLabel()) {
         log_debug("evaluating dependency: %s", label.c_str());
         if (!jobExists(label)) {
-            log_debug("dependency does not exist: %s", label.c_str());
-            job.state = JOB_STATE_MISSING_DEPENDS;
-            return;
+            if (dep.isRequired) {
+                log_debug(
+                    "job %s requires dependency %s, but it does not exist",
+                    job.manifest.label.c_str(), label.c_str());
+                job.state = JOB_STATE_MISSING_DEPENDS;
+                return;
+            } else {
+                log_debug("job %s has an optional dependency on %s, but it "
+                          "does not exist",
+                          job.manifest.label.c_str(), label.c_str());
+                continue;
+            }
         }
         auto &depjob = getJob(label);
         if (depjob.state == JOB_STATE_LOADED) {
