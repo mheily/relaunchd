@@ -23,8 +23,6 @@ namespace relaunch::config {
 }
 
 // Compile-time options
-#define PREFIX      "${CMAKE_INSTALL_PREFIX}"
-#define VARDIR		"${VARDIR}"
 #define PKGSTATEDIR "${PKGSTATEDIR}"
 #define XML_MANIFEST_SUPPORT ${XML_MANIFEST_SUPPORT}
 
@@ -34,8 +32,6 @@ namespace relaunch::config {
 #define USER_AGENT_LOAD_PATH "${USER_AGENT_LOAD_PATH}"
 #define VENDOR_AGENT_LOAD_PATH "${VENDOR_AGENT_LOAD_PATH}"
 #define VENDOR_DAEMON_LOAD_PATH "${VENDOR_DAEMON_LOAD_PATH}"
-
-#cmakedefine01 HAVE_SYS_SIGNAME
 
 #define CONFIG_H_
 #endif
