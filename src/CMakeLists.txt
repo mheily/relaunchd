@@ -29,17 +29,18 @@ if (USE_PRIVATE_DEPENDENCIES)
         set(LAUNCH_SRC ${LAUNCH_SRC} ../vendor/tinyxml2.cpp ../vendor/tinyxml2.h)
     endif ()
 endif ()
-add_library(launch STATIC ${LAUNCH_SRC})
-target_link_libraries(launch PRIVATE nlohmann_json::nlohmann_json)
+add_library(launch INTERFACE)
+target_sources(launch INTERFACE ${LAUNCH_SRC})
+target_link_libraries(launch INTERFACE nlohmann_json::nlohmann_json)
 if (USE_EXTERNAL_CXX17_FILESYSTEM)
-    target_link_libraries(launch PRIVATE stdc++fs)
+    target_link_libraries(launch INTERFACE stdc++fs)
 endif ()
 
 if (NOT USE_PRIVATE_DEPENDENCIES)
     # we register libtinyxml2 as a public dependency of liblaunch
     # instead of including the tinyxml2 sources in it; also
     # add the tinyxml2 include directory to all targets in the current dir.
-    target_link_libraries(launch PUBLIC tinyxml2::tinyxml2)
+    target_link_libraries(launch INTERFACE tinyxml2::tinyxml2)
     include_directories(tinyxml2::tinyxml2)
 endif()
 

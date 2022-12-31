@@ -11,6 +11,7 @@ test: buildvol
         cmake /tmp/src -DCMAKE_BUILD_TYPE=$(BUILD_TYPE); \
         make -j ; \
         [ "$(STRIP)" != "yes" ] || strip src/launchd src/launchctl ; \
+        ldd src/launchd ; \
         ls -lh src/launch*'
 
 clean:
