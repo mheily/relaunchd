@@ -8,11 +8,13 @@ test: buildvol
 	docker build -t $(TAG) -f ../Dockerfile ..
 	docker run --rm $(VOLUMES) -it $(TAG) sh -ex -c '\
         cd /tmp/build ; \
-        cmake /tmp/src -DCMAKE_BUILD_TYPE=$(BUILD_TYPE); \
-        make -j ; \
-        [ "$(STRIP)" != "yes" ] || strip src/launchd src/launchctl ; \
-        ldd src/launchd ; \
-        ls -lh src/launch*'
+        /tmp/src/configure --build-type=release --objdir=/tmp/build --prefix=/; \
+        ls -la ; ls -l src ; \
+        cat -n Makefile ; \
+        make -j all install ; \
+        [ "$(STRIP)" != "yes" ] || strip /sbin/launchd ; \
+        ldd launchd ; \
+        ls -lh /sbin/launchd /bin/launchctl'
 
 clean:
 	docker rmi -f $(TAG) || true

@@ -1,0 +1,24 @@
+SOURCES = $(shell ls src/*.cc | grep -v launchctl.cc | grep -v launchd.cc)
+JSON_FLAGS ?= $(shell pkg-config --cflags nlohmann_json)
+LTO_FLAGS = -flto
+
+all: $(OBJDIR)/launchd
+
+$(OBJDIR)/launchd: $(OBJDIR)/Makefile src/launchd.cc $(SOURCES)
+	$(CXX) -std=gnu++17 -D_GNU_SOURCE \
+    -I $(OBJDIR) \
+    $(BUILD_TYPE_FLAGS) \
+    $(LTO_FLAGS) \
+    $(JSON_FLAGS) \
+    -o $(OBJDIR)/launchd \
+    $(CXXFLAGS) \
+    src/launchd.cc $(SOURCES)
+
+install: $(OBJDIR)/launchd
+	install -m 755 $(OBJDIR)/launchd $(PREFIX)/sbin
+	ln -s $(PREFIX)/sbin/launchd $(PREFIX)/bin/launchctl
+
+clean:
+	rm -f $(OBJDIR)/launchd
+
+.PHONY : all

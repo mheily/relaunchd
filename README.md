@@ -52,6 +52,9 @@ Some things will probably never be implemented:
 
 ## Building from source
 
+CMake is currently the primary build system, but there is a Makefile-based 
+buildsystem under development. 
+
 When building on FreeBSD, run the following command to install dependencies:
 ```
 # pkg install nlohmann-json git cmake
