@@ -55,8 +55,6 @@ target_link_libraries(launchd PRIVATE launch nlohmann_json::nlohmann_json)
 #    target_compile_definitions(launchd PRIVATE -DHAVE_SETLOGIN)
 #endif()
 
-check_symbol_exists(sys_signame "signal.h" HAVE_SYS_SIGNAME)
-
 if(USE_LIBKQUEUE)
     target_link_libraries(launchd "${LibKQueue_LIBRARIES} pthread")
     # add the libkqueue header and library directories to all targets in this source directory:
