@@ -21,6 +21,8 @@ extern int launchd_main(int argc, char *argv[]);
 
 extern int launchctl_main(int argc, char *argv[]);
 
+extern int test_main(int argc, char *argv[]);
+
 static bool ends_with(const std::string &path, const std::string &tail) {
     if (path.length() >= tail.length()) {
         return !path.compare(path.length() - tail.length(), tail.length(),
@@ -34,6 +36,9 @@ int main(int argc, char *argv[]) {
     if (!argc) {
         exit(127);
     }
+#ifdef RELAUNCHD_UNIT_TESTS
+    return test_main(argc, argv);
+#else
     const std::string program_path{argv[0]};
     if (ends_with(program_path, "launchd")) {
         return launchd_main(argc, argv);
@@ -43,4 +48,5 @@ int main(int argc, char *argv[]) {
         std::cerr << "ERROR: unhandled value of argv[0]" << std::endl;
         exit(128);
     }
+#endif
 }

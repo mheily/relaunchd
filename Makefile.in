@@ -20,7 +20,7 @@ launchctl:
 
 test-all:
 	# COPYPASTE from above
-	$(CXX) -std=gnu++17 -D_GNU_SOURCE \
+	$(CXX) -std=gnu++17 -D_GNU_SOURCE -DRELAUNCHD_UNIT_TESTS \
     -I $(OBJDIR) -I $(OBJDIR)/src "-DTESTDIR=\"$(OBJDIR)/test\"" "-DTMPDIR=\"$(OBJDIR)/tmp\"" \
     $(BUILD_TYPE_FLAGS) \
     $(LTO_FLAGS) \

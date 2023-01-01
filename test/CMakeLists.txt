@@ -1,5 +1,5 @@
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g3 -O0")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g3 -O0 -DRELAUNCHD_UNIT_TESTS")
 
 add_executable(test_all main_test.cc manager_test.cc manifest_test.cc state_file_test.cc common.hpp)
 target_link_libraries(test_all PRIVATE launch nlohmann_json::nlohmann_json)

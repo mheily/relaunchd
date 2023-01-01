@@ -25,7 +25,7 @@ void usage() {
     std::cout << "TODO: usage" << std::endl;
 }
 
-int main(int argc, char *argv[]) {
+int test_main(int argc, char *argv[]) {
     int c;
     while ((c = getopt(argc, argv, "v")) != -1) {
         switch (c) {
