@@ -115,8 +115,6 @@ void testCyclicDependency() {
     std::string path = "/dev/null";
     mgr.loadManifest(job1_manifest, path);
     mgr.loadManifest(job2_manifest, path);
-    auto &job1_before = mgr.getJob({"test.job1"});
-    auto &job2_before = mgr.getJob({"test.job2"});
     mgr.startAllJobs();
     auto &job1 = mgr.getJob({"test.job1"});
     auto &job2 = mgr.getJob({"test.job2"});
@@ -176,7 +174,7 @@ void testThrottleInterval() {
     assert(mgr.handleEvent());      // event: timer expires due to ThrottleInterval, job restarts
     auto &job3 = mgr.getJob({"test.job1"});
     assert(job3.state == JOB_STATE_RUNNING);
-    assert(job3.pid != old_pid != 0);
+    assert((job3.pid != old_pid) != 0);
 }
 
 //! Test the job.shouldStart() logic
