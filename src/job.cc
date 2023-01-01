@@ -291,21 +291,21 @@ void Job::load() {
             }
         }
         log_debug("job %s sockets created", job.manifest.label.c_str());
-        job->state = JOB_STATE_WAITING;
+        job->state = job_state::waiting;
         return (0);
     }
 #endif
 
-    state = JOB_STATE_LOADED;
+    state = job_state::loaded;
     log_debug("loaded %s", manifest.label.c_str());
     dump();
 }
 
 bool Job::unload() {
     // This could be used to cleanup resources associated with the job
-    assert(state != JOB_STATE_DEFINED); // check for double unload
+    assert(state != job_state::defined); // check for double unload
     log_debug("unloaded job: %s", manifest.label.c_str());
-    state = JOB_STATE_DEFINED;
+    state = job_state::defined;
     return true;
 }
 
@@ -395,13 +395,13 @@ job_schedule_t Job::_set_schedule() const {
 Job::Job(std::optional<std::filesystem::path> manifest_path_,
          Manifest manifest_)
     : manifest_path(std::move(manifest_path_)), manifest(std::move(manifest_)),
-      state(JOB_STATE_DEFINED), pid(0), pgid(-1), last_exit_status(0),
+      state(job_state::defined), pid(0), pgid(-1), last_exit_status(0),
       term_signal(0), schedule(_set_schedule()) {}
 
 bool Job::killJob(int signum) const noexcept {
     // FIXME: remove any watched kernel events associated with the job
     // (timeouts, etc..)
-    if (state != JOB_STATE_RUNNING) {
+    if (state != job_state::running) {
         log_debug("tried to kill non-running job");
         return true;
     }
@@ -437,4 +437,23 @@ bool Job::killProcessGroup() const noexcept {
         }
     }
     return true;
+}
+
+const char *Job::getState() const {
+    switch (state) {
+    case job_state::defined:
+        return "defined";
+    case job_state::loaded:
+        return "loaded";
+    case job_state::missing_depends:
+        return "missing_depends";
+    case job_state::waiting:
+        return "waiting";
+    case job_state::running:
+        return "running";
+    case job_state::exited:
+        return "exited";
+    default:
+        __builtin_unreachable();
+    }
 }

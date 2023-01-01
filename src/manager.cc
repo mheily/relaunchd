@@ -79,7 +79,7 @@ std::optional<Label> Manager::reapChildProcess(pid_t pid, int status) {
         throw std::range_error("invalid status");
     }
     job.pid = 0;
-    job.state = JOB_STATE_EXITED;
+    job.state = job_state::exited;
     job.killProcessGroup();
     return label;
 }
@@ -346,9 +346,9 @@ Job &Manager::getJob(const Label &label) {
 }
 
 void Manager::wakeJob(Job &job) {
-    if (job.state != JOB_STATE_WAITING) {
-        log_error("tried to wake job %s that was not asleep (state=%d)",
-                  job.manifest.label.c_str(), job.state);
+    if (job.state != job_state::waiting) {
+        log_error("tried to wake job %s that was not asleep (state=%s)",
+                  job.manifest.label.c_str(), job.getState());
         throw std::logic_error("job in wrong state");
     }
     startJob(job);
@@ -387,14 +387,14 @@ bool Manager::unloadAllJobs() noexcept {
 //    log_debug("job %s scheduled to run in %lld minutes at t=%ld",
 //              job.manifest.label.c_str(), (long long)relative_time.count(),
 //              absolute_time);
-//    job.state = JOB_STATE_WAITING;
+//    job.state = job_state::waiting;
 //    auto &label = job.manifest.label;
 //    eventmgr.addTimer(relative_time, [label, this]() {
 //        if (jobExists(label)) {
 //            auto &job = getJob(label);
 //            // The job may have been unloaded in the interval, or manually
 //            // started by an administrator.
-//            if (job.state == JOB_STATE_WAITING) {
+//            if (job.state == job_state::waiting) {
 //                startJob(job);
 //                rescheduleCalendarJob(job);
 //            }
@@ -411,13 +411,13 @@ void Manager::reschedulePeriodicJob(Job &job) {
     eventmgr.addTimer(ms, [label, this]() {
         if (jobExists(label)) {
             auto &job = getJob(label);
-            if (job.state == JOB_STATE_WAITING) {
+            if (job.state == job_state::waiting) {
                 startJob(job);
                 reschedulePeriodicJob(job);
             }
         }
     });
-    job.state = JOB_STATE_WAITING;
+    job.state = job_state::waiting;
 }
 
 void Manager::rescheduleStandardJob(Job &job) {
@@ -440,13 +440,13 @@ void Manager::rescheduleStandardJob(Job &job) {
     std::chrono::milliseconds milliseconds = seconds;
     log_debug("%s: will restart in %lld seconds due to KeepAlive setting",
               job.manifest.label.c_str(), (long long)seconds.count());
-    job.state = JOB_STATE_WAITING;
+    job.state = job_state::waiting;
     eventmgr.addTimer(milliseconds, [label, this]() {
         if (!jobExists(label)) {
             return;
         }
         auto &job = getJob(label);
-        if (job.state == JOB_STATE_WAITING) {
+        if (job.state == job_state::waiting) {
             startJob(job);
         } else {
             log_debug("attempted to restart job %s: not waiting to be started",
@@ -456,7 +456,7 @@ void Manager::rescheduleStandardJob(Job &job) {
 }
 
 void Manager::rescheduleJob(Job &job) {
-    assert(job.state == JOB_STATE_EXITED || job.state == JOB_STATE_LOADED);
+    assert(job.state == job_state::exited || job.state == job_state::loaded);
     if (job.shouldStart()) {
         switch (job.schedule) {
         case JOB_SCHEDULE_PERIODIC:
@@ -509,7 +509,7 @@ void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
                 log_debug(
                     "job %s requires dependency %s, but it does not exist",
                     job.manifest.label.c_str(), label.c_str());
-                job.state = JOB_STATE_MISSING_DEPENDS;
+                job.state = job_state::missing_depends;
                 return;
             } else {
                 log_debug("job %s has an optional dependency on %s, but it "
@@ -519,7 +519,7 @@ void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
             }
         }
         auto &depjob = getJob(label);
-        if (depjob.state == JOB_STATE_LOADED) {
+        if (depjob.state == job_state::loaded) {
             log_debug("starting job %s as a dependency of %s",
                       depjob.manifest.label.c_str(),
                       job.manifest.label.c_str());
@@ -534,7 +534,7 @@ void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
         if (!depjob.hasStarted()) {
             log_debug("dependency has not started: %s is in state %d",
                       label.c_str(), depjob.state);
-            job.state = JOB_STATE_MISSING_DEPENDS;
+            job.state = job_state::missing_depends;
             return;
         }
     }
@@ -549,7 +549,7 @@ void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
         eventmgr.handleFork();
     };
     if (job.run(post_fork_cleanup)) {
-        job.state = JOB_STATE_RUNNING;
+        job.state = job_state::running;
         eventmgr.addProcess(job.pid, [this](pid_t pid, int status) {
             auto maybe_label = reapChildProcess(pid, status);
             if (maybe_label) {
@@ -558,7 +558,7 @@ void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
             }
         });
     } else {
-        job.state = JOB_STATE_EXITED;
+        job.state = job_state::exited;
     }
 }
 
@@ -567,7 +567,7 @@ bool Manager::jobHasReverseDependencies(const Job &job) const {
         if (other_job.manifest.label == job.manifest.label) {
             continue;
         }
-        if (other_job.state != JOB_STATE_DEFINED) {
+        if (other_job.state != job_state::defined) {
             auto deplist = other_job.manifest.dependencies.getItemsByLabel();
             for (const auto &[dep_label, dep] : deplist) {
                 if (job.manifest.label == dep_label) {

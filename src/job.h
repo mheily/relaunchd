@@ -36,13 +36,13 @@ typedef enum {
     JOB_SCHEDULE_CALENDAR
 } job_schedule_t;
 
-enum job_state_e {
-    JOB_STATE_DEFINED,
-    JOB_STATE_LOADED,
-    JOB_STATE_MISSING_DEPENDS,
-    JOB_STATE_WAITING,
-    JOB_STATE_RUNNING,
-    JOB_STATE_EXITED,
+enum class job_state {
+    defined,
+    loaded,
+    missing_depends,
+    waiting,
+    running,
+    exited,
 };
 
 struct Job {
@@ -54,15 +54,19 @@ struct Job {
 
     std::optional<std::filesystem::path> manifest_path;
     const Manifest manifest;
-    enum job_state_e state;
+    job_state state;
     pid_t pid, pgid;
     int last_exit_status, term_signal;
     job_schedule_t schedule;
 
     const char *getLabel() const { return manifest.label.c_str(); }
 
+    //! Get the current state
+    const char *getState() const;
+
     void dump() const {
-        log_debug("job dump: label=%s state=%d", manifest.label.c_str(), state);
+        log_debug("job dump: label=%s state=%s", manifest.label.c_str(),
+                  getState());
     }
 
     bool killJob(int signum) const noexcept;
@@ -81,44 +85,40 @@ struct Job {
     //       non-started state.
     bool hasStarted() const {
         switch (state) {
-        case JOB_STATE_DEFINED:
-        case JOB_STATE_LOADED:
-        case JOB_STATE_MISSING_DEPENDS:
+        case job_state::defined:
+        case job_state::loaded:
+        case job_state::missing_depends:
             return false;
-        case JOB_STATE_WAITING:
-        case JOB_STATE_RUNNING:
-        case JOB_STATE_EXITED:
+        case job_state::waiting:
+        case job_state::running:
+        case job_state::exited:
             return true;
         default:
-            // LCOV_EXCL_START
-            throw std::runtime_error("unhandled case");
-            // LCOV_EXCL_STOP
+            __builtin_unreachable();
         }
     }
 
     //! Should the job be started automatically?
     bool shouldStart() const {
         switch (state) {
-        case JOB_STATE_DEFINED:
+        case job_state::defined:
             return false;
-        case JOB_STATE_MISSING_DEPENDS: // not sure about this one...
+        case job_state::missing_depends: // not sure about this one...
             return false;
-        case JOB_STATE_LOADED:
+        case job_state::loaded:
             return (manifest.run_at_load || manifest.keep_alive.always ||
                     schedule != JOB_SCHEDULE_NONE);
-        case JOB_STATE_WAITING:
+        case job_state::waiting:
             // If true, a non-scheduled job was scheduled due to
             // ThrottleInterval
             return schedule != JOB_SCHEDULE_NONE;
-        case JOB_STATE_RUNNING:
+        case job_state::running:
             return false;
-        case JOB_STATE_EXITED:
+        case job_state::exited:
             return (manifest.keep_alive.always ||
                     schedule != JOB_SCHEDULE_NONE);
         default:
-            // LCOV_EXCL_START
-            throw std::logic_error("invalid state");
-            // LCOV_EXCL_STOP
+            __builtin_unreachable();
         }
     }
 

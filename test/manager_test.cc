@@ -86,8 +86,8 @@ void testDependencies() {
     assert(0 == job1.pid);
     assert(0 == job2.last_exit_status);
     assert(0 == job2.pid);
-    assert(job1.state == JOB_STATE_EXITED);
-    assert(job2.state == JOB_STATE_EXITED);
+    assert(job1.state == job_state::exited);
+    assert(job2.state == job_state::exited);
 }
 
 void testCyclicDependency() {
@@ -120,8 +120,8 @@ void testCyclicDependency() {
     auto &job2 = mgr.getJob({"test.job2"});
     assert(!job1.hasStarted());
     assert(!job2.hasStarted());
-    assert(job1.state == JOB_STATE_MISSING_DEPENDS);
-    assert(job2.state == JOB_STATE_MISSING_DEPENDS);
+    assert(job1.state == job_state::missing_depends);
+    assert(job2.state == job_state::missing_depends);
     mgr.unloadAllJobs();
 }
 
@@ -144,7 +144,7 @@ void testMissingDependency() {
     mgr.startAllJobs();
     auto &job1 = mgr.getJob({"test.job1"});
     assert(!job1.hasStarted());
-    assert(job1.state == JOB_STATE_MISSING_DEPENDS);
+    assert(job1.state == job_state::missing_depends);
 }
 
 //! Verify that ThrottleInterval works
@@ -165,15 +165,15 @@ void testThrottleInterval() {
     mgr.startAllJobs();
     auto &job1 = mgr.getJob({"test.job1"});
     assert(job1.hasStarted());
-    assert(job1.state == JOB_STATE_RUNNING);
+    assert(job1.state == job_state::running);
     pid_t old_pid = job1.pid;
     assert(mgr.handleEvent());      // event: reap the PID of the job
     auto &job2 = mgr.getJob({"test.job1"});
-    assert(job2.state == JOB_STATE_WAITING);
+    assert(job2.state == job_state::waiting);
     sleep(2);
     assert(mgr.handleEvent());      // event: timer expires due to ThrottleInterval, job restarts
     auto &job3 = mgr.getJob({"test.job1"});
-    assert(job3.state == JOB_STATE_RUNNING);
+    assert(job3.state == job_state::running);
     assert((job3.pid != old_pid) != 0);
 }
 
@@ -205,8 +205,8 @@ void testShouldStart() {
     mgr.startAllJobs();
     assert(job1.hasStarted());
     assert(job2.hasStarted());
-    assert(job1.state == JOB_STATE_RUNNING);
-    assert(job2.state == JOB_STATE_WAITING);
+    assert(job1.state == job_state::running);
+    assert(job2.state == job_state::waiting);
 }
 
 void testKeepaliveAfterExit() {
@@ -225,7 +225,7 @@ void testKeepaliveAfterExit() {
     mgr.loadManifest(manifest, path);
     mgr.startAllJobs();
     auto &job = mgr.getJob({"test.job1"});
-    assert(job.state == JOB_STATE_RUNNING);
+    assert(job.state == job_state::running);
     pid_t old_pid = job.pid;
     mgr.handleEvent();
     assert(old_pid != job.pid);
@@ -248,11 +248,11 @@ void testKeepaliveAfterSignal() {
     mgr.loadManifest(manifest, path);
     mgr.startAllJobs();
     auto &job = mgr.getJob({"test.job1"});
-    assert(job.state == JOB_STATE_RUNNING);
+    assert(job.state == job_state::running);
     pid_t old_pid = job.pid;
     assert(mgr.killJob({"test.job1"}, "SIGKILL"));
     mgr.handleEvent(std::chrono::milliseconds{100});
-    assert(job.state == JOB_STATE_RUNNING);
+    assert(job.state == job_state::running);
     assert(old_pid != job.pid);
 }
 
@@ -275,7 +275,7 @@ void testKillJobBySignal() {
     assert(mgr.killJob(label, "9"));
     mgr.handleEvent();
     auto &job = mgr.getJob(label);
-    assert(job.state == JOB_STATE_EXITED);
+    assert(job.state == job_state::exited);
     assert(job.last_exit_status == -1);
     assert(job.term_signal == 9);
 }
@@ -346,7 +346,7 @@ void testAbandonProcessGroup() {
     mgr.startAllJobs();
     assert(mgr.handleEvent(std::chrono::milliseconds{500}));
     auto &job = mgr.getJob(label);
-    assert(job.state == JOB_STATE_EXITED);
+    assert(job.state == job_state::exited);
 
     // Verify the subprocess was killed
     assert(std::filesystem::exists(pidfile));
