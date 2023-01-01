@@ -148,6 +148,11 @@ class ExecMonitor {
         }
     }
 
+    // Disallow copy construction and copy assignment.because
+    // of the associated kernel state.
+    ExecMonitor(const ExecMonitor &) = delete;
+    ExecMonitor &operator=(const ExecMonitor &) = delete;
+
     void becomeChild() {
         (void)close(pfd[0]);
         pfd[0] = -1;
