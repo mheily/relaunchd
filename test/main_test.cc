@@ -21,7 +21,7 @@ extern void addManagerTests(TestRunner &runner);
 extern void addManifestTests(TestRunner &runner);
 extern void addStateFileTests(TestRunner &runner);
 
-void usage() {
+void test_usage() {
     std::cout << "TODO: usage" << std::endl;
 }
 
@@ -33,7 +33,7 @@ int test_main(int argc, char *argv[]) {
                 log_freopen(stderr);
                 break;
             default:
-                usage();
+                test_usage();
                 break;
         }
     }
