@@ -197,8 +197,6 @@ start_child_process(const Job &job, const ExecutionContext &ctx) {
             return ExecStatus{ExecErrorCode::SetUserIdFailed, errno};
         }
     }
-    // FIXME: convert umask to octal
-    //(void) umask(job.manifest.umask);
 
     std::optional<ExecStatus> maybe_error;
     maybe_error =
