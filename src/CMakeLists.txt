@@ -16,6 +16,7 @@ set(LAUNCH_SRC
         exec_monitor.h
         job.cc job.h
         log.cc log.h
+        main.cc
         manager.cc manager.h
         manifest.cc manifest.h
         options.cc options.h
@@ -44,9 +45,9 @@ if (NOT USE_PRIVATE_DEPENDENCIES)
     include_directories(tinyxml2::tinyxml2)
 endif()
 
-add_executable(launchd launchd.cc)
+add_executable(launchd launchd.cc launchctl.cc ${LAUNCH_SRC})
 
-target_link_libraries(launchd PRIVATE launch nlohmann_json::nlohmann_json)
+target_link_libraries(launchd PRIVATE nlohmann_json::nlohmann_json)
 
 # DISABLED: this symbol exists in glibc but warns that it will always fail
 # need to actually try compiling a program and using the function.
@@ -82,34 +83,11 @@ install(TARGETS launchd DESTINATION ${CMAKE_INSTALL_PREFIX}/sbin)
 install(CODE "FILE(MAKE_DIRECTORY \$ENV{DESTDIR}\/${PKGSTATEDIR})")
 install(CODE "FILE(MAKE_DIRECTORY \$ENV{DESTDIR}\/${VARDIR}/run)")
 
-#
-# launchctl
-#
-
-add_executable(launchctl launchctl.cc)
-
-target_link_libraries(launchctl PRIVATE launch nlohmann_json::nlohmann_json)
-
 if(ENABLE_LTO AND ipo_supported)
     message(STATUS "Enabling link-time optimization")
-    set_property(TARGET launch PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-    set_property(TARGET launchctl PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
     set_property(TARGET launchd PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 else()
     message(STATUS "LTO not supported: <${ipo_error}>")
 endif()
 
-if(USE_LIBKQUEUE)
-else()
-    target_link_libraries(launchctl PRIVATE "${LibKQueue_LIBRARIES}")
-endif()
-
-install(TARGETS launchctl DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
-
 include(EnableSanitizers)
-
-add_custom_target(
-        format
-        COMMAND clang-format -i *.cc *.h *.hpp
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-)

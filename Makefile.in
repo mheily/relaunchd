@@ -1,9 +1,9 @@
-SOURCES = $(shell ls src/*.cc | grep -v launchctl.cc | grep -v launchd.cc)
+SOURCES = $(shell ls src/*.cc)
 TEST_SOURCES = $(shell ls test/*.cc)
 JSON_FLAGS ?= $(shell pkg-config --cflags nlohmann_json)
 LTO_FLAGS = -flto
 
-all: launchd test-all
+all: launchd launchctl
 
 launchd: $(OBJDIR)/Makefile src/launchd.cc $(SOURCES)
 	$(CXX) -std=gnu++17 -D_GNU_SOURCE \
@@ -13,7 +13,10 @@ launchd: $(OBJDIR)/Makefile src/launchd.cc $(SOURCES)
     $(JSON_FLAGS) \
     -o $(OBJDIR)/launchd \
     $(CXXFLAGS) \
-    src/launchd.cc $(SOURCES)
+    $(SOURCES)
+
+launchctl:
+	ln -s launchd launchctl
 
 test-all:
 	# COPYPASTE from above
@@ -27,8 +30,13 @@ test-all:
     $(TEST_SOURCES) $(SOURCES)
 
 install: launchd
-	install -m 755 launchd $(PREFIX)/sbin
-	ln -s $(PREFIX)/sbin/launchd $(PREFIX)/bin/launchctl
+	install -m 755 launchd $$DESTDIR$(PREFIX)/sbin
+	ln -s $(PREFIX)/sbin/launchd $$DESTDIR$(PREFIX)/bin/launchctl
+	install -d -m 755 $$DESTDIR/var/db/relaunchd
+	# TODO: manpages
+
+check: test-all
+	./test-all
 
 coverage-report: test-all
 	./test-all
@@ -39,4 +47,8 @@ clean:
 	rm -f launchd test-all config.h *.gcda *.gcno
 	rm -rf *.dSYM tmp coverage
 
-.PHONY : all
+format:
+	clang-format -i src/*.cc src/*.h src/*.hpp
+	# TODO: test/*.cc test/*.h test/*.hpp
+
+.PHONY : all check format

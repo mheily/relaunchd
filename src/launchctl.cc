@@ -184,7 +184,7 @@ void version(Channel &chan, std::vector<std::string> &) {
 
 void printUsage() { std::cout << "usage: ...\n"; }
 
-int main(int argc, char *argv[]) {
+int launchctl_main(int argc, char *argv[]) {
     std::unordered_map<std::string,
                        void (*)(Channel &, std::vector<std::string> &)>
         subcommands = {
