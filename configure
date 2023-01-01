@@ -20,6 +20,7 @@ cd "$(dirname "$0")"
 prefix="/usr/local"
 build_type="debug"
 objdir="$(pwd)"
+coverage="no"
 
 for arg in "$@"
 do
@@ -34,6 +35,9 @@ do
         ;;
       prefix)
          prefix=$val
+        ;;
+      enable-coverage)
+        coverage="yes"
         ;;
       *)
         echo "invalid usage"
@@ -60,6 +64,17 @@ esac
 printf 'build artifacts will be created in %s\n' "$objdir"
 printf 'executables will be installed using the prefix of %s\n' "$prefix"
 
+printf 'checking if code coverage is enabled.. '
+if [ "$coverage" = "yes" ] ; then
+  echo 'yes'
+  if [ "$objdir" = "$(pwd)" ] ; then
+    echo "Error: coverage reports require an out-of-tree build"
+    exit 1
+  fi
+else
+  echo 'no'
+fi
+
 printf 'checking for nlohmann::json... '
 if pkg-config --cflags nlohmann_json >/dev/null 2>&1 ; then
   echo "found"
@@ -75,6 +90,8 @@ else
   makefilepath="$objdir/Makefile"
   config_h_path="$objdir/src/config.h"
   test -e "$objdir/src" || ln -s "$(pwd)/src" "$objdir/src"
+  test -e "$objdir/test" || ln -s "$(pwd)/test" "$objdir/test"
+  mkdir -p "$objdir/tmp"
 fi
 
 echo "writing $makefilepath"
@@ -86,6 +103,10 @@ echo "OBJDIR=$objdir"
 echo "BUILD_TYPE_FLAGS=$build_type_flags"
 echo "CXXFLAGS+=-D_GNU_SOURCE"
 echo "PREFIX=$(echo "$prefix" | sed 's,/$,,')"
+if [ "$coverage" = "yes" ] ; then
+    echo "# Enable code coverage"
+    echo "CXXFLAGS += -fprofile-arcs -ftest-coverage"
+fi
 ) >> "$makefilepath"
 cat Makefile.in >> $makefilepath
 

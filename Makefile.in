@@ -1,10 +1,11 @@
 SOURCES = $(shell ls src/*.cc | grep -v launchctl.cc | grep -v launchd.cc)
+TEST_SOURCES = $(shell ls test/*.cc)
 JSON_FLAGS ?= $(shell pkg-config --cflags nlohmann_json)
 LTO_FLAGS = -flto
 
-all: $(OBJDIR)/launchd
+all: launchd test-all
 
-$(OBJDIR)/launchd: $(OBJDIR)/Makefile src/launchd.cc $(SOURCES)
+launchd: $(OBJDIR)/Makefile src/launchd.cc $(SOURCES)
 	$(CXX) -std=gnu++17 -D_GNU_SOURCE \
     -I $(OBJDIR) \
     $(BUILD_TYPE_FLAGS) \
@@ -14,11 +15,28 @@ $(OBJDIR)/launchd: $(OBJDIR)/Makefile src/launchd.cc $(SOURCES)
     $(CXXFLAGS) \
     src/launchd.cc $(SOURCES)
 
-install: $(OBJDIR)/launchd
-	install -m 755 $(OBJDIR)/launchd $(PREFIX)/sbin
+test-all:
+	# COPYPASTE from above
+	$(CXX) -std=gnu++17 -D_GNU_SOURCE \
+    -I $(OBJDIR) -I $(OBJDIR)/src "-DTESTDIR=\"$(OBJDIR)/test\"" "-DTMPDIR=\"$(OBJDIR)/tmp\"" \
+    $(BUILD_TYPE_FLAGS) \
+    $(LTO_FLAGS) \
+    $(JSON_FLAGS) \
+    -o $(OBJDIR)/test-all \
+    $(CXXFLAGS) \
+    $(TEST_SOURCES) $(SOURCES)
+
+install: launchd
+	install -m 755 launchd $(PREFIX)/sbin
 	ln -s $(PREFIX)/sbin/launchd $(PREFIX)/bin/launchctl
 
+coverage-report: test-all
+	./test-all
+	lcov --capture --directory . --output-file coverage.info --exclude /Library/\* --exclude /opt/homebrew/\* --exclude $(OBJDIR)/test/\*
+	genhtml coverage.info --output-directory coverage
+
 clean:
-	rm -f $(OBJDIR)/launchd
+	rm -f launchd test-all config.h *.gcda *.gcno
+	rm -rf *.dSYM tmp coverage
 
 .PHONY : all

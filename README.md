@@ -86,6 +86,14 @@ The basic commands to build and install the software are:
 	make
 ```
 
+### Generating a code coverage report
+
+To generate a code coverage report, run the following:
+
+```
+./create-coverage-report.sh
+```
+
 ## Installation 
 
 To install relaunchd, run the following command in the build directory:
