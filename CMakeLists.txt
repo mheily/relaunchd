@@ -97,7 +97,6 @@ if(ENABLE_COVERAGE)
     append_coverage_compiler_flags()
 endif()
 
-add_subdirectory(man)
 add_subdirectory(src)
 add_subdirectory(test)
 

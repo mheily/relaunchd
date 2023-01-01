@@ -8,7 +8,7 @@ test: buildvol
 	docker build -t $(TAG) -f ../Dockerfile ..
 	docker run --rm $(VOLUMES) -it $(TAG) sh -ex -c '\
         cd /tmp/build ; \
-        /tmp/src/configure --build-type=release --objdir=/tmp/build --prefix=/; \
+        /tmp/src/configure --build-type=release --objdir=/tmp/build --prefix=/ --mandir=/usr/share/man; \
         ls -la ; ls -l src ; \
         cat -n Makefile ; \
         make -j all install ; \

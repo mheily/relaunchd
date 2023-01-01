@@ -33,7 +33,13 @@ install: launchd
 	install -m 755 launchd $$DESTDIR$(PREFIX)/sbin
 	ln -s $(PREFIX)/sbin/launchd $$DESTDIR$(PREFIX)/bin/launchctl
 	install -d -m 755 $$DESTDIR/var/db/relaunchd
-	# TODO: manpages
+	install -d -m 755 $$DESTDIR/$(MANDIR)
+	install -d -m 755 $$DESTDIR/$(MANDIR)/man8
+	install -m 644 launchd.8 $$DESTDIR$(MANDIR)/man8/launchd.8
+	install -d -m 755 $$DESTDIR/$(MANDIR)/man1
+	install -m 644 man/launchctl.1 $$DESTDIR$(MANDIR)/man1/launchctl.1
+	install -d -m 755 $$DESTDIR/$(MANDIR)/man5
+	install -m 644 man/launchd.plist.5 $$DESTDIR$(MANDIR)/man5/launchd.plist.5
 
 check: test-all
 	./test-all
