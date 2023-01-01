@@ -9,7 +9,6 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Os -Wall -Wextra -Werro
 check_include_files(sys/limits.h, HAVE_SYS_LIMITS_H)
 
 set(LAUNCH_SRC
-        dependency.cc dependency.h
         channel.h channel.cc
         domain.h domain.cc
         event.h

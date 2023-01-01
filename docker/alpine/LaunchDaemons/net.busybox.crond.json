@@ -4,8 +4,5 @@
     "/usr/sbin/crond",
     "-f"
   ],
-  "KeepAlive": true,
-  "Dependencies": [
-    "net.busybox.syslogd"
-  ]
+  "KeepAlive": true
 }

@@ -53,100 +53,6 @@ Manager getManager() {
     return Manager{domain};
 }
 
-void testDependencies() {
-    //log_freopen(stdout);
-    auto mgr = getManager();
-    json job1_manifest = json::parse(R"(
-        {
-          "Label": "test.job1",
-          "Program": "/bin/sh",
-          "RunAtLoad": true,
-          "Dependencies": [
-            "test.job2"
-          ]
-        }
-    )");
-    json job2_manifest = json::parse(R"(
-        {
-          "Label": "test.job2",
-          "Program": "/bin/sh"
-        }
-    )");
-    std::string path = "/dev/null";
-    mgr.loadManifest(job1_manifest, path);
-    mgr.loadManifest(job2_manifest, path);
-    mgr.startAllJobs();
-    auto &job1 = mgr.getJob({"test.job1"});
-    auto &job2 = mgr.getJob({"test.job2"});
-    assert(job1.hasStarted());
-    assert(job2.hasStarted());
-    assert(mgr.handleEvent(std::chrono::milliseconds{100}));      // event: reap the PID of a job
-    assert(mgr.handleEvent(std::chrono::milliseconds{100}));      // event: reap the PID of a job
-    assert(0 == job1.last_exit_status);
-    assert(0 == job1.pid);
-    assert(0 == job2.last_exit_status);
-    assert(0 == job2.pid);
-    assert(job1.state == job_state::exited);
-    assert(job2.state == job_state::exited);
-}
-
-void testCyclicDependency() {
-    //log_freopen(stdout);
-    auto mgr = getManager();
-    json job1_manifest = json::parse(R"(
-        {
-          "Label": "test.job1",
-          "Program": "/bin/sh",
-          "RunAtLoad": true,
-          "Dependencies": [
-            "test.job2"
-          ]
-        }
-    )");
-    json job2_manifest = json::parse(R"(
-        {
-          "Label": "test.job2",
-          "Program": "/bin/sh",
-          "Dependencies": [
-            "test.job1"
-          ]
-        }
-    )");
-    std::string path = "/dev/null";
-    mgr.loadManifest(job1_manifest, path);
-    mgr.loadManifest(job2_manifest, path);
-    mgr.startAllJobs();
-    auto &job1 = mgr.getJob({"test.job1"});
-    auto &job2 = mgr.getJob({"test.job2"});
-    assert(!job1.hasStarted());
-    assert(!job2.hasStarted());
-    assert(job1.state == job_state::missing_depends);
-    assert(job2.state == job_state::missing_depends);
-    mgr.unloadAllJobs();
-}
-
-//! Test what happens if a dependency does not exist
-void testMissingDependency() {
-    //log_freopen(stdout);
-    auto mgr = getManager();
-    json job1_manifest = json::parse(R"(
-        {
-          "Label": "test.job1",
-          "Program": "/bin/sh",
-          "RunAtLoad": true,
-          "Dependencies": [
-            "--this-job-does-not-exist--"
-          ]
-        }
-    )");
-    std::string path = "/dev/null";
-    mgr.loadManifest(job1_manifest, path);
-    mgr.startAllJobs();
-    auto &job1 = mgr.getJob({"test.job1"});
-    assert(!job1.hasStarted());
-    assert(job1.state == job_state::missing_depends);
-}
-
 //! Verify that ThrottleInterval works
 void testThrottleInterval() {
     //log_freopen(stdout);
@@ -357,42 +263,14 @@ void testAbandonProcessGroup() {
     assert(killpg(pid, SIGTERM) == -1 && errno == ESRCH);
 }
 
-// Test the jobHasReverseDependencies() method.
-void testJobHasReverseDependencies() {
-    auto mgr = getManager();
-    Label labelA{"jobHasReverseDependencies.A"};
-    Label labelB{"jobHasReverseDependencies.B"};
-    json manifestA = json{
-            {"Label", labelA},
-            {"Program", "/bin/sh"},
-            {"Dependencies", json::array({labelB.str()})},
-    };
-    json manifestB = json{
-            {"Label", labelB},
-            {"Program", "/bin/sh"},
-    };
-    std::string path = "/dev/null";
-    mgr.loadManifest(manifestA, path);
-    mgr.loadManifest(manifestB, path);
-    auto &jobA = mgr.getJob(labelA);
-    auto &jobB = mgr.getJob(labelB);
-    assert(!mgr.jobHasReverseDependencies(jobA));
-    assert(mgr.jobHasReverseDependencies(jobB));
-    mgr.unloadJob(jobA);
-    assert(!mgr.jobHasReverseDependencies(jobB));
-}
 
 void addManagerTests(TestRunner &runner) {
 #define X(y) runner.addTest("" # y, y)
-    X(testJobHasReverseDependencies);
     X(testAbandonProcessGroup);
     X(testUnloadWithOverrideDisabled);
     X(testUnload);
     X(testKeepaliveAfterSignal);
     X(testKeepaliveAfterExit);
-    X(testCyclicDependency);
-    X(testMissingDependency);
-    X(testDependencies);
     X(testShouldStart);
     X(testThrottleInterval);
     X(testKillJobBySignal);

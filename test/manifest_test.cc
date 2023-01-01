@@ -38,28 +38,6 @@ void test_parse() {
     }
 }
 
-void testParseComplexDependency() {
-    json obj = json::parse(R"(
-        [
-            {
-                "Label": "dep1",
-                "StartBefore": true
-            }
-        ]
-    )");
-    DependencyList deplist{obj};
-}
-
-void testParseSimpleDependency() {
-    json obj = json::parse(R"(
-        [
-            "dep1",
-            "dep2"
-        ]
-    )");
-    DependencyList deplist{obj};
-}
-
 void testParseUmaskFromStr() {
     json manifest = json{
             {"Label", "testParseUmaskFromStr"},
@@ -85,6 +63,4 @@ void testParseUmaskFromInt() {
 void addManifestTests(TestRunner &runner) {
     runner.addTest("testParseUmaskFromStr", testParseUmaskFromStr);
     runner.addTest("testParseUmaskFromInt", testParseUmaskFromInt);
-    runner.addTest("testParseComplexDependency", testParseComplexDependency);
-    runner.addTest("testParseSimpleDependency", testParseSimpleDependency);
 }

@@ -476,68 +476,8 @@ void Manager::rescheduleJob(Job &job) {
     }
 }
 
-void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
+void Manager::startJob(Job &job) {
     log_debug("trying to start %s", job.manifest.label.c_str());
-
-    // Check for a cyclic dependency that would cause infinite recursion.
-    // Example: Job A depends on Job B, and Job B depends on Job A.
-    if (visited) {
-        log_debug("checking for cycle");
-        for (const auto &label : visited.value()) {
-            if (static_cast<std::string>(job.manifest.label) ==
-                static_cast<std::string>(label)) {
-                log_error("cycle detected in the job dependency graph");
-                return;
-            }
-        }
-        // This is extra paranoia.
-        // LCOV_EXCL_START
-        if (visited.value().size() > 100) {
-            log_error("dependency chain is too long; maximum number of jobs "
-                      "exceeded");
-            return;
-        }
-        // LCOV_EXCL_STOP
-    }
-
-    // Start all dependencies
-    for (const auto &[label, dep] :
-         job.manifest.dependencies.getItemsByLabel()) {
-        log_debug("evaluating dependency: %s", label.c_str());
-        if (!jobExists(label)) {
-            if (dep.isRequired) {
-                log_debug(
-                    "job %s requires dependency %s, but it does not exist",
-                    job.manifest.label.c_str(), label.c_str());
-                job.state = job_state::missing_depends;
-                return;
-            } else {
-                log_debug("job %s has an optional dependency on %s, but it "
-                          "does not exist",
-                          job.manifest.label.c_str(), label.c_str());
-                continue;
-            }
-        }
-        auto &depjob = getJob(label);
-        if (depjob.state == job_state::loaded) {
-            log_debug("starting job %s as a dependency of %s",
-                      depjob.manifest.label.c_str(),
-                      job.manifest.label.c_str());
-            if (visited) {
-                visited.value().emplace_back(job.manifest.label);
-                startJob(depjob, visited);
-            } else {
-                std::vector<Label> dep_visited = {job.manifest.label};
-                startJob(depjob, dep_visited);
-            }
-        }
-        if (!depjob.hasStarted()) {
-            log_debug("dependency has not started: %s is in state %d",
-                      label.c_str(), depjob.state);
-            job.state = job_state::missing_depends;
-            return;
-        }
-    }
 
     if (job.schedule != JOB_SCHEDULE_NONE) {
         // To "start" a scheduled job means scheduling it, not actually starting
@@ -560,25 +500,6 @@ void Manager::startJob(Job &job, std::optional<std::vector<Label>> visited) {
     } else {
         job.state = job_state::exited;
     }
-}
-
-bool Manager::jobHasReverseDependencies(const Job &job) const {
-    for (const auto &[other_label, other_job] : jobs) {
-        if (other_job.manifest.label == job.manifest.label) {
-            continue;
-        }
-        if (other_job.state != job_state::defined) {
-            auto deplist = other_job.manifest.dependencies.getItemsByLabel();
-            for (const auto &[dep_label, dep] : deplist) {
-                if (job.manifest.label == dep_label) {
-                    if (dep.isRequired) {
-                        return true;
-                    }
-                }
-            }
-        }
-    }
-    return false;
 }
 
 void Manager::startAllJobs() {

@@ -28,7 +28,6 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
-#include "dependency.h"
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
@@ -124,8 +123,6 @@ struct Manifest {
         bool always = false; /* Equivalent to setting { "KeepAlive": true } */
                              /* TODO: various other conditions */
     } keep_alive;
-
-    DependencyList dependencies;
 
     // TODO: ResourceLimits, HopefullyExits*, inetd, LowPriorityIO,
     // LaunchOnlyOnce SLIST_HEAD(,job_manifest_socket) sockets;

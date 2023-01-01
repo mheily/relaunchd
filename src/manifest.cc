@@ -189,9 +189,6 @@ void from_json(const json &j, Manifest &m) {
             }
         }
     }
-    if (j.contains("Dependencies")) {
-        m.dependencies = DependencyList(j.at("Dependencies"));
-    }
     if (j.contains("Sockets")) {
         throw NotSupportedError();
     }
