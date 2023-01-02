@@ -16,12 +16,29 @@ test: buildvol
         ldd launchd ; \
         ls -lh /sbin/launchd /bin/launchctl'
 
+check: buildvol
+	docker build -t $(TAG)-ubuntu -f Dockerfile.Ubuntu ..
+	docker run --rm $(VOLUMES) -it $(TAG) /tmp/src/run-precommit-checks.sh
+
+check-asan:
+	docker run --rm $(VOLUMES) -it $(TAG)-ubuntu sh -ex -c '\
+        /tmp/src/configure --objdir=/tmp/build --enable-asan; \
+        make -C /tmp/build -j all check CXXFLAGS=-Werror '
+
+check-msan:
+	docker run --rm $(VOLUMES) -it $(TAG)-ubuntu sh -ex -c '\
+        /tmp/src/configure --objdir=/tmp/build --enable-msan; \
+        make -C /tmp/build -j all check CXXFLAGS=-Werror CXX=clang++-15'
+
 clean:
 	docker rmi -f $(TAG) || true
 	docker volume rm -f $(BUILD_VOL)
 
 shell:
-	docker run --rm $(VOLUMES) -it relaunchd-src:latest bash
+	docker run --rm $(VOLUMES) -it $(TAG) bash
+
+shell-ubuntu:
+	docker run --rm $(VOLUMES) -it $(TAG)-ubuntu bash
 
 # Recreate the build volume
 buildvol:

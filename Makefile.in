@@ -1,33 +1,18 @@
 SOURCES = $(shell ls src/*.cc)
 TEST_SOURCES = $(shell ls test/*.cc)
-JSON_FLAGS ?= $(shell pkg-config --cflags nlohmann_json)
-LTO_FLAGS = -flto
 
 all: launchd launchctl
 
-launchd: $(OBJDIR)/Makefile src/launchd.cc $(SOURCES)
-	$(CXX) -std=gnu++17 -D_GNU_SOURCE \
-    -I $(OBJDIR) \
-    $(BUILD_TYPE_FLAGS) \
-    $(LTO_FLAGS) \
-    $(JSON_FLAGS) \
-    -o $(OBJDIR)/launchd \
-    $(CXXFLAGS) \
-    $(SOURCES)
+launchd: Makefile $(SOURCES)
+	$(CXX) -I $(OBJDIR) -o $(OBJDIR)/$@ $(TARGET_CXXFLAGS) $(CXXFLAGS) $(SOURCES) $(TARGET_LDADD)
 
 launchctl:
-	ln -s launchd launchctl
+	ln -sf launchd launchctl
 
-test-all:
-	# COPYPASTE from above
-	$(CXX) -std=gnu++17 -D_GNU_SOURCE -DRELAUNCHD_UNIT_TESTS \
-    -I $(OBJDIR) -I $(OBJDIR)/src "-DTESTDIR=\"$(OBJDIR)/test\"" "-DTMPDIR=\"$(OBJDIR)/tmp\"" \
-    $(BUILD_TYPE_FLAGS) \
-    $(LTO_FLAGS) \
-    $(JSON_FLAGS) \
-    -o $(OBJDIR)/test-all \
-    $(CXXFLAGS) \
-    $(TEST_SOURCES) $(SOURCES)
+test-all: Makefile $(SOURCES) $(TEST_SOURCES)
+	$(CXX) -I $(OBJDIR) -I $(OBJDIR)/src -o $(OBJDIR)/$@ \
+	-DRELAUNCHD_UNIT_TESTS "-DTESTDIR=\"$(OBJDIR)/test\"" "-DTMPDIR=\"$(OBJDIR)/tmp\"" \
+	$(TARGET_CXXFLAGS) $(CXXFLAGS) $(TEST_SOURCES) $(SOURCES) $(TARGET_LDADD)
 
 install: launchd
 	install -m 755 launchd $$DESTDIR$(PREFIX)/sbin
@@ -42,19 +27,25 @@ install: launchd
 	install -m 644 man/launchd.plist.5 $$DESTDIR$(MANDIR)/man5/launchd.plist.5
 
 check: test-all
-	./test-all
+	./test-all -v
 
 coverage-report: test-all
 	./test-all
 	lcov --capture --directory . --output-file coverage.info --exclude /Library/\* --exclude /opt/homebrew/\* --exclude $(OBJDIR)/test/\*
 	genhtml coverage.info --output-directory coverage
 
+clang-analyzer-report: clean
+	scan-build -o ./scan-build --use-c++=clang++ --status-bugs -v $(MAKE) launchd
+
 clean:
-	rm -f launchd test-all config.h *.gcda *.gcno
-	rm -rf *.dSYM tmp coverage
+	rm -f launchd launchctl test-all *.8 *.gcda *.gcno
+	rm -rf *.dSYM tmp coverage scan-build
+
+distclean: clean
+	rm -f Makefile config.h
 
 format:
 	clang-format -i src/*.cc src/*.h src/*.hpp
 	# TODO: test/*.cc test/*.h test/*.hpp
 
-.PHONY : all check format
+.PHONY : all check clean clang-analyzer-report coverage-report distclean format install

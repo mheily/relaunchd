@@ -1,0 +1,8 @@
+FROM arm64v8/ubuntu:devel
+RUN apt-get update && apt-get install -y clang clang-tools gcc g++ gdb \
+    cmake git pkg-config bash libasan6 make mandoc nlohmann-json3-dev
+
+RUN mkdir /tmp/build
+WORKDIR /tmp/build
+
+COPY ./ /tmp/src/

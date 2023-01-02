@@ -6,6 +6,8 @@ on:
     branches:
       - master
     paths:
+      - 'configure'
+      - 'Makefile.in'
       - 'CMakeList.txt'
       - 'cmake/*'
       - 'src/*'
@@ -27,33 +29,7 @@ jobs:
         run: sudo apt-get update
 
       - name: Install package dependencies
-        run: sudo apt-get install -y nlohmann-json3-dev
+        run: sudo apt-get install -y clang clang-tools nlohmann-json3-dev
 
-      - name: Configure the project
-        run: |
-          cmake -B ${{github.workspace}}/build \
-            -DCMAKE_CXX_FLAGS="-Werror" \
-            -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
-          cat ${{github.workspace}}/build/src/config.h
-
-      - name: Build the project
-        run: cmake --build ${{github.workspace}}/build
-
-      - name: Run tests
-        working-directory: ${{github.workspace}}/build
-        run: |
-          failed=0
-          ctest --verbose --output-on-failure . || failed=$?
-          if [ $failed != 0 ] ; then cat Testing/Temporary/LastTest.log ; fi
-          exit $failed
-
-      - name: Run tests with ASAN enabled
-        run: |
-          cmake -B ${{github.workspace}}/build-asan -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=yes
-          cmake --build ${{github.workspace}}/build-asan
-          cd ${{github.workspace}}/build-asan
-          failed=0
-          ctest --verbose --output-on-failure . || failed=$?
-          if [ $failed != 0 ] ; then cat Testing/Temporary/LastTest.log ; fi
-          exit $failed
-
+      - name: Run the precommit checks
+        run: ./run-precommit-checks.sh ${{github.workspace}}/build

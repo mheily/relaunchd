@@ -23,6 +23,7 @@ extern int launchctl_main(int argc, char *argv[]);
 
 extern int test_main(int argc, char *argv[]);
 
+#ifndef RELAUNCHD_UNIT_TESTS
 static bool ends_with(const std::string &path, const std::string &tail) {
     if (path.length() >= tail.length()) {
         return !path.compare(path.length() - tail.length(), tail.length(),
@@ -31,6 +32,7 @@ static bool ends_with(const std::string &path, const std::string &tail) {
         return false;
     }
 }
+#endif
 
 int main(int argc, char *argv[]) {
     if (!argc) {

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/sh -e
 #
 # Copyright (c) 2022 Mark Heily <mark@heily.com>
 #
@@ -15,13 +15,22 @@
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
 
+err() {
+  echo "ERROR: $*"
+  exit 1
+}
+
 cd "$(dirname "$0")"
 
 prefix="/usr/local"
 build_type="debug"
-objdir="$(pwd)"
+objdir=""
 mandir=""
 coverage="no"
+use_asan="no"
+use_msan="no"
+use_lto="yes"
+target_cxxflags="-std=gnu++17 -D_GNU_SOURCE"
 
 for arg in "$@"
 do
@@ -32,14 +41,24 @@ do
         build_type=$val
          ;;
       objdir)
-         objdir=$(realpath "$val")
+         objdir="$val"
         ;;
-      mandir) mandir="$val" ;;
+      mandir)
+        mandir="$val" ;;
       prefix)
          prefix=$val
         ;;
       enable-coverage)
         coverage="yes"
+        ;;
+      enable-asan)
+        use_asan="yes"
+        ;;
+      enable-msan)
+        use_msan="yes"
+        ;;
+      disable-lto)
+        use_lto="no"
         ;;
       *)
         echo "invalid usage"
@@ -54,7 +73,7 @@ printf 'configuring %s version %s\n' "$project" "$project_version"
 printf 'setting build type to %s\n' $build_type
 case $build_type in
 debug)
-  build_type_flags="-g3 -O0 -Wall -Wextra"
+  build_type_flags="-g3 -O0 -Wall -Wextra -fno-omit-frame-pointer"
   ;;
 release)
   build_type_flags="-Os -Wall -Wextra -Werror"
@@ -63,7 +82,17 @@ release)
   exit 2
 esac
 
+if [ -z "$objdir" ] ; then
+  objdir=$(pwd)
+fi
+if [ ! -e "$objdir" ] ; then
+  mkdir "$objdir"
+else
+  test -O "$objdir"
+fi
+objdir=$(realpath "$objdir")
 printf 'build artifacts will be created in %s\n' "$objdir"
+
 printf 'executables will be installed using the prefix of %s\n' "$prefix"
 
 if [ -z "$mandir" ] ; then
@@ -82,9 +111,20 @@ else
   echo 'no'
 fi
 
+printf 'checking if ASAN should be enabled.. '
+if [ "$use_asan" = "yes" ] ; then
+  echo 'yes'
+  if [ "$build_type" != "debug" ] ; then
+    err "ASAN can only be used with debug builds"
+  fi
+else
+  echo 'no'
+fi
+
 printf 'checking for nlohmann::json... '
 if pkg-config --cflags nlohmann_json >/dev/null 2>&1 ; then
   echo "found"
+  target_cxxflags="$target_cxxflags $(pkg-config --cflags nlohmann_json)"
 else
   echo "not found"
   exit 1
@@ -110,11 +150,23 @@ echo "PROJECT_VERSION=$project_version"
 echo "OBJDIR=$objdir"
 echo "MANDIR=$mandir"
 echo "PREFIX=$(echo "$prefix" | sed 's,/$,,')"
-echo "BUILD_TYPE_FLAGS=$build_type_flags"
-echo "CXXFLAGS+=-D_GNU_SOURCE"
+echo "TARGET_CXXFLAGS = $build_type_flags -D_GNU_SOURCE $target_cxxflags"
 if [ "$coverage" = "yes" ] ; then
     echo "# Enable code coverage"
-    echo "CXXFLAGS += -fprofile-arcs -ftest-coverage"
+    echo "TARGET_CXXFLAGS += -fprofile-arcs -ftest-coverage"
+fi
+if [ "$use_asan" = "yes" ] ; then
+  echo "# Enable ASAN"
+  echo "TARGET_CXXFLAGS += -fsanitize=address"
+  echo "TARGET_LDADD += -lasan"
+fi
+if [ "$use_msan" = "yes" ] ; then
+  echo "# Enable MSAN"
+  echo "TARGET_CXXFLAGS += -fsanitize=memory -fsanitize-memory-track-origins=2"
+fi
+if [ "$use_lto" = "yes" ] ; then
+  echo "# Enable LTO"
+  echo "TARGET_CXXFLAGS += -flto"
 fi
 ) >> "$makefilepath"
 cat Makefile.in >> $makefilepath
