@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <stdexcept>
 #include <string>
 #include <unistd.h>
 
@@ -31,7 +32,12 @@ std::string getConfigDir() {
         if (xdg_config_home) {
             configdir = std::string{xdg_config_home};
         } else {
-            configdir = std::string{getenv("HOME")} + "/.local/config";
+            auto home = getenv("HOME");
+            if (home) {
+                configdir = std::string{home} + "/.local/config";
+            } else {
+                throw std::runtime_error("No HOME environment variable is set");
+            }
         }
         configdir += "/relaunchd";
     }
