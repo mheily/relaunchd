@@ -37,7 +37,6 @@ typedef enum {
 } job_schedule_t;
 
 enum class job_state {
-    defined,
     loaded,
     missing_depends,
     waiting,
@@ -75,17 +74,12 @@ struct Job {
 
     bool run(std::function<void()> post_fork_cleanup);
 
-    void load();
-
-    bool unload();
-
     //! Has the job ever been started by the manager? It might not currently
     // be running, but that is okay.
     // TODO: Replace this with a state machine that cannot transition back to a
     //       non-started state.
     bool hasStarted() const {
         switch (state) {
-        case job_state::defined:
         case job_state::loaded:
         case job_state::missing_depends:
             return false;
@@ -101,8 +95,6 @@ struct Job {
     //! Should the job be started automatically?
     bool shouldStart() const {
         switch (state) {
-        case job_state::defined:
-            return false;
         case job_state::missing_depends: // not sure about this one...
             return false;
         case job_state::loaded:

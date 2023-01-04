@@ -146,9 +146,7 @@ bool Manager::loadManifest(const json &jsondata, const std::string &path,
         return false;
     }
 
-    auto [it, _] = jobs.emplace(label, Job{path, manifest});
-    auto &job = it->second;
-    job.load();
+    jobs.emplace(label, Job{path, manifest});
 
     return true;
 }
@@ -195,10 +193,6 @@ bool Manager::unloadJob(std::unordered_map<std::string, Job>::iterator &it,
                 pending_sigkill.erase(it);
             }
         });
-    }
-    if (!job.unload()) {
-        log_error("failed to unload %s", label.c_str());
-        return false;
     }
 
     it = jobs.erase(it);

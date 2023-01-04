@@ -275,40 +275,6 @@ start_child_process(const Job &job, const ExecutionContext &ctx) {
     return ExecStatus{ExecErrorCode::ExecFailed, saved_errno};
 }
 
-void Job::load() {
-    /* TODO: This is the place to setup on-demand watches for the following
-       keys: WatchPaths QueueDirectories
-    */
-// FIXME: sockets
-#if 0
-    struct job_manifest_socket *jms;
-
-    if (!SLIST_EMPTY(&job.manifest.sockets)) {
-        SLIST_FOREACH(jms, &job.manifest.sockets, entry) {
-            if (job_manifest_socket_open(job, jms) < 0) {
-                log_error("failed to open socket");
-                return (-1);
-            }
-        }
-        log_debug("job %s sockets created", job.manifest.label.c_str());
-        job->state = job_state::waiting;
-        return (0);
-    }
-#endif
-
-    state = job_state::loaded;
-    log_debug("loaded %s", manifest.label.c_str());
-    dump();
-}
-
-bool Job::unload() {
-    // This could be used to cleanup resources associated with the job
-    assert(state != job_state::defined); // check for double unload
-    log_debug("unloaded job: %s", manifest.label.c_str());
-    state = job_state::defined;
-    return true;
-}
-
 bool Job::run(const std::function<void()> post_fork_cleanup) {
     std::optional<uid_t> uid;
     std::optional<uid_t> gid;
@@ -396,7 +362,7 @@ job_schedule_t Job::_set_schedule() const {
 Job::Job(std::optional<std::filesystem::path> manifest_path_,
          Manifest manifest_)
     : manifest_path(std::move(manifest_path_)), manifest(std::move(manifest_)),
-      state(job_state::defined), pid(0), pgid(-1), last_exit_status(0),
+      state(job_state::loaded), pid(0), pgid(-1), last_exit_status(0),
       term_signal(0), schedule(_set_schedule()) {}
 
 bool Job::killJob(int signum) const noexcept {
@@ -442,8 +408,6 @@ bool Job::killProcessGroup() const noexcept {
 
 const char *Job::getState() const {
     switch (state) {
-    case job_state::defined:
-        return "defined";
     case job_state::loaded:
         return "loaded";
     case job_state::missing_depends:
