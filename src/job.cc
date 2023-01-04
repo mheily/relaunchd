@@ -339,6 +339,7 @@ bool Job::run(const std::function<void()> post_fork_cleanup) {
     ExecutionContext ctx{uid, gid, setup_environment_variables(*this, pwent)};
 
     ExecMonitor ipcpipe;
+    ipcpipe.createPipe();
 
     pid = fork();
     if (pid < 0) {

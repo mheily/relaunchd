@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cassert>
 #include <string>
 #include <system_error>
 #include <unistd.h>
@@ -125,7 +126,19 @@ struct ExecStatus {
 //! Monitor what happens in a child process between fork() and exec()
 class ExecMonitor {
   public:
-    ExecMonitor() {
+    ~ExecMonitor() {
+        if (pfd[0] > 0) {
+            (void)close(pfd[0]);
+        }
+        if (pfd[1] > 0) {
+            (void)close(pfd[1]);
+        }
+    }
+
+    void createPipe() {
+        if (pfd[0] >= 0 || pfd[1] >= 0) {
+            throw std::logic_error("pipe is already created");
+        }
         if (pipe(pfd) != 0) {
             log_errno("pipe(2)");
             throw std::system_error(errno, std::system_category(), "fork(2)");
@@ -142,23 +155,23 @@ class ExecMonitor {
         }
     }
 
-    ~ExecMonitor() {
+    void closePipe() {
+        assert(pfd[0] >= 0 || pfd[1] >= 0);
         for (int fd : pfd) {
-            (void)close(fd);
+            if (fd >= 0) {
+                (void)close(fd);
+            }
         }
     }
 
-    // Disallow copy construction and copy assignment.because
-    // of the associated kernel state.
-    ExecMonitor(const ExecMonitor &) = delete;
-    ExecMonitor &operator=(const ExecMonitor &) = delete;
-
     void becomeChild() {
+        assert(pfd[0] >= 0);
         (void)close(pfd[0]);
         pfd[0] = -1;
     }
 
     void becomeParent() {
+        assert(pfd[1] >= 0);
         (void)close(pfd[1]);
         pfd[1] = -1;
     }
@@ -197,5 +210,5 @@ class ExecMonitor {
     }
 
   private:
-    int pfd[2];
+    int pfd[2] = {-1, -1};
 };
