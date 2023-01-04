@@ -27,6 +27,7 @@ install: launchd
 	install -m 644 man/launchd.plist.5 $$DESTDIR$(MANDIR)/man5/launchd.plist.5
 
 check: test-all
+	mkdir -p $(OBJDIR)/tmp
 	./test-all -v
 
 coverage-report: test-all
