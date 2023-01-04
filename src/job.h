@@ -38,7 +38,6 @@ typedef enum {
 
 enum class job_state {
     loaded,
-    missing_depends,
     waiting,
     running,
     exited,
@@ -81,7 +80,6 @@ struct Job {
     bool hasStarted() const {
         switch (state) {
         case job_state::loaded:
-        case job_state::missing_depends:
             return false;
         case job_state::waiting:
         case job_state::running:
@@ -95,8 +93,6 @@ struct Job {
     //! Should the job be started automatically?
     bool shouldStart() const {
         switch (state) {
-        case job_state::missing_depends: // not sure about this one...
-            return false;
         case job_state::loaded:
             return (manifest.run_at_load || manifest.keep_alive.always ||
                     schedule != JOB_SCHEDULE_NONE);

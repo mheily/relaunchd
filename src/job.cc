@@ -410,8 +410,6 @@ const char *Job::getState() const {
     switch (state) {
     case job_state::loaded:
         return "loaded";
-    case job_state::missing_depends:
-        return "missing_depends";
     case job_state::waiting:
         return "waiting";
     case job_state::running:
