@@ -692,6 +692,11 @@ class EventManager {
         socket_read_callbacks.insert({{sd, callback}});
     }
 
+    void deleteSocketRead(int sd) {
+        impl->ignoreSocketRead(sd);
+        socket_read_callbacks.erase(sd);
+    }
+
     int addTimer(const std::chrono::milliseconds milliseconds,
                  std::function<void()> callback) {
         int timer_id = getNextTimerId();
