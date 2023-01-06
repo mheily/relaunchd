@@ -35,12 +35,6 @@
 
 extern void keepalive_remove_job(const Job &job);
 
-struct ExecutionContext {
-    std::optional<gid_t> gid;
-    std::optional<uid_t> uid;
-    std::vector<std::string> environ;
-};
-
 /* Add the standard set of environment variables that most programs expect.
  * See: http://pubs.opengroup.org/onlinepubs/009695399/basedefs/xbd_chap08.html
  * TODO: should cache these getenv() calls, so we don't do this dance for every
@@ -65,10 +59,10 @@ add_standard_environment_variables(std::vector<std::string> envvar) {
     }
 }
 
-static std::vector<std::string>
-setup_environment_variables(const Job &job, const struct passwd *pwent) {
+std::vector<std::string>
+Job::setup_environment_variables(const struct passwd *pwent) {
     std::vector<std::string> result;
-    for (const auto &[key, val] : job.manifest.environment_variables) {
+    for (const auto &[key, val] : manifest.environment_variables) {
         std::string kv = std::string{key}.append("=").append(val);
         result.emplace_back(std::move(kv));
     }
@@ -92,26 +86,26 @@ setup_environment_variables(const Job &job, const struct passwd *pwent) {
             pw_shell = "/bin/sh";
             // LCOV_EXCL_STOP
         }
-        if (!job.manifest.environment_variables.count("LOGNAME")) {
+        if (!manifest.environment_variables.count("LOGNAME")) {
             result.emplace_back(std::string{"LOGNAME="} + pw_name);
         }
-        if (!job.manifest.environment_variables.count("USER")) {
+        if (!manifest.environment_variables.count("USER")) {
             result.emplace_back(std::string{"USER="} + pw_name);
         }
-        if (!job.manifest.environment_variables.count("HOME")) {
+        if (!manifest.environment_variables.count("HOME")) {
             result.emplace_back(std::string{"HOME="} + pw_dir);
         }
-        if (!job.manifest.environment_variables.count("PATH")) {
+        if (!manifest.environment_variables.count("PATH")) {
             result.emplace_back(
                 std::string{"PATH=/usr/bin:/bin:/usr/local/bin"});
         }
-        if (!job.manifest.environment_variables.count("SHELL")) {
+        if (!manifest.environment_variables.count("SHELL")) {
             result.emplace_back(std::string{"HOME="} + pw_shell);
         }
-        if (!job.manifest.environment_variables.count("TMPDIR")) {
+        if (!manifest.environment_variables.count("TMPDIR")) {
             result.emplace_back(std::string{"TMPDIR=/tmp"});
         }
-        if (!job.manifest.environment_variables.count("PWD")) {
+        if (!manifest.environment_variables.count("PWD")) {
             // FIXME: should this be WorkingDirectory instead?
             result.emplace_back(std::string{"PWD=/"});
         }
@@ -156,12 +150,10 @@ static std::optional<ExecStatus> replace_fd(int oldfd, const std::string &path,
     return std::nullopt;
 }
 
-static std::optional<ExecStatus>
-start_child_process(const Job &job, const ExecutionContext &ctx) {
-    const Manifest &manifest = job.manifest;
-
-    if (job.manifest.umask) {
-        (void)::umask(job.manifest.umask.value());
+std::optional<ExecStatus>
+Job::start_child_process(const ExecutionContext &ctx) {
+    if (manifest.umask) {
+        (void)::umask(manifest.umask.value());
     } else {
         (void)::umask(S_IWGRP | S_IWOTH);
     }
@@ -199,21 +191,20 @@ start_child_process(const Job &job, const ExecutionContext &ctx) {
     }
 
     std::optional<ExecStatus> maybe_error;
-    maybe_error =
-        replace_fd(STDIN_FILENO, job.manifest.stdin_path, O_RDONLY, 0);
+    maybe_error = replace_fd(STDIN_FILENO, manifest.stdin_path, O_RDONLY, 0);
     if (maybe_error) {
         maybe_error->errorContext = ExecStatus::RedirectStdin;
         return maybe_error;
     }
 
-    maybe_error = replace_fd(STDOUT_FILENO, job.manifest.stdout_path,
+    maybe_error = replace_fd(STDOUT_FILENO, manifest.stdout_path,
                              O_CREAT | O_WRONLY, 0600);
     if (maybe_error) {
         maybe_error->errorContext = ExecStatus::RedirectStdout;
         return maybe_error;
     }
 
-    maybe_error = replace_fd(STDERR_FILENO, job.manifest.stderr_path,
+    maybe_error = replace_fd(STDERR_FILENO, manifest.stderr_path,
                              O_CREAT | O_WRONLY, 0600);
     if (maybe_error) {
         maybe_error->errorContext = ExecStatus::RedirectStderr;
@@ -230,18 +221,18 @@ start_child_process(const Job &job, const ExecutionContext &ctx) {
     }
 
     char **argv = static_cast<char **>(
-        calloc(job.manifest.program_arguments.size() + 1, sizeof(char *)));
+        calloc(manifest.program_arguments.size() + 1, sizeof(char *)));
     if (!argv) {
         free(envp);
         return ExecStatus{ExecErrorCode::MemoryAllocationFailed, errno};
     }
-    for (size_t i = 0; i < job.manifest.program_arguments.size(); i++) {
-        argv[i] = const_cast<char *>(job.manifest.program_arguments[i].c_str());
+    for (size_t i = 0; i < manifest.program_arguments.size(); i++) {
+        argv[i] = const_cast<char *>(manifest.program_arguments[i].c_str());
     }
 
     char *path;
-    if (job.manifest.program) {
-        path = (char *)job.manifest.program.value().c_str();
+    if (manifest.program) {
+        path = (char *)manifest.program.value().c_str();
     } else {
         path = argv[0];
     }
@@ -302,7 +293,7 @@ bool Job::run(const std::function<void()> post_fork_cleanup) {
         }
     }
 
-    ExecutionContext ctx{uid, gid, setup_environment_variables(*this, pwent)};
+    ExecutionContext ctx{uid, gid, setup_environment_variables(pwent)};
 
     ExecMonitor ipcpipe;
     ipcpipe.createPipe();
@@ -319,7 +310,7 @@ bool Job::run(const std::function<void()> post_fork_cleanup) {
             log_error("post_fork_cleanup() failed");
             ipcpipe.writeStatus(ExecStatus{ExecErrorCode::ForkHandlerFailed});
         }
-        auto maybe_error = start_child_process(*this, ctx);
+        auto maybe_error = start_child_process(ctx);
         if (maybe_error) {
             ipcpipe.writeStatus(*maybe_error);
         }

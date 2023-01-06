@@ -27,8 +27,15 @@
 
 using json = nlohmann::json;
 
+#include "exec_monitor.h"
 #include "log.h"
 #include "manifest.h"
+
+struct ExecutionContext {
+    std::optional<gid_t> gid;
+    std::optional<uid_t> uid;
+    std::vector<std::string> environ;
+};
 
 typedef enum {
     JOB_SCHEDULE_NONE = 0,
@@ -44,6 +51,10 @@ enum class job_state {
 };
 
 struct Job {
+    friend class Manager;
+    friend struct ManagerTest;
+
+  protected:
     Job(std::optional<std::filesystem::path> manifest_path_,
         Manifest manifest_);
 
@@ -111,5 +122,12 @@ struct Job {
     }
 
   private:
+    std::vector<std::string>
+    setup_environment_variables(const struct passwd *pwent);
+    std::optional<ExecStatus> start_child_process(const ExecutionContext &ctx);
     job_schedule_t _set_schedule() const;
+
+    // Used by job_state::starting
+    // ExecMonitor ipcpipe;
+    // std::optional<ExecStatus> exec_status;
 };

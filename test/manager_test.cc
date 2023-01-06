@@ -53,8 +53,23 @@ Manager getManager() {
     return Manager{domain};
 }
 
+struct ManagerTest {
+    static void testThrottleInterval();
+
+    static void testShouldStart();
+
+    static void testKeepaliveAfterExit();
+
+    static void testKeepaliveAfterSignal();
+
+    static void testKillJobBySignal();
+    static void testUnload();
+    static void testUnloadWithOverrideDisabled();
+    static void testAbandonProcessGroup();
+};
+
 //! Verify that ThrottleInterval works
-void testThrottleInterval() {
+void ManagerTest::testThrottleInterval() {
     //log_freopen(stdout);
     auto mgr = getManager();
     json job1_manifest = json::parse(R"(
@@ -84,7 +99,7 @@ void testThrottleInterval() {
 }
 
 //! Test the job.shouldStart() logic
-void testShouldStart() {
+void ManagerTest::testShouldStart() {
     //log_freopen(stdout);
     auto mgr = getManager();
     json job1_manifest = json::parse(R"(
@@ -115,7 +130,7 @@ void testShouldStart() {
     assert(job2.state == job_state::waiting);
 }
 
-void testKeepaliveAfterExit() {
+void ManagerTest::testKeepaliveAfterExit() {
     //log_freopen(stdout);
     auto mgr = getManager();
     json manifest = json::parse(R"(
@@ -137,7 +152,7 @@ void testKeepaliveAfterExit() {
     assert(old_pid != job.pid);
 }
 
-void testKeepaliveAfterSignal() {
+void ManagerTest::testKeepaliveAfterSignal() {
     //log_freopen(stderr);
     auto mgr = getManager();
     assert(std::filesystem::exists("/bin/sleep"));
@@ -162,7 +177,7 @@ void testKeepaliveAfterSignal() {
     assert(old_pid != job.pid);
 }
 
-void testKillJobBySignal() {
+void ManagerTest::testKillJobBySignal() {
     auto mgr = getManager();
     assert(std::filesystem::exists("/bin/sleep"));
     json manifest = json::parse(R"(
@@ -187,7 +202,7 @@ void testKillJobBySignal() {
 }
 
 
-void testUnload() {
+void ManagerTest::testUnload() {
     auto mgr = getManager();
     assert(!mgr.unloadJob(Label{"a job path that does not exist"}));
     assert(!mgr.unloadJob(Label{"a job label that does not exist"}));
@@ -209,7 +224,7 @@ void testUnload() {
 // TODO: test load/unload with overridedisabled and forceunload
 }
 
-void testUnloadWithOverrideDisabled() {
+void ManagerTest::testUnloadWithOverrideDisabled() {
     auto mgr = getManager();
     Label label{"testUnloadWithOverrideDisabled"};
     json manifest = json::parse(R"(
@@ -233,7 +248,7 @@ void testUnloadWithOverrideDisabled() {
 }
 
 // Ensure that the process group is killed when AbandonProcessGroup == false
-void testAbandonProcessGroup() {
+void ManagerTest::testAbandonProcessGroup() {
     auto mgr = getManager();
     Label label{"testAbandonProcessGroup"};
     std::filesystem::path pidfile = tmpdir + "/" + static_cast<std::string>(label) + ".pid";
@@ -265,7 +280,7 @@ void testAbandonProcessGroup() {
 
 
 void addManagerTests(TestRunner &runner) {
-#define X(y) runner.addTest("" # y, y)
+#define X(y) runner.addTest("" # y, ManagerTest::y)
     X(testAbandonProcessGroup);
     X(testUnloadWithOverrideDisabled);
     X(testUnload);
