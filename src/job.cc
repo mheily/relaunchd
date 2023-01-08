@@ -300,7 +300,8 @@ bool Job::run(const std::function<void()> post_fork_cleanup) {
 
     pid = fork();
     if (pid < 0) {
-        throw std::system_error(errno, std::system_category(), "fork(2)");
+        log_errno("fork(2)");
+        return false;
     } else if (pid == 0) {
         // This is the child process.
         ipcpipe.becomeChild();
