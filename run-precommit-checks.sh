@@ -18,14 +18,14 @@ make -C "$builddir" clean clang-analyzer-report
 
 make -C "$builddir" clean all check
 
-( cd "$builddir" && valgrind --leak-check=yes ./test-all )
-
 # Sanitizers are not working on MacOS yet
 if [ "$(uname)" != "Darwin" ] ; then
+  make -C "$builddir" check-valgrind
+
   ./configure --objdir="$builddir" --enable-asan
   make -C "$builddir" clean check ASAN_OPTIONS=verbosity=1:detect_stack_use_after_return=1:atexit=1
 
-# DISABLED - false positives suspected. Try using valgrind instead
+# DISABLED - false positives suspected. Try using valgrind instead.
 #  ./configure --objdir="$builddir" --enable-msan
 #  make -C "$builddir" clean check
 fi

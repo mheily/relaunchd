@@ -11,7 +11,7 @@ launchctl:
 
 test-all: Makefile $(SOURCES) $(TEST_SOURCES)
 	$(CXX) -I $(OBJDIR) -I $(OBJDIR)/src -o $(OBJDIR)/$@ \
-	-DRELAUNCHD_UNIT_TESTS "-DTESTDIR=\"$(OBJDIR)/test\"" "-DTMPDIR=\"$(OBJDIR)/tmp\"" \
+	-DRELAUNCHD_UNIT_TESTS -DKQLITE_TRACE "-DTESTDIR=\"$(OBJDIR)/test\"" "-DTMPDIR=\"$(OBJDIR)/tmp\"" \
 	$(TARGET_CXXFLAGS) $(CXXFLAGS) $(TEST_SOURCES) $(SOURCES) $(TARGET_LDADD)
 
 install: launchd
@@ -26,9 +26,11 @@ install: launchd
 	install -d -m 755 $$DESTDIR/$(MANDIR)/man5
 	install -m 644 man/launchd.plist.5 $$DESTDIR$(MANDIR)/man5/launchd.plist.5
 
-check: test-all
-	mkdir -p $(OBJDIR)/tmp
+check: test-all tmp
 	./test-all -v
+
+check-valgrind: test-all tmp
+	valgrind --leak-check=yes ./test-all -v
 
 coverage-report: test-all
 	./test-all
@@ -49,4 +51,7 @@ format:
 	clang-format -i src/*.cc src/*.h src/*.hpp
 	# TODO: test/*.cc test/*.h test/*.hpp
 
-.PHONY : all check clean clang-analyzer-report coverage-report distclean format install
+tmp:
+	mkdir tmp
+
+.PHONY : all check check-valgrind clean clang-analyzer-report coverage-report distclean format install
