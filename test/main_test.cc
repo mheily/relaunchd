@@ -56,5 +56,5 @@ int test_main(int argc, char *argv[]) {
         }
     }
     runner.runAllTests();
-    exit(EXIT_SUCCESS);
+    return EXIT_SUCCESS;
 }

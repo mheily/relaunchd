@@ -220,5 +220,5 @@ int launchctl_main(int argc, char *argv[]) {
     (*funcptr)(chan, args);
 
     chan.disconnect();
-    exit(0);
+    return EXIT_SUCCESS;
 }

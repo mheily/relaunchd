@@ -181,5 +181,5 @@ int launchd_main(int argc, char *argv[]) {
         err(1, "bootout failed");
     }
 
-    exit(EXIT_SUCCESS);
+    return EXIT_SUCCESS;
 }
