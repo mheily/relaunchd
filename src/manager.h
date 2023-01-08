@@ -26,6 +26,8 @@
 #include "job.h"
 
 class Manager {
+    friend struct ManagerTest;
+
   public:
     Manager(Domain domain_);
 
@@ -37,8 +39,6 @@ class Manager {
         std::optional<std::chrono::milliseconds> timeout = std::nullopt);
 
     [[nodiscard]] std::optional<Label> getLabelByPid(pid_t pid) const;
-
-    Job &getJob(const Label &label);
 
     void loadDefaultManifests();
 
@@ -78,17 +78,9 @@ class Manager {
     bool jobExists(const Label &label) const;
 
   private:
+    Job &getJob(const Label &label);
+
     void startJob(Job &job);
-
-    void wakeJob(Job &job);
-
-    // void rescheduleCalendarJob(Job &job);
-
-    void reschedulePeriodicJob(Job &job);
-
-    void rescheduleJob(Job &job);
-
-    std::optional<Label> reapChildProcess(pid_t pid, int status);
 
     void setupSignalHandlers();
 

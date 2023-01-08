@@ -352,16 +352,71 @@ job_schedule_t Job::_set_schedule() const {
 }
 
 Job::Job(std::optional<std::filesystem::path> manifest_path_,
-         Manifest manifest_)
+         Manifest manifest_, kq::EventManager &eventmgr_)
     : manifest_path(std::move(manifest_path_)), manifest(std::move(manifest_)),
-      state(job_state::loaded), pid(0), pgid(-1), last_exit_status(0),
-      term_signal(0), schedule(_set_schedule()) {}
+      pid(0), pgid(-1), last_exit_status(0), term_signal(0),
+      schedule(_set_schedule()), eventmgr(eventmgr_) {}
+
+void Job::initFSM() {
+    fsm.add_transitions({
+        {
+            States::Loaded,
+            States::Running,
+            Triggers::Bootstrap,
+            [this] {
+                return manifest.run_at_load || manifest.keep_alive.always;
+            },
+            [this] { fsm.execute(Triggers::StartRequested); },
+        },
+        {
+            States::Loaded,
+            States::Waiting,
+            Triggers::Bootstrap,
+            [this] { return manifest.start_interval.has_value(); },
+            [this] { schedulePeriodicJob(); },
+        },
+        {
+            States::Loaded,
+            States::Running,
+            Triggers::StartRequested,
+            [] { return true; },
+            [this] { startJob(); },
+        },
+        {
+            States::Waiting,
+            States::Running,
+            Triggers::StartRequested,
+            [] { return true; },
+            [this] { startJob(); },
+        },
+        {States::Running, States::Exited, Triggers::ProcessExited,
+         [this] {
+             return !manifest.keep_alive.always &&
+                    !manifest.start_interval.has_value();
+         },
+         [this] {
+             log_notice("job %s: transitioned to Exited state", getLabel());
+         }},
+        {
+            States::Running,
+            States::Running,
+            Triggers::ProcessExited,
+            [this] { return manifest.keep_alive.always && !shouldThrottle(); },
+            [this] { fsm.execute(Triggers::StartRequested); },
+        },
+        {
+            States::Running,
+            States::Waiting,
+            Triggers::ProcessExited,
+            [this] { return manifest.keep_alive.always && shouldThrottle(); },
+            [this] { startAfterThrottleInterval(); },
+        },
+    });
+}
 
 bool Job::killJob(int signum) const noexcept {
-    // FIXME: remove any watched kernel events associated with the job
-    // (timeouts, etc..)
-    if (state != job_state::running) {
-        log_debug("tried to kill non-running job");
+    if (pid == 0) {
+        log_warning("tried to send a signal to a job that is not running");
         return true;
     }
     if (::kill(pid, signum) < 0) {
@@ -399,16 +454,109 @@ bool Job::killProcessGroup() const noexcept {
 }
 
 const char *Job::getState() const {
-    switch (state) {
-    case job_state::loaded:
+    switch (fsm.state()) {
+    case States::Loaded:
         return "loaded";
-    case job_state::waiting:
+    case States::Waiting:
         return "waiting";
-    case job_state::running:
+    case States::Running:
         return "running";
-    case job_state::exited:
+    case States::Exited:
         return "exited";
     default:
         __builtin_unreachable();
     }
+}
+
+void Job::reapChildProcess(int status) {
+    // TODO: Set this:
+    //      job.exit_status = status
+    //  and get rid of:
+    //      job.last_exit_status
+    //      job.term_signal
+    //  converting the above into methods that examine exit_status.
+    if (WIFEXITED(status)) {
+        last_exit_status = WEXITSTATUS(status);
+        log_debug("job %s pid %d exited with status %d", manifest.label.c_str(),
+                  pid, last_exit_status);
+    } else if (WIFSIGNALED(status)) {
+        last_exit_status = -1;
+        term_signal = WTERMSIG(status);
+        log_debug("job %s pid %d was terminated by signal %d",
+                  manifest.label.c_str(), pid, term_signal);
+    } else if (WIFSTOPPED(status)) {
+        throw std::logic_error(
+            "This method should not be called when the process is stopped");
+    } else {
+        throw std::range_error("invalid status");
+    }
+    pid = 0;
+    killProcessGroup();
+}
+
+void Job::startJob() {
+    log_notice("starting job: %s", getLabel());
+    started_at = current_time();
+    std::function<void()> const post_fork_cleanup = [this]() {
+        eventmgr.handleFork();
+    };
+    if (run(post_fork_cleanup)) {
+        eventmgr.addProcess(pid, [this](pid_t, int status) {
+            if (WIFSTOPPED(status)) {
+                int stop_signal = WSTOPSIG(status);
+                log_info("job %s: pid %d was stopped by signal %d", getLabel(),
+                         pid, stop_signal);
+            } else {
+                reapChildProcess(status);
+                fsm.execute(Job::Triggers::ProcessExited);
+            }
+        });
+    } else {
+        log_error("FIXME -- what to do here?? throttle and retry?");
+    }
+}
+
+void Job::startAfterThrottleInterval() {
+    time_t elapsed = current_time() - *started_at;
+    const std::chrono::seconds seconds{manifest.throttle_interval - elapsed};
+    const std::chrono::milliseconds milliseconds = seconds;
+    log_debug("%s: will restart in %lld seconds due to KeepAlive setting",
+              manifest.label.c_str(), (long long)seconds.count());
+    timer_id = eventmgr.addTimer(milliseconds, [this]() {
+        timer_id = std::nullopt;
+        fsm.execute(Triggers::StartRequested);
+    });
+}
+
+void Job::schedulePeriodicJob() {
+    assert(!timer_id);
+    log_debug("periodic job %s will start after T=%u", getLabel(),
+              manifest.start_interval.value());
+    std::chrono::milliseconds const ms{manifest.start_interval.value()};
+    timer_id = eventmgr.addTimer(ms, [this]() {
+        timer_id = std::nullopt;
+        startJob();
+    });
+}
+
+void Job::uncleanShutdown() {
+    // This is the tear-down of last resort. It is expected that a graceful
+    // shutdown will be called somewhere else.
+    if (pid) {
+        log_debug("%s: sending SIGKILL to pid %d", getLabel(), pid);
+        kill(pid, SIGKILL);
+        killProcessGroup();
+        eventmgr.deleteProcess(pid);
+        pid = 0;
+    }
+    if (timer_id) {
+        log_debug("cancelling timer ID %d", *timer_id);
+        eventmgr.deleteTimer(timer_id.value());
+        timer_id = std::nullopt;
+    }
+}
+
+bool Job::shouldThrottle() {
+    time_t elapsed = current_time() - *started_at;
+    return elapsed < manifest.throttle_interval;
 }

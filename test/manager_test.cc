@@ -84,50 +84,15 @@ void ManagerTest::testThrottleInterval() {
     std::string path = "/dev/null";
     mgr.loadManifest(job1_manifest, path);
     mgr.startAllJobs();
-    auto &job1 = mgr.getJob({"test.job1"});
-    assert(job1.hasStarted());
-    assert(job1.state == job_state::running);
-    pid_t old_pid = job1.pid;
+    auto &job = mgr.getJob({"test.job1"});
+    assert(job.fsm.state() == Job::States::Running);
+    pid_t old_pid = job.pid;
     assert(mgr.handleEvent());      // event: reap the PID of the job
-    auto &job2 = mgr.getJob({"test.job1"});
-    assert(job2.state == job_state::waiting);
+    assert(job.fsm.state() == Job::States::Waiting);
     sleep(2);
     assert(mgr.handleEvent());      // event: timer expires due to ThrottleInterval, job restarts
-    auto &job3 = mgr.getJob({"test.job1"});
-    assert(job3.state == job_state::running);
-    assert((job3.pid != old_pid) != 0);
-}
-
-//! Test the job.shouldStart() logic
-void ManagerTest::testShouldStart() {
-    //log_freopen(stdout);
-    auto mgr = getManager();
-    json job1_manifest = json::parse(R"(
-        {
-          "Label": "test.job1",
-          "Program": "/bin/sh",
-          "RunAtLoad": true
-        }
-    )");
-    json job2_manifest = json::parse(R"(
-        {
-          "Label": "test.job2",
-          "Program": "/bin/sh",
-          "StartInterval": 60
-        }
-    )");
-    std::string path = "/dev/null";
-    mgr.loadManifest(job1_manifest, path);
-    mgr.loadManifest(job2_manifest, path);
-    auto &job1 = mgr.getJob({"test.job1"});
-    auto &job2 = mgr.getJob({"test.job2"});
-    assert(job1.shouldStart());
-    assert(job2.shouldStart());
-    mgr.startAllJobs();
-    assert(job1.hasStarted());
-    assert(job2.hasStarted());
-    assert(job1.state == job_state::running);
-    assert(job2.state == job_state::waiting);
+    assert(job.fsm.state() == Job::States::Running);
+    assert((job.pid != old_pid) != 0);
 }
 
 void ManagerTest::testKeepaliveAfterExit() {
@@ -146,7 +111,7 @@ void ManagerTest::testKeepaliveAfterExit() {
     mgr.loadManifest(manifest, path);
     mgr.startAllJobs();
     auto &job = mgr.getJob({"test.job1"});
-    assert(job.state == job_state::running);
+    assert(job.fsm.state() == Job::States::Running);
     pid_t old_pid = job.pid;
     mgr.handleEvent();
     assert(old_pid != job.pid);
@@ -169,11 +134,11 @@ void ManagerTest::testKeepaliveAfterSignal() {
     mgr.loadManifest(manifest, path);
     mgr.startAllJobs();
     auto &job = mgr.getJob({"test.job1"});
-    assert(job.state == job_state::running);
+    assert(job.fsm.state() == Job::States::Running);
     pid_t old_pid = job.pid;
     assert(mgr.killJob({"test.job1"}, "SIGKILL"));
     mgr.handleEvent(std::chrono::milliseconds{100});
-    assert(job.state == job_state::running);
+    assert(job.fsm.state() == Job::States::Running);
     assert(old_pid != job.pid);
 }
 
@@ -196,7 +161,7 @@ void ManagerTest::testKillJobBySignal() {
     assert(mgr.killJob(label, "9"));
     mgr.handleEvent();
     auto &job = mgr.getJob(label);
-    assert(job.state == job_state::exited);
+    assert(job.fsm.state() == Job::States::Exited);
     assert(job.last_exit_status == -1);
     assert(job.term_signal == 9);
 }
@@ -267,7 +232,7 @@ void ManagerTest::testAbandonProcessGroup() {
     mgr.startAllJobs();
     assert(mgr.handleEvent(std::chrono::milliseconds{500}));
     auto &job = mgr.getJob(label);
-    assert(job.state == job_state::exited);
+    assert(job.fsm.state() == Job::States::Exited);
 
     // Verify the subprocess was killed
     assert(std::filesystem::exists(pidfile));
@@ -286,7 +251,6 @@ void addManagerTests(TestRunner &runner) {
     X(testUnload);
     X(testKeepaliveAfterSignal);
     X(testKeepaliveAfterExit);
-    X(testShouldStart);
     X(testThrottleInterval);
     X(testKillJobBySignal);
 #undef X

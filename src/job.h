@@ -27,7 +27,9 @@
 
 using json = nlohmann::json;
 
+#include "event.h"
 #include "exec_monitor.h"
+#include "fsm.h"
 #include "log.h"
 #include "manifest.h"
 
@@ -43,27 +45,19 @@ typedef enum {
     JOB_SCHEDULE_CALENDAR
 } job_schedule_t;
 
-enum class job_state {
-    loaded,
-    waiting,
-    running,
-    exited,
-};
-
 struct Job {
     friend class Manager;
     friend struct ManagerTest;
 
   protected:
-    Job(std::optional<std::filesystem::path> manifest_path_,
-        Manifest manifest_);
+    Job(std::optional<std::filesystem::path> manifest_path_, Manifest manifest_,
+        kq::EventManager &eventmgr);
 
     //! The time that the job started
     std::optional<time_t> started_at;
 
     std::optional<std::filesystem::path> manifest_path;
     const Manifest manifest;
-    job_state state;
     pid_t pid, pgid;
     int last_exit_status, term_signal;
     job_schedule_t schedule;
@@ -84,50 +78,29 @@ struct Job {
 
     bool run(std::function<void()> post_fork_cleanup);
 
-    //! Has the job ever been started by the manager? It might not currently
-    // be running, but that is okay.
-    // TODO: Replace this with a state machine that cannot transition back to a
-    //       non-started state.
-    bool hasStarted() const {
-        switch (state) {
-        case job_state::loaded:
-            return false;
-        case job_state::waiting:
-        case job_state::running:
-        case job_state::exited:
-            return true;
-        default:
-            __builtin_unreachable();
-        }
-    }
-
-    //! Should the job be started automatically?
-    bool shouldStart() const {
-        switch (state) {
-        case job_state::loaded:
-            return (manifest.run_at_load || manifest.keep_alive.always ||
-                    schedule != JOB_SCHEDULE_NONE);
-        case job_state::waiting:
-            // If true, a non-scheduled job was scheduled due to
-            // ThrottleInterval
-            return schedule != JOB_SCHEDULE_NONE;
-        case job_state::running:
-            return false;
-        case job_state::exited:
-            return (manifest.keep_alive.always ||
-                    schedule != JOB_SCHEDULE_NONE);
-        default:
-            __builtin_unreachable();
-        }
-    }
-
   private:
     std::vector<std::string>
     setup_environment_variables(const struct passwd *pwent);
     std::optional<ExecStatus> start_child_process(const ExecutionContext &ctx);
     job_schedule_t _set_schedule() const;
-
+    void reapChildProcess(int status);
     // Used by job_state::starting
     // ExecMonitor ipcpipe;
     // std::optional<ExecStatus> exec_status;
+
+    // FSM implementation
+    enum class States { Loaded, Waiting, Running, Exited };
+    enum class Triggers { Bootstrap, StartRequested, ProcessExited };
+    FSM::Fsm<States, States::Loaded, Triggers> fsm;
+    std::optional<int> timer_id;
+
+    // Shared with the ::Manager of this job
+    kq::EventManager &eventmgr;
+
+    void initFSM();
+    void startJob();
+    void startAfterThrottleInterval();
+    void schedulePeriodicJob();
+    void uncleanShutdown();
+    bool shouldThrottle();
 };

@@ -45,45 +45,6 @@ using json = nlohmann::json;
 
 static std::unique_ptr<StateFile> STATE_FILE;
 
-std::optional<Label> Manager::reapChildProcess(pid_t pid, int status) {
-    auto maybe_label = getLabelByPid(pid);
-    if (!maybe_label) {
-        // This can happen if we are a subreaper and a child exits after their
-        // parent.
-        log_debug("child pid %d exited but no matching job found", pid);
-        return std::nullopt;
-    }
-    const auto &label = maybe_label.value();
-    auto &job = getJob(label);
-    // TODO: Set this:
-    //      job.exit_status = status
-    //  and get rid of:
-    //      job.last_exit_status
-    //      job.term_signal
-    //  converting the above into methods that examine exit_status.
-    if (WIFEXITED(status)) {
-        job.last_exit_status = WEXITSTATUS(status);
-        log_debug("job %s pid %d exited with status %d",
-                  job.manifest.label.c_str(), job.pid, job.last_exit_status);
-    } else if (WIFSIGNALED(status)) {
-        job.last_exit_status = -1;
-        job.term_signal = WTERMSIG(status);
-        log_debug("job %s pid %d was terminated by signal %d",
-                  job.manifest.label.c_str(), job.pid, job.term_signal);
-    } else if (WIFSTOPPED(status)) {
-        int stop_signal = WSTOPSIG(status);
-        log_debug("job %s pid %d was stopped by signal %d",
-                  job.manifest.label.c_str(), job.pid, stop_signal);
-        return std::nullopt;
-    } else {
-        throw std::range_error("invalid status");
-    }
-    job.pid = 0;
-    job.state = job_state::exited;
-    job.killProcessGroup();
-    return label;
-}
-
 void Manager::setupSignalHandlers() {
     // FIXME testing eventmgr.addSignal(SIGCHLD, [](int){});
 
@@ -146,7 +107,9 @@ bool Manager::loadManifest(const json &jsondata, const std::string &path,
         return false;
     }
 
-    jobs.emplace(label, Job{path, manifest});
+    auto result = jobs.emplace(label, Job{path, manifest, eventmgr});
+    auto &[it, inserted] = result;
+    it->second.initFSM();
 
     return true;
 }
@@ -176,25 +139,8 @@ bool Manager::unloadJob(std::unordered_map<std::string, Job>::iterator &it,
         log_debug("will not unload %s: it is disabled", label.c_str());
         return false;
     }
-    // FIXME: This should not be allowed. A job with a pid should not be
-    // unloaded ever.
-    if (job.pid) {
-        job.killJob(SIGTERM);
-        pid_t pid = job.pid;
-        // TODO: this could scale poorly
-        //  maybe add to a heap structure with an absolute time when the pid can
-        //  be killed, then wakeup somewhere else?
-        pending_sigkill.emplace_back(pid);
-        eventmgr.addTimer(job.manifest.exit_timeout, [pid, this]() {
-            ::kill(pid, SIGKILL);
-            auto it =
-                std::find(pending_sigkill.begin(), pending_sigkill.end(), pid);
-            if (it != pending_sigkill.end()) {
-                pending_sigkill.erase(it);
-            }
-        });
-    }
 
+    job.uncleanShutdown();
     it = jobs.erase(it);
 
     return true;
@@ -339,15 +285,6 @@ Job &Manager::getJob(const Label &label) {
     return jobs.at(static_cast<std::string>(label));
 }
 
-void Manager::wakeJob(Job &job) {
-    if (job.state != job_state::waiting) {
-        log_error("tried to wake job %s that was not asleep (state=%s)",
-                  job.manifest.label.c_str(), job.getState());
-        throw std::logic_error("job in wrong state");
-    }
-    startJob(job);
-}
-
 bool Manager::unloadAllJobs() noexcept {
     bool success = true;
     log_debug("unloading all jobs");
@@ -397,110 +334,15 @@ bool Manager::unloadAllJobs() noexcept {
 //    // XXX-FIXME: update StateFile to set the absolute start time.
 //}
 
-void Manager::reschedulePeriodicJob(Job &job) {
-    log_debug("job %s will start after T=%u", job.manifest.label.c_str(),
-              job.manifest.start_interval.value());
-    const Label &label = job.manifest.label;
-    std::chrono::milliseconds ms{job.manifest.start_interval.value()};
-    eventmgr.addTimer(ms, [label, this]() {
-        if (jobExists(label)) {
-            auto &job = getJob(label);
-            if (job.state == job_state::waiting) {
-                startJob(job);
-                reschedulePeriodicJob(job);
-            }
-        }
-    });
-    job.state = job_state::waiting;
-}
-
-void Manager::rescheduleStandardJob(Job &job) {
-    const Label &label = job.manifest.label;
-    if (!job.started_at) {
-        log_debug("%s: starting for the first time",
-                  job.manifest.label.c_str());
-        return startJob(job);
-    }
-
-    time_t now = current_time();
-    time_t restart_at = job.started_at.value() + job.manifest.throttle_interval;
-    if (now >= restart_at) {
-        log_debug("%s: restarting due to KeepAlive",
-                  job.manifest.label.c_str());
-        return startJob(job);
-    }
-
-    std::chrono::seconds seconds{restart_at - now};
-    std::chrono::milliseconds milliseconds = seconds;
-    log_debug("%s: will restart in %lld seconds due to KeepAlive setting",
-              job.manifest.label.c_str(), (long long)seconds.count());
-    job.state = job_state::waiting;
-    eventmgr.addTimer(milliseconds, [label, this]() {
-        if (!jobExists(label)) {
-            return;
-        }
-        auto &job = getJob(label);
-        if (job.state == job_state::waiting) {
-            startJob(job);
-        } else {
-            log_debug("attempted to restart job %s: not waiting to be started",
-                      job.manifest.label.c_str());
-        }
-    });
-}
-
-void Manager::rescheduleJob(Job &job) {
-    assert(job.state == job_state::exited || job.state == job_state::loaded);
-    if (job.shouldStart()) {
-        switch (job.schedule) {
-        case JOB_SCHEDULE_PERIODIC:
-            reschedulePeriodicJob(job);
-            break;
-            //        case JOB_SCHEDULE_CALENDAR:
-            //            rescheduleCalendarJob(job);
-            //            break;
-        case JOB_SCHEDULE_NONE:
-            rescheduleStandardJob(job);
-            break;
-        default:
-            throw std::logic_error("wrong job type");
-        }
-    } else {
-        log_debug("job is not supposed to be (re)started");
-    }
-}
-
 void Manager::startJob(Job &job) {
     log_debug("trying to start %s", job.manifest.label.c_str());
-
-    if (job.schedule != JOB_SCHEDULE_NONE) {
-        // To "start" a scheduled job means scheduling it, not actually starting
-        // it.
-        return rescheduleJob(job);
-    }
-
-    std::function<void()> post_fork_cleanup = [this]() {
-        eventmgr.handleFork();
-    };
-    if (job.run(post_fork_cleanup)) {
-        job.state = job_state::running;
-        eventmgr.addProcess(job.pid, [this](pid_t pid, int status) {
-            auto maybe_label = reapChildProcess(pid, status);
-            if (maybe_label) {
-                auto &job = getJob(maybe_label.value());
-                rescheduleJob(job);
-            }
-        });
-    } else {
-        job.state = job_state::exited;
-    }
+    job.fsm.execute(Job::Triggers::StartRequested);
 }
 
 void Manager::startAllJobs() {
-    for (auto &[label, job] : jobs) {
-        if (job.shouldStart() && !job.hasStarted()) {
-            startJob(job);
-        }
+    for (auto &[_, job] : jobs) {
+        // FIXME: should try() because some jobs will not start. what to catch?
+        job.fsm.execute(Job::Triggers::Bootstrap);
     }
 }
 
