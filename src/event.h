@@ -217,8 +217,8 @@ class EpollImplementation : public KernelEventInterface,
             {
                 auto maybe_event = epollGetOne(epfd, timeout);
                 if (!maybe_event) {
-                    // TODO: reduce the timeout by the amount of elapsed time
-                    continue;
+                    kqtrace::print("epollGetOne() did not return an event");
+                    return std::nullopt;
                 }
                 const auto &event = *maybe_event;
                 evtype = event.data.u32;
@@ -230,6 +230,10 @@ class EpollImplementation : public KernelEventInterface,
                     auto event = pending_events.front();
                     pending_events.pop();
                     return event;
+                } else {
+                    kqtrace::print("spurious wake: expected a signal event, "
+                                   "but none occurred");
+                    return std::nullopt;
                 }
             } break;
             case EVTYPE_SOCKET_READ: {
@@ -237,6 +241,11 @@ class EpollImplementation : public KernelEventInterface,
                 if (event) {
                     return Event(
                         socket_event{static_cast<int>(event->data.fd)});
+                } else {
+                    kqtrace::print(
+                        "spurious wakeup: epollGetOne(socket_read_fd) did not "
+                        "return an event");
+                    return std::nullopt;
                 }
             } break;
             case EVTYPE_TIMER: {
@@ -263,6 +272,10 @@ class EpollImplementation : public KernelEventInterface,
                     }
                     throw std::range_error(
                         "timer FD does not match any known timer IDs");
+                } else {
+                    kqtrace::print("spurious wake: expected a timer event, but "
+                                   "none occurred");
+                    return std::nullopt;
                 }
             } break;
             default:
@@ -394,6 +407,8 @@ class EpollImplementation : public KernelEventInterface,
             ssize_t n = read(sigfd, &sig, sizeof(sig));
             if (n != sizeof(sig)) {
                 if (errno == EWOULDBLOCK) {
+                    kqtrace::print(
+                        "no more signal events can be read from the signalfd");
                     break;
                 } else {
                     throw std::system_error(errno, std::system_category(),
@@ -409,6 +424,7 @@ class EpollImplementation : public KernelEventInterface,
         }
         // Reap all zombies and create process events
         if (sigchild_seen) {
+            kqtrace::print("special case: handling one or more SIGCHLD events");
             for (;;) {
                 int status;
                 pid_t pid = waitpid(-1, &status, WNOHANG);
@@ -426,8 +442,8 @@ class EpollImplementation : public KernelEventInterface,
                     pending_events.emplace(Event(proc_event{pid, status}));
                     watch_pids.erase(pid);
                 } else {
-                    // TODO maybe just return the event anyway and ignore it at
-                    // a higher layer in the stack?
+                    kqtrace::print(
+                        "a child process exited but it was not being watched");
                     continue;
                 }
             }
