@@ -18,6 +18,8 @@ make -C "$builddir" clean clang-analyzer-report
 
 make -C "$builddir" clean all check
 
+( cd "$builddir" && valgrind --leak-check=yes ./test-all )
+
 # Sanitizers are not working on MacOS yet
 if [ "$(uname)" != "Darwin" ] ; then
   ./configure --objdir="$builddir" --enable-asan
