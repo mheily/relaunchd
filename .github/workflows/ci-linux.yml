@@ -29,7 +29,7 @@ jobs:
         run: sudo apt-get update
 
       - name: Install package dependencies
-        run: sudo apt-get install -y clang clang-tools nlohmann-json3-dev
+        run: sudo apt-get install -y clang clang-tools nlohmann-json3-dev valgrind
 
       - name: Run the precommit checks
         run: ./run-precommit-checks.sh ${{github.workspace}}/build
