@@ -149,6 +149,8 @@ class ExecMonitor {
                 int saved_errno = errno;
                 (void)close(pfd[0]);
                 (void)close(pfd[1]);
+                pfd[0] = -1;
+                pfd[1] = -1;
                 throw std::system_error(saved_errno, std::system_category(),
                                         "fcntl(2)");
             }
@@ -156,11 +158,13 @@ class ExecMonitor {
     }
 
     void closePipe() {
-        assert(pfd[0] >= 0 || pfd[1] >= 0);
-        for (int fd : pfd) {
-            if (fd >= 0) {
-                (void)close(fd);
-            }
+        if (pfd[0] >= 0) {
+            (void)close(pfd[0]);
+            pfd[0] = -1;
+        }
+        if (pfd[1] >= 0) {
+            (void)close(pfd[1]);
+            pfd[1] = -1;
         }
     }
 
