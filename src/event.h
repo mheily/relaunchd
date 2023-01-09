@@ -611,7 +611,7 @@ class KqueueImplementation : public KernelEventInterface,
     }
 
     void ignoreSocketRead(int sockfd) override {
-        changeKevent(sockfd, EVFILT_READ, EV_DELETE, NOTE_EXIT);
+        changeKevent(sockfd, EVFILT_READ, EV_DELETE, 0);
     }
 
     void monitorSignal(int signum) override {
