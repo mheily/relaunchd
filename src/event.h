@@ -315,9 +315,8 @@ class EpollImplementation : public KernelEventInterface,
     }
 
     void ignoreSocketRead(int sockfd) override {
-        struct epoll_event epev;
-        epev.events = EPOLLIN;
-        if (epoll_ctl(epfd, EPOLL_CTL_DEL, sockfd, &epev) < 0) {
+        kqtrace::print("deleting epoll watch for sd " + std::to_string(sockfd));
+        if (epoll_ctl(socket_read_fd, EPOLL_CTL_DEL, sockfd, nullptr) < 0) {
             throw std::system_error(errno, std::system_category(),
                                     "epoll_ctl()");
         }
@@ -443,7 +442,7 @@ class EpollImplementation : public KernelEventInterface,
                     watch_pids.erase(pid);
                 } else {
                     kqtrace::print(
-                        "a child process exited but it was not being watched");
+                        "pid " + std::to_string(pid) + " exited but it was not being watched");
                     continue;
                 }
             }
