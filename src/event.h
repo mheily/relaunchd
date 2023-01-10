@@ -87,6 +87,7 @@ enum event_type {
     EVTYPE_SIGNAL,
     EVTYPE_SOCKET_READ,
     EVTYPE_TIMER,
+    EVTYPE_NONE = 32,
 };
 
 namespace kq::error {
@@ -214,16 +215,17 @@ class EpollImplementation : public KernelEventInterface,
         }
         for (;;) {
             int evtype;
-            {
-                auto maybe_event = epollGetOne(epfd, timeout);
-                if (!maybe_event) {
-                    kqtrace::print("epollGetOne() did not return an event");
-                    return std::nullopt;
-                }
+            auto maybe_event = epollGetOne(epfd, timeout);
+            if (maybe_event) {
                 const auto &event = *maybe_event;
                 evtype = event.data.u32;
+            } else {
+                evtype = EVTYPE_NONE;
             }
             switch (evtype) {
+            case EVTYPE_NONE: {
+                kqtrace::print("epollGetOne() did not return an event");
+            } break;
             case EVTYPE_SIGNAL: {
                 getSignalEvents();
                 if (!pending_events.empty()) {
@@ -233,7 +235,6 @@ class EpollImplementation : public KernelEventInterface,
                 } else {
                     kqtrace::print("spurious wake: expected a signal event, "
                                    "but none occurred");
-                    return std::nullopt;
                 }
             } break;
             case EVTYPE_SOCKET_READ: {
@@ -245,7 +246,6 @@ class EpollImplementation : public KernelEventInterface,
                     kqtrace::print(
                         "spurious wakeup: epollGetOne(socket_read_fd) did not "
                         "return an event");
-                    return std::nullopt;
                 }
             } break;
             case EVTYPE_TIMER: {
@@ -275,13 +275,16 @@ class EpollImplementation : public KernelEventInterface,
                 } else {
                     kqtrace::print("spurious wake: expected a timer event, but "
                                    "none occurred");
-                    return std::nullopt;
                 }
             } break;
             default:
                 throw std::range_error("invalid filter");
             }
+            if (timeout.has_value()) {
+                break;
+            }
         }
+        return std::nullopt;
     }
 
     void monitorChildProcess(pid_t pid) override {
