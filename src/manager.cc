@@ -253,11 +253,7 @@ Manager::~Manager() {
 
 bool Manager::handleEvent(std::optional<std::chrono::milliseconds> timeout) {
     log_debug("waiting for an event");
-    try {
-        eventmgr.waitForEvent(timeout);
-    } catch (const std::exception &e) {
-        log_error("caught exception: %s", e.what());
-    }
+    eventmgr.waitForEvent(timeout);
     return !SHUTTING_DOWN;
 }
 
