@@ -372,7 +372,10 @@ void Job::initFSM() {
             States::Loaded,
             States::Waiting,
             Triggers::Bootstrap,
-            [this] { return manifest.start_interval.has_value(); },
+            [this] {
+                return manifest.start_interval.has_value() &&
+                       !manifest.run_at_load;
+            },
             [this] { schedulePeriodicJob(); },
         },
         {
