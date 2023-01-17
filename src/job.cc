@@ -415,6 +415,13 @@ void Job::initFSM() {
             [this] { startAfterThrottleInterval(); },
         },
     });
+    fsm.add_debug_fn([this](Job::States from_state, Job::States to_state,
+                            Job::Triggers trigger) {
+        log_debug(
+            "job %s: trigger %s caused the state to change from %s to %s ",
+            getLabel(), triggerToString(trigger), stateToString(from_state),
+            stateToString(to_state));
+    });
 }
 
 bool Job::killJob(int signum) const noexcept {
@@ -456,8 +463,8 @@ bool Job::killProcessGroup() const noexcept {
     return true;
 }
 
-const char *Job::getState() const {
-    switch (fsm.state()) {
+const char *Job::stateToString(const Job::States &state) {
+    switch (state) {
     case States::Loaded:
         return "loaded";
     case States::Waiting:
@@ -470,6 +477,21 @@ const char *Job::getState() const {
         __builtin_unreachable();
     }
 }
+
+const char *Job::triggerToString(const Job::Triggers &trigger) {
+    switch (trigger) {
+    case Job::Triggers::Bootstrap:
+        return "Bootstrap";
+    case Job::Triggers::StartRequested:
+        return "StartRequested";
+    case Job::Triggers::ProcessExited:
+        return "ProcessExited";
+    default:
+        __builtin_unreachable();
+    }
+}
+
+const char *Job::getState() const { return stateToString(fsm.state()); }
 
 void Job::reapChildProcess(int status) {
     // TODO: Set this:

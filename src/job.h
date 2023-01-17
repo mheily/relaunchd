@@ -92,6 +92,9 @@ struct Job {
     enum class States { Loaded, Waiting, Running, Exited };
     enum class Triggers { Bootstrap, StartRequested, ProcessExited };
     FSM::Fsm<States, States::Loaded, Triggers> fsm;
+    static const char *stateToString(const States &state);
+    static const char *triggerToString(const Triggers &trigger);
+
     std::optional<int> timer_id;
 
     // Shared with the ::Manager of this job
