@@ -30,24 +30,14 @@
 #include "rpc_server.h"
 
 static json _rpc_op_disable(const json &args, Manager &mgr) {
-    try {
-        Label label{args[1]["Label"]};
-        mgr.overrideJobEnabled(label, false);
-    } catch (...) {
-        // TODO: logging
-        return {{"error", true}};
-    };
+    Label label{args[1]["Label"]};
+    mgr.overrideJobEnabled(label, false);
     return {{"error", false}};
 }
 
 static json _rpc_op_enable(const json &args, Manager &mgr) {
-    try {
-        Label label{args[1]["Label"]};
-        mgr.overrideJobEnabled(label, true);
-    } catch (...) {
-        // TODO: logging
-        return {{"error", true}};
-    };
+    Label label{args[1]["Label"]};
+    mgr.overrideJobEnabled(label, true);
     return {{"error", false}};
 }
 
@@ -141,10 +131,9 @@ static json _rpc_op_remove(const json &args, Manager &mgr) {
 }
 
 static json _rpc_op_submit(const json &args, Manager &mgr) {
-    std::string path =
-        ""; // TODO: maybe create a fake path? do we even need this?
-    mgr.loadManifest(args[1], path);
-    return {{"error", false}};
+    std::string path = "/dev/null";
+    bool ok = mgr.loadManifest(args[1], path);
+    return {{"error", ok}};
 }
 
 static json _rpc_op_version(const json &, Manager &) {
@@ -175,7 +164,14 @@ int rpc_dispatch(Channel &chan, Manager &mgr) {
         auto msg = chan.readMessage();
         auto method = msg.at(0).get<std::string>();
         auto funcptr = handlers.at(method);
-        json response = (*funcptr)(msg, mgr);
+        json response;
+        try {
+            response = (*funcptr)(msg, mgr);
+        } catch (const std::exception &exc) {
+            log_error("unhandled exception in %s(): %s", method.c_str(),
+                      exc.what());
+            response = {{"error", true}};
+        }
         chan.writeMessage(response);
     } catch (const std::exception &exc) {
         log_error("dispatch failed: %s", exc.what());
