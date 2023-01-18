@@ -257,22 +257,6 @@ bool Manager::handleEvent(std::optional<std::chrono::milliseconds> timeout) {
     return !SHUTTING_DOWN;
 }
 
-std::optional<Label> Manager::getLabelByPid(const pid_t pid) const {
-    // TODO: switch to running_jobs
-    //    auto it = services.find(pid);
-    //    if (it != services.end()) {
-    //        return it->second;
-    //    } else {
-    //        return std::nullopt;
-    //    }
-    for (const auto &[label, job] : jobs) {
-        if (job.pid == pid) {
-            return label;
-        }
-    }
-    return std::nullopt;
-}
-
 bool Manager::jobExists(const Label &label) const {
     return jobs.count(static_cast<std::string>(label));
 }

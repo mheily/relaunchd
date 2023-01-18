@@ -38,8 +38,6 @@ class Manager {
     bool handleEvent(
         std::optional<std::chrono::milliseconds> timeout = std::nullopt);
 
-    [[nodiscard]] std::optional<Label> getLabelByPid(pid_t pid) const;
-
     void loadDefaultManifests();
 
     bool loadAllManifests(const std::string &load_path,
