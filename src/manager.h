@@ -75,6 +75,12 @@ class Manager {
     //! Return true if the job exists
     bool jobExists(const Label &label) const;
 
+    //! Dump job information to the log
+    void dumpJob(const Label &label) const;
+
+    //! Delete all custom state settings
+    void clearStateFile();
+
   private:
     Job &getJob(const Label &label);
 

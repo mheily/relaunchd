@@ -400,3 +400,13 @@ bool Manager::killJob(const Label &label,
               signame_or_number.c_str(), label.c_str(), success);
     return success;
 }
+
+void Manager::dumpJob(const Label &label) const { jobs.at(label.str()).dump(); }
+
+void Manager::clearStateFile() {
+#ifndef RELAUNCHD_UNIT_TESTS
+    throw std::logic_error("This should not be used outside of testing");
+#else
+    STATE_FILE->clear();
+#endif
+}
