@@ -91,22 +91,37 @@ bool Manager::loadManifest(const json &jsondata, const std::string &path,
         overrideJobEnabled(manifest.label, true);
     }
 
-    // Check if the job is disabled
-    if (manifest.disabled && !forceLoad) {
-        auto state = STATE_FILE->getValue();
-        if (state.at("Overrides").contains(label)) {
-            const auto job_state = state["Overrides"][label];
-            if (job_state.at("Enabled")) {
-                forceLoad = true;
+    // Check if the job is disabled via the manifest.
+    if (manifest.disabled) {
+        if (forceLoad) {
+            log_notice("will forcibly load %s because forceLoad=true",
+                       label.c_str());
+        } else {
+            log_notice("will not load %s: the manifest Disabled key is true",
+                       label.c_str());
+            return false;
+        }
+    }
+
+    // Check if the job is disabled in the state file
+    auto state = STATE_FILE->getValue();
+    if (state.at("Overrides").contains(label)) {
+        const auto job_state = state["Overrides"][label];
+        if (!job_state.at("Enabled")) {
+            if (forceLoad) {
+                log_notice("will forcibly load %s even though it is disabled "
+                           "in the state file",
+                           label.c_str());
+            } else {
+                log_notice("will not load %s: it is explicitly disabled in the "
+                           "state file",
+                           label.c_str());
+                return false;
             }
         }
     }
 
-    if (manifest.disabled && !forceLoad) {
-        log_debug("will not load %s: it is disabled", label.c_str());
-        return false;
-    }
-
+    log_notice("loaded job %s from %s", label.c_str(), path.c_str());
     auto result = jobs.emplace(label, Job{path, manifest, eventmgr});
     auto &[it, inserted] = result;
     it->second.initFSM();
@@ -140,6 +155,8 @@ bool Manager::unloadJob(std::unordered_map<std::string, Job>::iterator &it,
         return false;
     }
 
+    log_notice("unloading job %s", label.c_str());
+    job.dump();
     job.uncleanShutdown();
     it = jobs.erase(it);
 
@@ -215,6 +232,7 @@ void Manager::overrideJobEnabled(const Label &label_, bool enabled) {
         doc["Overrides"].emplace(label, json::object({{"Enabled", enabled}}));
     }
     STATE_FILE->setValue(doc);
+    log_notice("job %s: setting enabled=%d", label.c_str(), enabled);
 }
 
 Manager::Manager(Domain domain_) : domain(std::move(domain_)) {
