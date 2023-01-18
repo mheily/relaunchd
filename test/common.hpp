@@ -17,6 +17,7 @@
 #pragma once
 
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 
 #include <nlohmann/json.hpp>
@@ -24,6 +25,16 @@ using json = nlohmann::json;
 
 //! A directory where temporary files can be placed.
 static const inline std::string tmpdir{TMPDIR};
+
+namespace testutil {
+    static std::filesystem::path createManifest(const std::string &label, const json &obj) {
+        std::string mpath = tmpdir + "/" + label + ".json";
+        std::ofstream ofs{mpath};
+        ofs << obj;
+        ofs.close();
+        return mpath;
+    }
+};
 
 class TestRunner {
 public:
