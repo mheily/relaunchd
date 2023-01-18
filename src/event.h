@@ -444,8 +444,8 @@ class EpollImplementation : public KernelEventInterface,
                     pending_events.emplace(Event(proc_event{pid, status}));
                     watch_pids.erase(pid);
                 } else {
-                    kqtrace::print(
-                        "pid " + std::to_string(pid) + " exited but it was not being watched");
+                    kqtrace::print("pid " + std::to_string(pid) +
+                                   " exited but it was not being watched");
                     continue;
                 }
             }

@@ -66,6 +66,7 @@ struct ManagerTest {
     static void testUnload();
     static void testUnloadWithOverrideDisabled();
     static void testAbandonProcessGroup();
+    static void testEnvironmentVar();
 };
 
 //! Verify that ThrottleInterval works
@@ -244,6 +245,29 @@ void ManagerTest::testAbandonProcessGroup() {
 }
 
 
+// Ensure that environment variables are passed in
+void ManagerTest::testEnvironmentVar() {
+    auto mgr = getManager();
+    Label label{"testEnvironmentVar"};
+    json manifest = json{
+            {"Label", label},
+            {"EnvironmentVariables", json::object({{"FOO", "BAR"}})},
+            {"StandardOutPath", tmpdir + "/" + label.str() + ".log"},
+            {"ProgramArguments", json::array({
+                                                     "/bin/sh", "-e", "-c",
+                                                     "env\ntest \"$FOO\" = \"BAR\"\n"
+                                             })},
+            {"RunAtLoad", true}
+    };
+    std::string path = "/dev/null";
+    mgr.loadManifest(manifest, path);
+    auto &job = mgr.getJob(label);
+    mgr.startAllJobs();
+    mgr.handleEvent();
+    assert(job.fsm.state() == Job::States::Exited);
+    assert(job.last_exit_status == 0);
+}
+
 void addManagerTests(TestRunner &runner) {
 #define X(y) runner.addTest("" # y, ManagerTest::y)
     X(testAbandonProcessGroup);
@@ -253,5 +277,6 @@ void addManagerTests(TestRunner &runner) {
     X(testKeepaliveAfterExit);
     X(testThrottleInterval);
     X(testKillJobBySignal);
+    X(testEnvironmentVar);
 #undef X
 }
