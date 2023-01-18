@@ -17,6 +17,7 @@
 #include "common.hpp"
 #include "../src/log.h"
 
+extern void addLaunchctlTests(TestRunner &runner);
 extern void addManagerTests(TestRunner &runner);
 extern void addManifestTests(TestRunner &runner);
 extern void addStateFileTests(TestRunner &runner);
@@ -45,6 +46,7 @@ int test_main(int argc, char *argv[]) {
 
     TestRunner runner;
     std::unordered_map<std::string, std::function<void(TestRunner &)>> tests = {
+            {"Launchctl", addLaunchctlTests},
             {"Manager", addManagerTests},
             {"Manifest", addManifestTests},
             {"StateFile", addStateFileTests},

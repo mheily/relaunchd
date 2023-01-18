@@ -21,18 +21,27 @@
 #include <iostream>
 
 #include <nlohmann/json.hpp>
+#include "manager.h"
+
 using json = nlohmann::json;
 
 //! A directory where temporary files can be placed.
 static const inline std::string tmpdir{TMPDIR};
 
 namespace testutil {
-    static std::filesystem::path createManifest(const std::string &label, const json &obj) {
+    static inline std::filesystem::path createManifest(const std::string &label, const json &obj) {
         std::string mpath = tmpdir + "/" + label + ".json";
         std::ofstream ofs{mpath};
         ofs << obj;
         ofs.close();
         return mpath;
+    }
+
+    static inline std::unique_ptr<Manager> getTemporaryManager() {
+        Domain domain{DomainType::User, TMPDIR};
+        auto mgr = std::make_unique<Manager>(domain);
+        mgr->clearStateFile();
+        return mgr;
     }
 };
 
