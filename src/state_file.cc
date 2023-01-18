@@ -27,10 +27,7 @@ StateFile::StateFile(std::string path, json default_value)
         std::ifstream ifs{dataPath};
         currentValue = json::parse(ifs);
     } else {
-        std::ofstream ofs{dataPath};
-        ofs << defaultValue;
-        ofs.close();
-        currentValue = defaultValue;
+        clear();
     }
 }
 
@@ -49,3 +46,10 @@ void StateFile::setValue(json new_value) const {
 }
 
 const json &StateFile::getValue() const { return currentValue; }
+
+void StateFile::clear() {
+    std::ofstream ofs{dataPath};
+    ofs << defaultValue;
+    ofs.close();
+    currentValue = defaultValue;
+}

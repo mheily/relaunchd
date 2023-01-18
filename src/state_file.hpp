@@ -33,6 +33,9 @@ class StateFile {
 
     void setValue(json) const;
 
+    //! Discard all custom values in the state file
+    void clear();
+
   private:
     const std::string dataPath;
     const json defaultValue;
