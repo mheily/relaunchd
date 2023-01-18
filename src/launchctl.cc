@@ -141,8 +141,10 @@ void submit(Channel &chan, std::vector<std::string> &args) {
             kwargs["ProgramArguments"].push_back(*it);
         }
     }
+    if (!kwargs.contains("Label")) {
+        throw std::runtime_error("Label is required");
+    }
     json msg = json::array({"submit", kwargs});
-    std::cout << msg.dump(2);
     chan.writeMessage(msg);
     auto maybe_json = chan.readMessage();
     // FIXME
@@ -202,11 +204,11 @@ int launchctl_main(int argc, char *argv[]) {
 
     if (argc <= 1) {
         printUsage();
-        exit(1);
+        return EXIT_FAILURE;
     }
     if (argc == 2 && std::string(argv[1]).rfind("help") != std::string::npos) {
         printUsage();
-        exit(0);
+        return EXIT_SUCCESS;
     }
 
     Domain domain;
@@ -216,9 +218,17 @@ int launchctl_main(int argc, char *argv[]) {
 
     std::vector<std::string> args(argv + 2, argv + argc);
     auto subcommand = std::string(argv[1]);
+    if (!subcommands.count(subcommand)) {
+        std::cerr << "ERROR: unknown subcommand" << std::endl;
+        return EXIT_FAILURE;
+    }
     auto funcptr = subcommands.at(subcommand);
-    (*funcptr)(chan, args);
-
+    try {
+        (*funcptr)(chan, args);
+    } catch (const std::exception &exc) {
+        std::cerr << "ERROR: Unhandled exception: " << exc.what() << std::endl;
+        return EXIT_FAILURE;
+    }
     chan.disconnect();
     return EXIT_SUCCESS;
 }
