@@ -83,7 +83,7 @@ class Manager {
 
     const Domain &getDomain() const;
 
-private:
+  private:
     Job &getJob(const Label &label);
 
     void startJob(Job &job);

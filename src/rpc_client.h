@@ -19,9 +19,9 @@
 #include "channel.h"
 #include "manager.h"
 
-
 class RpcClient {
-public:
-    void invokeMethod(const std::string &method, std::vector<std::string> &args, const Domain &domain);
+  public:
+    void invokeMethod(const std::string &method, std::vector<std::string> &args,
+                      const Domain &domain);
     bool methodExists(const std::string &method) const;
 };

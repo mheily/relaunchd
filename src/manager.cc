@@ -429,6 +429,4 @@ void Manager::clearStateFile() {
 #endif
 }
 
-const Domain &Manager::getDomain() const {
-    return domain;
-}
+const Domain &Manager::getDomain() const { return domain; }
