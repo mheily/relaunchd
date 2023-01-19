@@ -21,187 +21,11 @@
 #include "channel.h"
 #include "domain.h"
 #include "options.h"
-
-namespace subcommand {
-void disable(Channel &chan, std::vector<std::string> &args) {
-    auto kwargs = json::object({{"Label", args.at(0)}});
-    json msg = json::array({"disable", kwargs});
-    chan.writeMessage(msg);
-    auto maybe_json = chan.readMessage();
-    // FIXME
-}
-
-void enable(Channel &chan, std::vector<std::string> &args) {
-    auto kwargs = json::object({{"Label", args.at(0)}});
-    json msg = json::array({"enable", kwargs});
-    chan.writeMessage(msg);
-    auto maybe_json = chan.readMessage();
-    // FIXME
-}
-
-void kill(Channel &chan, std::vector<std::string> &args) {
-    auto kwargs = json::object({{"Signal", args.at(0)}, {"Label", args.at(1)}});
-    json msg = json::array({"kill", kwargs});
-    chan.writeMessage(msg);
-    auto maybe_json = chan.readMessage();
-    // FIXME
-}
-
-void list(Channel &chan, std::vector<std::string> &) {
-    // FIXME: parse options
-    chan.writeMessage(json::array({
-        "list",
-    }));
-    auto msg = chan.readMessage();
-    printf("%-8s %-8s %s\n", "PID", "Status", "Label");
-    for (const auto &row : msg) {
-        auto pid = row["PID"].get<std::string>();
-        auto exit_status = row["LastExitStatus"].get<int>();
-        auto label = row["Label"].get<std::string>();
-        printf("%-8s %-8d %s\n", pid.c_str(), exit_status, label.c_str());
-    }
-}
-
-void load(Channel &chan, std::vector<std::string> &args) {
-    auto kwargs = json::object({
-        {"OverrideDisabled", false},
-        {"Force", false},
-        {"Paths", json::array()},
-    });
-    for (const auto &elem : args) {
-        if (elem == "-w") {
-            kwargs["OverrideDisabled"] = true;
-        } else if (elem == "-F") {
-            kwargs["Force"] = true;
-        } else {
-            auto path = std::filesystem::path(elem);
-            if (!std::filesystem::exists(path)) {
-                // TODO: make this more informative to the user
-                throw std::runtime_error("path does not exist");
-            }
-            kwargs["Paths"].push_back(std::filesystem::canonical(path));
-        }
-    }
-    json msg = json::array({"load", kwargs});
-    chan.writeMessage(msg);
-    auto maybe_json = chan.readMessage();
-    // FIXME
-}
-
-void not_implemented(Channel &, std::vector<std::string> &) {
-    std::cerr << "ERROR: Not implemented yet" << std::endl;
-    exit(EXIT_FAILURE);
-}
-
-void remove(Channel &chan, std::vector<std::string> &args) {
-    auto kwargs = json::object({{"Label", args.at(0)}});
-    json msg = json::array({"remove", kwargs});
-    chan.writeMessage(msg);
-    auto maybe_json = chan.readMessage();
-    // FIXME
-}
-
-void start(Channel &chan, std::vector<std::string> &args) {
-    auto kwargs = json::object({{"Label", args.at(0)}});
-    json msg = json::array({"start", kwargs});
-    chan.writeMessage(msg);
-    auto maybe_json = chan.readMessage();
-    // FIXME
-}
-
-void stop(Channel &chan, std::vector<std::string> &args) {
-    auto kwargs = json::object({{"Label", args.at(0)}});
-    json msg = json::array({"stop", kwargs});
-    chan.writeMessage(msg);
-    auto maybe_json = chan.readMessage();
-    // FIXME
-}
-
-void submit(Channel &chan, std::vector<std::string> &args) {
-    auto kwargs = json::object({{"ProgramArguments", json::array()}});
-    int preamble = 1;
-    for (auto it = args.begin(); it != args.end(); it++) {
-        if (preamble) {
-            if (*it == "-p") {
-                it++;
-                kwargs["Program"] = *it;
-            } else if (*it == "-l") {
-                it++;
-                kwargs["Label"] = *it;
-            } else if (*it == "-o") {
-                it++;
-                kwargs["StandardOutPath"] = *it;
-            } else if (*it == "-e") {
-                it++;
-                kwargs["StandardErrorPath"] = *it;
-            } else if (*it == "--") {
-                preamble = 0;
-            }
-        } else {
-            kwargs["ProgramArguments"].push_back(*it);
-        }
-    }
-    if (!kwargs.contains("Label")) {
-        throw std::runtime_error("Label is required");
-    }
-    json msg = json::array({"submit", kwargs});
-    chan.writeMessage(msg);
-    auto maybe_json = chan.readMessage();
-    // FIXME
-}
-
-// TODO: deduplicate this with load()
-void unload(Channel &chan, std::vector<std::string> &args) {
-    auto kwargs = json::object({
-        {"OverrideDisabled", false},
-        {"Force", false},
-        {"Paths", json::array()},
-    });
-    for (const auto &elem : args) {
-        if (elem == "-w") {
-            kwargs["OverrideDisabled"] = true;
-        } else if (elem == "-F") {
-            kwargs["Force"] = true;
-        } else {
-            auto path = std::filesystem::path(elem);
-            if (!std::filesystem::exists(path)) {
-                // TODO: make this more informative to the user
-                throw std::runtime_error("path does not exist");
-            }
-            kwargs["Paths"].push_back(std::filesystem::canonical(path));
-        }
-    }
-    json msg = json::array({"unload", kwargs});
-    chan.writeMessage(msg);
-    auto maybe_json = chan.readMessage();
-    // FIXME
-}
-
-void version(Channel &chan, std::vector<std::string> &) {
-    chan.writeMessage(json::array({"version"}));
-    auto msg = chan.readMessage();
-    std::cout << msg.at("version").get<std::string>() << std::endl;
-}
-} // namespace subcommand
+#include "rpc_client.h"
 
 void printUsage() { std::cout << "usage: ...\n"; }
 
 int launchctl_main(int argc, char *argv[]) {
-    std::unordered_map<std::string,
-                       void (*)(Channel &, std::vector<std::string> &)>
-        subcommands = {
-            {"disable", subcommand::disable}, {"enable", subcommand::enable},
-            {"kill", subcommand::kill},       {"list", subcommand::list},
-            {"load", subcommand::load},       {"remove", subcommand::remove},
-            {"start", subcommand::start},     {"stop", subcommand::stop},
-            {"submit", subcommand::submit},   {"unload", subcommand::unload},
-            {"version", subcommand::version},
-
-            // launchd v2 API not implemented yet
-            //{"print",    subcommand::not_implemented},
-
-        };
-
     if (argc <= 1) {
         printUsage();
         return EXIT_FAILURE;
@@ -211,24 +35,19 @@ int launchctl_main(int argc, char *argv[]) {
         return EXIT_SUCCESS;
     }
 
-    Domain domain;
-    Channel chan;
-    auto statedir = domain.statedir;
-    chan.connect(statedir.append("rpc.sock"));
+    RpcClient client;
 
     std::vector<std::string> args(argv + 2, argv + argc);
     auto subcommand = std::string(argv[1]);
-    if (!subcommands.count(subcommand)) {
+    if (!client.methodExists(subcommand)) {
         std::cerr << "ERROR: unknown subcommand" << std::endl;
         return EXIT_FAILURE;
     }
-    auto funcptr = subcommands.at(subcommand);
     try {
-        (*funcptr)(chan, args);
+        client.invokeMethod(subcommand, args, Domain());
     } catch (const std::exception &exc) {
         std::cerr << "ERROR: Unhandled exception: " << exc.what() << std::endl;
         return EXIT_FAILURE;
     }
-    chan.disconnect();
     return EXIT_SUCCESS;
 }
