@@ -81,7 +81,9 @@ class Manager {
     //! Delete all custom state settings
     void clearStateFile();
 
-  private:
+    const Domain &getDomain() const;
+
+private:
     Job &getJob(const Label &label);
 
     void startJob(Job &job);
