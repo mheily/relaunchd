@@ -97,7 +97,7 @@ int Channel::connect(const std::string &path) {
     // fixme check error
 
     if (::connect(sockfd, (struct sockaddr *)&addr, sizeof(addr))) {
-        log_errno("connect(2)");
+        log_errno("connect(2): %s", path.c_str());
         return -1;
     }
 
