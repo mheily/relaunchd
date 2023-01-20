@@ -1,10 +1,13 @@
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g3 -O0 -DRELAUNCHD_UNIT_TESTS")
 
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
 add_executable(test_all main_test.cc manager_test.cc manifest_test.cc
         launchctl_test.cc ../src/launchctl.cc
         state_file_test.cc common.hpp)
-target_link_libraries(test_all PRIVATE launch nlohmann_json::nlohmann_json)
+target_link_libraries(test_all PRIVATE launch nlohmann_json::nlohmann_json Threads::Threads)
 target_include_directories(test_all PRIVATE . ${CMAKE_CURRENT_SOURCE_DIR}/../src ${CMAKE_BINARY_DIR}/src)
 add_test(NAME test_all COMMAND test_all -v)
 target_compile_definitions(test_all PRIVATE
