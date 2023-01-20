@@ -1,12 +1,14 @@
 name: CI Linux Coverity
 
 on:
+  workflow_run:
+    workflows: ["CI Linux"]
+    types:
+      - completed
   push:
     branches:
       - master
     paths:
-      - 'src/*'
-      - 'vendor/*'
       - '.github/workflows/ci-linux-coverity.yml'
 
 jobs:
