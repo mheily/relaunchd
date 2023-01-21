@@ -43,7 +43,19 @@
 
 using json = nlohmann::json;
 
-static std::unique_ptr<StateFile> STATE_FILE;
+StateFile Manager::createOrOpenStatefile(const Domain &domain) {
+    const auto &statedir = domain.statedir;
+
+    if (getuid() != 0 && !std::filesystem::exists(statedir)) {
+        log_debug("creating %s", statedir.c_str());
+        std::filesystem::create_directories(statedir);
+    }
+
+    json defaultStateDoc = {{"SchemaVersion", 1},
+                            {"Overrides", json::object()}};
+    auto statefilepath = domain.statedir / "state.json";
+    return StateFile(statefilepath, defaultStateDoc);
+}
 
 void Manager::setupSignalHandlers() {
     // FIXME testing eventmgr.addSignal(SIGCHLD, [](int){});
@@ -104,7 +116,7 @@ bool Manager::loadManifest(const json &jsondata, const std::string &path,
     }
 
     // Check if the job is disabled in the state file
-    auto state = STATE_FILE->getValue();
+    auto state = state_file.getValue();
     if (state.at("Overrides").contains(label)) {
         const auto job_state = state["Overrides"][label];
         if (!job_state.at("Enabled")) {
@@ -141,7 +153,7 @@ bool Manager::unloadJob(std::unordered_map<std::string, Job>::iterator &it,
 
     // Check if the job is disabled
     if (!job.manifest.disabled && !forceUnload) {
-        auto state = STATE_FILE->getValue();
+        auto state = state_file.getValue();
         if (state.at("Overrides").contains(label)) {
             const auto job_state = state["Overrides"][label];
             if (!job_state.at("Enabled")) {
@@ -225,28 +237,18 @@ void Manager::overrideJobEnabled(const Label &label_, bool enabled) {
     // FIXME: do we care if it exists?
     //  auto & job = manager_get_job_by_label(label);
     const auto &label = static_cast<std::string>(label_);
-    auto doc = STATE_FILE->getValue();
+    auto doc = state_file.getValue();
     if (doc.at("Overrides").contains(label)) {
         doc["Overrides"][label]["Enabled"] = enabled;
     } else {
         doc["Overrides"].emplace(label, json::object({{"Enabled", enabled}}));
     }
-    STATE_FILE->setValue(doc);
+    state_file.setValue(doc);
     log_notice("job %s: setting enabled=%d", label.c_str(), enabled);
 }
 
-Manager::Manager(Domain domain_) : domain(std::move(domain_)) {
-    const auto &statedir = domain.statedir;
-    if (getuid() != 0 && !std::filesystem::exists(statedir)) {
-        log_debug("creating %s", statedir.c_str());
-        std::filesystem::create_directories(statedir);
-    }
-
-    json defaultStateDoc = {{"SchemaVersion", 1},
-                            {"Overrides", json::object()}};
-    auto statefilepath = domain.statedir / "state.json";
-    STATE_FILE = std::make_unique<StateFile>(statefilepath, defaultStateDoc);
-
+Manager::Manager(Domain domain_)
+    : domain(std::move(domain_)), state_file(createOrOpenStatefile(domain)) {
     setupSignalHandlers();
     // setup_socket_activation(main_kqfd);
 
@@ -425,7 +427,7 @@ void Manager::clearStateFile() {
 #ifndef RELAUNCHD_UNIT_TESTS
     throw std::logic_error("This should not be used outside of testing");
 #else
-    STATE_FILE->clear();
+    state_file.clear();
 #endif
 }
 

@@ -24,6 +24,7 @@
 #include "domain.h"
 #include "event.h"
 #include "job.h"
+#include "state_file.hpp"
 
 class Manager {
     friend struct ManagerTest;
@@ -84,6 +85,8 @@ class Manager {
     const Domain &getDomain() const;
 
   private:
+    static StateFile createOrOpenStatefile(const Domain &);
+
     Job &getJob(const Label &label);
 
     void startJob(Job &job);
@@ -96,7 +99,7 @@ class Manager {
     kq::EventManager eventmgr;
     Channel chan;
     bool SHUTTING_DOWN = false;
-
+    StateFile state_file;
     void rescheduleStandardJob(Job &job);
 };
 

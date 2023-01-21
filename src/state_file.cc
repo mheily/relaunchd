@@ -31,7 +31,7 @@ StateFile::StateFile(std::string path, json default_value)
     }
 }
 
-void StateFile::setValue(json new_value) const {
+void StateFile::setValue(const json &new_value) const {
     // TODO: randomize this filename
     std::string tmpfilepath =
         std::string{dataPath}.append(".tmp").append(std::to_string(getpid()));

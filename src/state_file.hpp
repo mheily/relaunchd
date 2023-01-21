@@ -31,7 +31,7 @@ class StateFile {
 
     [[nodiscard]] const json &getValue() const;
 
-    void setValue(json) const;
+    void setValue(const json &) const;
 
     //! Discard all custom values in the state file
     void clear();

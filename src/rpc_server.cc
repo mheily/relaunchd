@@ -127,6 +127,7 @@ static json _rpc_op_stop(const json &args, Manager &mgr) {
 static json _rpc_op_remove(const json &args, Manager &mgr) {
     const Label label{args[1]["Label"]};
     bool status = mgr.unloadJob(label);
+    // FIXME: should return immediately, not waiting for job to be unloaded
     return {{"error", status}};
 }
 
