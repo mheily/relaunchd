@@ -352,10 +352,11 @@ job_schedule_t Job::_set_schedule() const {
 }
 
 Job::Job(std::optional<std::filesystem::path> manifest_path_,
-         Manifest manifest_, kq::EventManager &eventmgr_)
+         Manifest manifest_, kq::EventManager &eventmgr_,
+         StateFile &state_file_)
     : manifest_path(std::move(manifest_path_)), manifest(std::move(manifest_)),
       pid(0), pgid(-1), last_exit_status(0), term_signal(0),
-      schedule(_set_schedule()), eventmgr(eventmgr_) {}
+      schedule(_set_schedule()), eventmgr(eventmgr_), state_file(state_file_) {}
 
 void Job::initFSM() {
     fsm.add_transitions({
@@ -364,7 +365,8 @@ void Job::initFSM() {
             States::Running,
             Triggers::Bootstrap,
             [this] {
-                return manifest.run_at_load || manifest.keep_alive.always;
+                return !isDisabled() &&
+                       (manifest.run_at_load || manifest.keep_alive.always);
             },
             [this] { fsm.execute(Triggers::StartRequested); },
         },
@@ -373,7 +375,7 @@ void Job::initFSM() {
             States::Waiting,
             Triggers::Bootstrap,
             [this] {
-                return manifest.start_interval.has_value() &&
+                return !isDisabled() && manifest.start_interval.has_value() &&
                        !manifest.run_at_load;
             },
             [this] { schedulePeriodicJob(); },
@@ -584,4 +586,15 @@ void Job::uncleanShutdown() {
 bool Job::shouldThrottle() {
     time_t elapsed = current_time() - *started_at;
     return elapsed < manifest.throttle_interval;
+}
+
+bool Job::isDisabled() const {
+    const std::string &label = manifest.label.str();
+    const auto state = state_file.getValue();
+    if (state.at("Overrides").contains(label)) {
+        const auto job_state = state["Overrides"][label];
+        return !job_state.at("Enabled");
+    } else {
+        return manifest.disabled;
+    }
 }

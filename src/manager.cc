@@ -134,7 +134,8 @@ bool Manager::loadManifest(const json &jsondata, const std::string &path,
     }
 
     log_notice("loaded job %s from %s", label.c_str(), path.c_str());
-    auto result = jobs.emplace(label, Job{path, manifest, eventmgr});
+    auto result =
+        jobs.emplace(label, Job{path, manifest, eventmgr, state_file});
     auto &[it, inserted] = result;
     it->second.initFSM();
 
@@ -151,18 +152,7 @@ bool Manager::unloadJob(std::unordered_map<std::string, Job>::iterator &it,
         overrideJobEnabled(label, false);
     }
 
-    // Check if the job is disabled
-    if (!job.manifest.disabled && !forceUnload) {
-        auto state = state_file.getValue();
-        if (state.at("Overrides").contains(label)) {
-            const auto job_state = state["Overrides"][label];
-            if (!job_state.at("Enabled")) {
-                forceUnload = true;
-            }
-        }
-    }
-
-    if (job.manifest.disabled && !forceUnload) {
+    if (job.isDisabled() && !forceUnload) {
         log_debug("will not unload %s: it is disabled", label.c_str());
         return false;
     }
@@ -293,7 +283,7 @@ bool Manager::unloadAllJobs() noexcept {
         auto &job = it->second;
         bool result;
         try {
-            result = unloadJob(it);
+            result = unloadJob(it, false, true);
         } catch (...) {
             log_error("unhandled exception unloading %s", job.getLabel());
             result = false;

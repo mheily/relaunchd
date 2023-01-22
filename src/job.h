@@ -32,6 +32,7 @@ using json = nlohmann::json;
 #include "fsm.h"
 #include "log.h"
 #include "manifest.h"
+#include "state_file.hpp"
 
 struct ExecutionContext {
     std::optional<gid_t> gid;
@@ -51,7 +52,7 @@ struct Job {
 
   protected:
     Job(std::optional<std::filesystem::path> manifest_path_, Manifest manifest_,
-        kq::EventManager &eventmgr);
+        kq::EventManager &eventmgr, StateFile &state_file_);
 
     //! The time that the job started
     std::optional<time_t> started_at;
@@ -78,6 +79,9 @@ struct Job {
 
     bool run(std::function<void()> post_fork_cleanup);
 
+    //! Return true if the job is disabled
+    [[nodiscard]] bool isDisabled() const;
+
   private:
     std::vector<std::string>
     setup_environment_variables(const struct passwd *pwent);
@@ -99,6 +103,7 @@ struct Job {
 
     // Shared with the ::Manager of this job
     kq::EventManager &eventmgr;
+    const StateFile &state_file;
 
     void initFSM();
     void startJob();
