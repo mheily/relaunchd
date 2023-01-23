@@ -77,6 +77,21 @@ void testUsage() {
     assert(rv == EXIT_FAILURE);
 }
 
+void testVersion() {
+    auto mgrp = testutil::getTemporaryManager();
+    auto &mgr = *mgrp;
+    mgr.startAllJobs();
+    auto cb = [&mgr]() -> int {
+        RpcClient client;
+        std::vector<std::string> args;
+        client.invokeMethod("version", args, mgr.getDomain());
+        return 0;
+    };
+    std::future<int> fp = async(std::launch::async, cb);
+    mgr.handleEvent();
+    assert(fp.get() == 0);
+}
+
 void testSubcommandNotFound() {
     std::array<const char *, 2> argv = {"launchctl", "some-unknown-command"};
     int rv = -1;
@@ -109,26 +124,22 @@ void testLoadAndUnload() {
     assert(mgr.jobExists(label));
     assert(fp.get() == 0);
 
-
-#if 0
-// FIXME
     // Now unload this job.
-    {
-        std::array<const char *, 3> argv = {"launchctl", "unload", path.c_str()};
-        int rv = -1;
-        std::thread thr{[&argv, &rv]() {
-            rv = launchctl_main(argv.size(), (char **) &argv);
-        }};
-        mgr.handleEvent();
-        thr.join();
-        if (mgr.jobExists(label)) {
-            log_error("unexpected state");
-            mgr.dumpJob(label);
-        }
-        assert(!mgr.jobExists(label));
-        assert(rv == EXIT_SUCCESS);
+    auto cb2 = [&mgr, &path]() -> int {
+        RpcClient client;
+        std::vector<std::string> args = {path};
+        client.invokeMethod("unload", args, mgr.getDomain());
+        return 0;
+    };
+    std::future<int> fp2 = async(std::launch::async, cb2);
+    mgr.handleEvent();
+    mgr.handleEvent();
+    assert(fp2.get() == 0);
+    if (mgr.jobExists(label)) {
+        log_error("unexpected state");
+        mgr.dumpJob(label);
     }
-#endif
+    assert(!mgr.jobExists(label));
 }
 
 void forceTestLoad(const std::string &path, Manager &mgr) {
@@ -151,7 +162,6 @@ void testDisable() {
     };
     auto path = testutil::createManifest(label, manifest);
     auto mgr = testutil::getTemporaryManager();
-    mgr->clearStateFile();
     std::future<int> fp = async(std::launch::async,
                            [&label, &mgr]() -> int {
             RpcClient client;
@@ -167,6 +177,33 @@ void testDisable() {
     // Try to force load a disabled job
     forceTestLoad(path, *mgr);
     assert(mgr->jobExists(label));
+}
+
+void testEnable() {
+    std::string label = "testEnable";
+    json manifest = {
+            {"Label", label},
+            {"Program", "/bin/sh"},
+            {"Keepalive", true},
+            {"Disabled", true},
+    };
+    auto path = testutil::createManifest(label, manifest);
+    auto mgrp = testutil::getTemporaryManager();
+    auto &mgr = *mgrp;
+    mgr.loadManifest(path, false, true);
+    mgr.startAllJobs();
+    auto cb = [&mgr, &label]() -> int {
+        RpcClient client;
+        std::vector<std::string> args = {label};
+        client.invokeMethod("enable", args, mgr.getDomain());
+        return 0;
+    };
+    std::future<int> fp = async(std::launch::async, cb);
+    mgr.handleEvent();
+    assert(fp.get() == 0);
+    assert(mgr.jobExists(label));
+    mgr.dumpJob(label);
+    // TODO: check if the job is running. This isn't available via ::Manager yet.
 }
 
 void testSubmit() {
@@ -190,11 +227,13 @@ void addLaunchctlTests(TestRunner &runner) {
 #define X(y) runner.addTest("" #y, y)
     X(testSubmit);
     X(testDisable);
+    X(testEnable);
     X(testLoadAndUnload);
     X(testSubcommandNotFound);
     X(testList);
     X(testUsage);
     X(testHelp);
     X(testKill);
+    X(testVersion);
 #undef X
 }
