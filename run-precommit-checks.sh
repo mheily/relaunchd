@@ -25,6 +25,8 @@ if [ "$(uname)" != "Darwin" ] ; then
   ./configure --objdir="$builddir" --enable-asan
   make -C "$builddir" clean check ASAN_OPTIONS=verbosity=1:detect_stack_use_after_return=1:atexit=1
 
+  make -C "$builddir" clean check-ubsan
+
 # DISABLED - false positives suspected. Try using valgrind instead.
 #  ./configure --objdir="$builddir" --enable-msan
 #  make -C "$builddir" clean check

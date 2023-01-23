@@ -9,10 +9,14 @@ launchd: Makefile $(SOURCES)
 launchctl:
 	ln -sf launchd launchctl
 
-test-all: Makefile $(SOURCES) $(TEST_SOURCES)
+test-all test-all.ubsan: Makefile $(SOURCES) $(TEST_SOURCES)
 	$(CXX) -I $(OBJDIR) -I $(OBJDIR)/src -o $(OBJDIR)/$@ \
 	-DRELAUNCHD_UNIT_TESTS -DKQLITE_TRACE "-DTESTDIR=\"$(OBJDIR)/test\"" "-DTMPDIR=\"$(OBJDIR)/tmp\"" \
 	$(TARGET_CXXFLAGS) $(CXXFLAGS) $(TEST_SOURCES) $(SOURCES) $(TARGET_LDADD)
+
+check-ubsan: tmp
+	$(MAKE) test-all.ubsan CXXFLAGS="$(CXXFLAGS) -fsanitize=undefined"
+	$(OBJDIR)/test-all.ubsan -v
 
 install: launchd
 	install -m 755 launchd $$DESTDIR$(PREFIX)/sbin
