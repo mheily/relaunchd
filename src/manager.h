@@ -64,9 +64,6 @@ class Manager {
     bool unloadJob(Job &job, bool overrideDisabled = false,
                    bool forceUnload = false);
 
-    bool unloadJob(std::unordered_map<std::string, Job>::iterator &it,
-                   bool overrideDisabled = false, bool forceUnload = false);
-
     bool unloadAllJobs() noexcept;
 
     bool killJob(const Label &, const std::string &signame_or_number);
@@ -99,6 +96,7 @@ class Manager {
     kq::EventManager eventmgr;
     Channel chan;
     bool SHUTTING_DOWN = false;
+    std::optional<std::string> unloaded_job;
     StateFile state_file;
     void rescheduleStandardJob(Job &job);
 };

@@ -353,70 +353,132 @@ job_schedule_t Job::_set_schedule() const {
 
 Job::Job(std::optional<std::filesystem::path> manifest_path_,
          Manifest manifest_, kq::EventManager &eventmgr_,
-         StateFile &state_file_)
+         StateFile &state_file_, std::optional<std::string> &unloaded_job_)
     : manifest_path(std::move(manifest_path_)), manifest(std::move(manifest_)),
       pid(0), pgid(-1), last_exit_status(0), term_signal(0),
-      schedule(_set_schedule()), eventmgr(eventmgr_), state_file(state_file_) {}
+      schedule(_set_schedule()), eventmgr(eventmgr_), state_file(state_file_),
+      unloaded_job(unloaded_job_) {}
 
 void Job::initFSM() {
-    fsm.add_transitions({
-        {
-            States::Loaded,
-            States::Running,
-            Triggers::Bootstrap,
-            [this] {
-                return !isDisabled() &&
-                       (manifest.run_at_load || manifest.keep_alive.always);
-            },
-            [this] { fsm.execute(Triggers::StartRequested); },
-        },
-        {
-            States::Loaded,
-            States::Waiting,
-            Triggers::Bootstrap,
-            [this] {
-                return !isDisabled() && manifest.start_interval.has_value() &&
-                       !manifest.run_at_load;
-            },
-            [this] { schedulePeriodicJob(); },
-        },
-        {
-            States::Loaded,
-            States::Running,
-            Triggers::StartRequested,
-            [] { return true; },
-            [this] { startJob(); },
-        },
-        {
-            States::Waiting,
-            States::Running,
-            Triggers::StartRequested,
-            [] { return true; },
-            [this] { startJob(); },
-        },
-        {States::Running, States::Exited, Triggers::ProcessExited,
-         [this] {
-             return !manifest.keep_alive.always &&
-                    !manifest.start_interval.has_value();
+    fsm.add_transitions(
+        {// From: Loaded
+         // To: Any state
+         {
+             States::Loaded,
+             States::Running,
+             Triggers::Bootstrap,
+             [this] {
+                 return !isDisabled() &&
+                        (manifest.run_at_load || manifest.keep_alive.always);
+             },
+             [this] { fsm.execute(Triggers::StartRequested); },
          },
-         [this] {
-             log_notice("job %s: transitioned to Exited state", getLabel());
-         }},
-        {
-            States::Running,
-            States::Running,
-            Triggers::ProcessExited,
-            [this] { return manifest.keep_alive.always && !shouldThrottle(); },
-            [this] { fsm.execute(Triggers::StartRequested); },
-        },
-        {
-            States::Running,
-            States::Waiting,
-            Triggers::ProcessExited,
-            [this] { return manifest.keep_alive.always && shouldThrottle(); },
-            [this] { startAfterThrottleInterval(); },
-        },
-    });
+         {
+             States::Loaded,
+             States::Waiting,
+             Triggers::Bootstrap,
+             [this] {
+                 return !isDisabled() && manifest.start_interval.has_value() &&
+                        !manifest.run_at_load;
+             },
+             [this] { schedulePeriodicJob(); },
+         },
+         {
+             States::Loaded,
+             States::Running,
+             Triggers::StartRequested,
+             [] { return true; },
+             [this] { startJob(); },
+         },
+         {
+             States::Loaded,
+             States::Unloaded,
+             Triggers::UnloadRequested,
+             [] { return true; },
+             [this] { unloaded_job = manifest.label.str(); },
+         },
+         // From: Waiting
+         // To: Any state
+         {
+             States::Waiting,
+             States::Running,
+             Triggers::StartRequested,
+             [] { return true; },
+             [this] {
+                 if (timer_id) {
+                     cancelTimer();
+                 } // why wouldn't it have a timer if it is waiting??
+                 startJob();
+             },
+         },
+         {
+             States::Waiting,
+             States::Unloaded,
+             Triggers::UnloadRequested,
+             [] { return true; },
+             [this] {
+                 if (timer_id) {
+                     cancelTimer();
+                 }
+                 unloaded_job = manifest.label.str();
+             },
+         },
+         // From: Running
+         // To: Any state
+         {States::Running, States::Exited, Triggers::ProcessExited,
+          [this] {
+              return !manifest.keep_alive.always &&
+                     !manifest.start_interval.has_value() && !unload_requested;
+          },
+          [this] {
+              log_notice("job %s: transitioned to Exited state", getLabel());
+          }},
+         {
+             States::Running,
+             States::Running,
+             Triggers::ProcessExited,
+             [this] {
+                 return manifest.keep_alive.always && !shouldThrottle() &&
+                        !unload_requested;
+             },
+             [this] { startJob(); },
+         },
+         {
+             States::Running,
+             States::Running,
+             Triggers::StopRequested,
+             [] { return true; },
+             [this] {
+                 // TODO: handle errors?
+                 killJob(SIGTERM);
+             },
+         },
+         {
+             States::Running,
+             States::Waiting,
+             Triggers::ProcessExited,
+             [this] {
+                 return manifest.keep_alive.always && shouldThrottle() &&
+                        !unload_requested;
+             },
+             [this] { startAfterThrottleInterval(); },
+         },
+         {
+             States::Running,
+             States::Unloaded,
+             Triggers::ProcessExited,
+             [this] { return unload_requested; },
+             [this] { unloaded_job = manifest.label.str(); },
+         },
+         // From: Exited
+         // To: Any state
+         {
+             States::Exited,
+             States::Unloaded,
+             Triggers::UnloadRequested,
+             [] { return true; },
+             [this] { unloaded_job = manifest.label.str(); },
+         }});
     fsm.add_debug_fn([this](Job::States from_state, Job::States to_state,
                             Job::Triggers trigger) {
         log_debug(
@@ -475,6 +537,8 @@ const char *Job::stateToString(const Job::States &state) {
         return "running";
     case States::Exited:
         return "exited";
+    case States::Unloaded:
+        return "unloaded";
     default:
         __builtin_unreachable();
     }
@@ -486,8 +550,12 @@ const char *Job::triggerToString(const Job::Triggers &trigger) {
         return "Bootstrap";
     case Job::Triggers::StartRequested:
         return "StartRequested";
+    case Job::Triggers::StopRequested:
+        return "StopRequested";
     case Job::Triggers::ProcessExited:
         return "ProcessExited";
+    case Job::Triggers::UnloadRequested:
+        return "UnloadRequested";
     default:
         __builtin_unreachable();
     }
@@ -577,9 +645,7 @@ void Job::uncleanShutdown() {
         pid = 0;
     }
     if (timer_id) {
-        log_debug("cancelling timer ID %d", *timer_id);
-        eventmgr.deleteTimer(timer_id.value());
-        timer_id = std::nullopt;
+        cancelTimer();
     }
 }
 
@@ -597,4 +663,34 @@ bool Job::isDisabled() const {
     } else {
         return manifest.disabled;
     }
+}
+
+bool Job::unloadJob(bool forceUnload) {
+    if (fsm.state() == Job::States::Unloaded) {
+        log_debug("tried to unload a job that is already unloaded: %s",
+                  getLabel());
+        return false;
+    }
+    if (unload_requested) {
+        log_debug("tried to unload a job that is already in the process of "
+                  "unloading: %s",
+                  getLabel());
+        return false;
+    } else {
+        unload_requested = true;
+    }
+    if (isDisabled() && !forceUnload) {
+        log_debug("will not unload %s: it is disabled", getLabel());
+        return false;
+    }
+    log_notice("unloading job %s", getLabel());
+    fsm.execute(Job::Triggers::StopRequested);
+    fsm.execute(Job::Triggers::UnloadRequested);
+    return true;
+}
+
+void Job::cancelTimer() {
+    log_debug("cancelling timer ID %d", *timer_id);
+    eventmgr.deleteTimer(timer_id.value());
+    timer_id = std::nullopt;
 }

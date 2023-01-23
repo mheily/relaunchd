@@ -134,33 +134,10 @@ bool Manager::loadManifest(const json &jsondata, const std::string &path,
     }
 
     log_notice("loaded job %s from %s", label.c_str(), path.c_str());
-    auto result =
-        jobs.emplace(label, Job{path, manifest, eventmgr, state_file});
+    auto result = jobs.emplace(
+        label, Job{path, manifest, eventmgr, state_file, unloaded_job});
     auto &[it, inserted] = result;
     it->second.initFSM();
-
-    return true;
-}
-
-bool Manager::unloadJob(std::unordered_map<std::string, Job>::iterator &it,
-                        bool overrideDisabled, bool forceUnload) {
-    Job &job = it->second;
-    const auto &label = static_cast<std::string>(job.manifest.label);
-
-    if (overrideDisabled) {
-        log_debug("%s: overriding the Disabled key", label.c_str());
-        overrideJobEnabled(label, false);
-    }
-
-    if (job.isDisabled() && !forceUnload) {
-        log_debug("will not unload %s: it is disabled", label.c_str());
-        return false;
-    }
-
-    log_notice("unloading job %s", label.c_str());
-    job.dump();
-    job.uncleanShutdown();
-    it = jobs.erase(it);
 
     return true;
 }
@@ -168,7 +145,11 @@ bool Manager::unloadJob(std::unordered_map<std::string, Job>::iterator &it,
 bool Manager::unloadJob(Job &job, bool overrideDisabled, bool forceUnload) {
     auto it = jobs.find(static_cast<std::string>(job.manifest.label));
     if (it != jobs.end()) {
-        return unloadJob(it, overrideDisabled, forceUnload);
+        if (overrideDisabled) {
+            log_debug("%s: overriding the Disabled key", job.getLabel());
+            overrideJobEnabled(job.manifest.label, false);
+        }
+        return job.unloadJob(forceUnload);
     } else {
         log_info("tried to unload a job that is not loaded: %s",
                  job.manifest.label.c_str());
@@ -264,6 +245,10 @@ Manager::~Manager() {
 bool Manager::handleEvent(std::optional<std::chrono::milliseconds> timeout) {
     log_debug("waiting for an event");
     eventmgr.waitForEvent(timeout);
+    if (unloaded_job) {
+        jobs.erase(*unloaded_job);
+        unloaded_job = std::nullopt;
+    }
     return !SHUTTING_DOWN;
 }
 
@@ -278,25 +263,45 @@ Job &Manager::getJob(const Label &label) {
 bool Manager::unloadAllJobs() noexcept {
     bool success = true;
     log_debug("unloading all jobs");
-    auto it = jobs.begin();
-    while (it != jobs.end()) {
-        auto &job = it->second;
-        bool result;
-        try {
-            result = unloadJob(it, false, true);
-        } catch (...) {
-            log_error("unhandled exception unloading %s", job.getLabel());
-            result = false;
+    for (auto &[label, job] : jobs) {
+        if (job.fsm.state() != Job::States::Unloaded && !job.unload_requested) {
+            bool result;
+            try {
+                result = job.unloadJob(true);
+            } catch (...) {
+                log_error("unhandled exception unloading %s", job.getLabel());
+                result = false;
+            }
+            if (!result) {
+                log_error("failed to unload %s: ignoring because all jobs are "
+                          "being unloaded",
+                          job.getLabel());
+                success = false;
+            }
         }
-        if (!result) {
-            log_error("failed to unload %s: ignoring because all jobs are "
-                      "being unloaded",
-                      job.getLabel());
-            success = false;
+    }
+    // FIXME: limit the total wait time to 90 seconds
+    bool done = false;
+    while (!done) {
+        auto it = jobs.begin();
+        while (it != jobs.end()) {
+            auto &job = it->second;
+            if (job.fsm.state() == Job::States::Unloaded) {
+                it = jobs.erase(it);
+            } else {
+                job.dump();
+                ++it;
+            }
+        }
+        if (jobs.empty()) {
+            done = true;
+        } else {
+            handleEvent(std::chrono::milliseconds{50});
         }
     }
     return success;
 }
+
 //
 // void Manager::rescheduleCalendarJob(Job &job) {
 //    auto interval = job.manifest.calendar_interval.value();

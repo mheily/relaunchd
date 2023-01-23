@@ -52,7 +52,8 @@ struct Job {
 
   protected:
     Job(std::optional<std::filesystem::path> manifest_path_, Manifest manifest_,
-        kq::EventManager &eventmgr, StateFile &state_file_);
+        kq::EventManager &eventmgr, StateFile &state_file_,
+        std::optional<std::string> &unloaded_job);
 
     //! The time that the job started
     std::optional<time_t> started_at;
@@ -93,22 +94,36 @@ struct Job {
     // std::optional<ExecStatus> exec_status;
 
     // FSM implementation
-    enum class States { Loaded, Waiting, Running, Exited };
-    enum class Triggers { Bootstrap, StartRequested, ProcessExited };
+    enum class States { Loaded, Waiting, Running, Exited, Unloaded };
+    enum class Triggers {
+        Bootstrap,
+        StartRequested,
+        StopRequested,
+        ProcessExited,
+        UnloadRequested
+    };
     FSM::Fsm<States, States::Loaded, Triggers> fsm;
     static const char *stateToString(const States &state);
     static const char *triggerToString(const Triggers &trigger);
 
     std::optional<int> timer_id;
 
+    //! If true, the job is in the process of being unloaded
+    bool unload_requested = false;
+
     // Shared with the ::Manager of this job
     kq::EventManager &eventmgr;
     const StateFile &state_file;
+    std::optional<std::string> &unloaded_job;
 
     void initFSM();
     void startJob();
+    bool unloadJob(bool forceUnload);
+    // TODO? killJob(SIGTERM) is used now.
+    //  void stopJob();
     void startAfterThrottleInterval();
     void schedulePeriodicJob();
     void uncleanShutdown();
     bool shouldThrottle();
+    void cancelTimer();
 };
