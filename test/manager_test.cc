@@ -139,6 +139,7 @@ void ManagerTest::testKeepaliveAfterSignal() {
     pid_t old_pid = job.pid;
     assert(mgr.killJob({"test.job1"}, "SIGKILL"));
     mgr.handleEvent(std::chrono::milliseconds{100});
+    mgr.handleEvent(std::chrono::milliseconds{100});
     assert(job.fsm.state() == Job::States::Running);
     assert(old_pid != job.pid);
 }
