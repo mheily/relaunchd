@@ -231,15 +231,8 @@ Manager::Manager(Domain domain_)
 }
 
 Manager::~Manager() {
-    log_debug("manager shutting down");
-    unloadAllJobs();
-    // Terminate all remaining child processes.
-    // TODO: there should be a graceful shutdown() method that waits the
-    // ExitInterval time
-    for (auto pid : pending_sigkill) {
-        (void)::kill(pid, SIGKILL);
-        (void)::waitpid(pid, nullptr, 0);
-    }
+    chan.unbindAndStopListening();
+    forceUnloadAllJobs();
 }
 
 bool Manager::handleEvent(std::optional<std::chrono::milliseconds> timeout) {
@@ -261,6 +254,9 @@ Job &Manager::getJob(const Label &label) {
 }
 
 bool Manager::unloadAllJobs() noexcept {
+    // Prevent users from submitting new jobs
+    chan.unbindAndStopListening();
+
     bool success = true;
     log_debug("unloading all jobs");
     for (auto &[label, job] : jobs) {
@@ -427,3 +423,10 @@ void Manager::clearStateFile() {
 }
 
 const Domain &Manager::getDomain() const { return domain; }
+
+void Manager::forceUnloadAllJobs() noexcept {
+    for (auto &[_, job] : jobs) {
+        job.forceUnloadJob();
+    }
+    jobs.clear();
+}

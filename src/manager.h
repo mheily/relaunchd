@@ -84,6 +84,8 @@ class Manager {
   private:
     static StateFile createOrOpenStatefile(const Domain &);
 
+    void forceUnloadAllJobs() noexcept;
+
     Job &getJob(const Label &label);
 
     void startJob(Job &job);
@@ -91,7 +93,6 @@ class Manager {
     void setupSignalHandlers();
 
     std::unordered_map<std::string, Job> jobs;
-    std::vector<pid_t> pending_sigkill;
     const Domain domain;
     kq::EventManager eventmgr;
     Channel chan;
