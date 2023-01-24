@@ -20,11 +20,7 @@ make -C "$builddir" clean all check
 
 # Sanitizers are not working on MacOS yet
 if [ "$(uname)" != "Darwin" ] ; then
-  make -C "$builddir" check-valgrind
-
-  make -C "$builddir" check-asan
-
-  make -C "$builddir" clean check-ubsan
+  make -j -C "$builddir" check-valgrind check-asan check-ubsan
 
 # DISABLED - false positives suspected. Try using valgrind instead.
 #  ./configure --objdir="$builddir" --enable-msan

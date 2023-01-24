@@ -18,7 +18,7 @@ test: buildvol
 
 check: buildvol
 	docker build -t $(TAG)-ubuntu -f Dockerfile.Ubuntu ..
-	docker run --rm $(VOLUMES) -it $(TAG)-ubuntu /tmp/src/run-precommit-checks.sh
+	docker run --rm $(VOLUMES) -it $(TAG)-ubuntu /tmp/src/run-precommit-checks.sh /tmp/build
 
 check-asan:
 	docker run --rm $(VOLUMES) -it $(TAG)-ubuntu sh -ex -c '\
