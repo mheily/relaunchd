@@ -9,6 +9,7 @@ on:
       - 'configure'
       - 'Makefile.in'
       - 'CMakeList.txt'
+      - 'run-precommit-checks.sh'
       - 'cmake/*'
       - 'src/*'
       - 'test/*'
