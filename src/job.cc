@@ -634,19 +634,19 @@ void Job::schedulePeriodicJob() {
     });
 }
 
-void Job::uncleanShutdown() {
-    // This is the tear-down of last resort. It is expected that a graceful
-    // shutdown will be called somewhere else.
+void Job::forceUnloadJob() noexcept {
     if (pid) {
         log_debug("%s: sending SIGKILL to pid %d", getLabel(), pid);
         kill(pid, SIGKILL);
         killProcessGroup();
         eventmgr.deleteProcess(pid);
         pid = 0;
+        pgid = -1;
     }
     if (timer_id) {
         cancelTimer();
     }
+    fsm.reset(Job::States::Unloaded);
 }
 
 bool Job::shouldThrottle() {

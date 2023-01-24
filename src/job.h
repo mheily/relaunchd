@@ -118,12 +118,17 @@ struct Job {
 
     void initFSM();
     void startJob();
+
+    //! Send a SIGTERM and wait for the process to exit gracefully.
     bool unloadJob(bool forceUnload);
+
+    //! Send a SIGKILL to the process and transition to the Unloaded state.
+    void forceUnloadJob() noexcept;
+
     // TODO? killJob(SIGTERM) is used now.
     //  void stopJob();
     void startAfterThrottleInterval();
     void schedulePeriodicJob();
-    void uncleanShutdown();
     bool shouldThrottle();
     void cancelTimer();
 };
