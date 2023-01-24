@@ -27,7 +27,6 @@ build_type="debug"
 objdir=""
 mandir=""
 coverage="no"
-use_asan="no"
 use_msan="no"
 use_lto="yes"
 target_cxxflags="-std=gnu++17 -D_GNU_SOURCE"
@@ -50,9 +49,6 @@ do
         ;;
       enable-coverage)
         coverage="yes"
-        ;;
-      enable-asan)
-        use_asan="yes"
         ;;
       enable-msan)
         use_msan="yes"
@@ -111,16 +107,6 @@ else
   echo 'no'
 fi
 
-printf 'checking if ASAN should be enabled.. '
-if [ "$use_asan" = "yes" ] ; then
-  echo 'yes'
-  if [ "$build_type" != "debug" ] ; then
-    err "ASAN can only be used with debug builds"
-  fi
-else
-  echo 'no'
-fi
-
 printf 'checking for nlohmann::json... '
 if pkg-config --cflags nlohmann_json >/dev/null 2>&1 ; then
   echo "found"
@@ -154,11 +140,6 @@ echo "TARGET_CXXFLAGS = $build_type_flags -D_GNU_SOURCE $target_cxxflags"
 if [ "$coverage" = "yes" ] ; then
     echo "# Enable code coverage"
     echo "TARGET_CXXFLAGS += -fprofile-arcs -ftest-coverage"
-fi
-if [ "$use_asan" = "yes" ] ; then
-  echo "# Enable ASAN"
-  echo "TARGET_CXXFLAGS += -fsanitize=address"
-  echo "TARGET_LDADD += -lasan"
 fi
 if [ "$use_msan" = "yes" ] ; then
   echo "# Enable MSAN"

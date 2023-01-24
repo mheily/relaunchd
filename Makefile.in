@@ -9,10 +9,14 @@ launchd: Makefile $(SOURCES)
 launchctl:
 	ln -sf launchd launchctl
 
-test-all test-all.ubsan: Makefile $(SOURCES) $(TEST_SOURCES)
+test-all test-all.ubsan test-all.asan: Makefile $(SOURCES) $(TEST_SOURCES)
 	$(CXX) -I $(OBJDIR) -I $(OBJDIR)/src -o $(OBJDIR)/$@ \
 	-DRELAUNCHD_UNIT_TESTS -DKQLITE_TRACE "-DTESTDIR=\"$(OBJDIR)/test\"" "-DTMPDIR=\"$(OBJDIR)/tmp\"" \
 	$(TARGET_CXXFLAGS) $(CXXFLAGS) $(TEST_SOURCES) $(SOURCES) $(TARGET_LDADD)
+
+check-asan: tmp
+	$(MAKE) test-all.asan CXXFLAGS="$(CXXFLAGS) -fsanitize=address" TARGET_LDADD="-lasan"
+	env ASAN_OPTIONS=verbosity=1:detect_stack_use_after_return=1:atexit=1 $(OBJDIR)/test-all.asan -v
 
 check-ubsan: tmp
 	$(MAKE) test-all.ubsan CXXFLAGS="$(CXXFLAGS) -fsanitize=undefined"

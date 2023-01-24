@@ -22,8 +22,7 @@ make -C "$builddir" clean all check
 if [ "$(uname)" != "Darwin" ] ; then
   make -C "$builddir" check-valgrind
 
-  ./configure --objdir="$builddir" --enable-asan
-  make -C "$builddir" clean check ASAN_OPTIONS=verbosity=1:detect_stack_use_after_return=1:atexit=1
+  make -C "$builddir" check-asan
 
   make -C "$builddir" clean check-ubsan
 
