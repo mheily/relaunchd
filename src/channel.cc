@@ -173,3 +173,12 @@ int Channel::getSockFD() {
         return sockfd;
     }
 }
+
+void Channel::unbindAndStopListening() {
+    if (sockfd) {
+        if (close(sockfd) != 0) {
+            log_errno("close(2)");
+        }
+        sockfd = -1;
+    }
+}

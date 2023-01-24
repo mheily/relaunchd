@@ -37,6 +37,7 @@ class Channel {
     Channel();
     ~Channel();
     void bindAndListen(const std::string &path, int backlog);
+    void unbindAndStopListening();
     void accept();
     int connect(const std::string &path);
     void disconnect() noexcept;
