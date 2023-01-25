@@ -517,11 +517,28 @@ bool Job::killProcessGroup() const noexcept {
         log_info("process group %d will be abandoned", pgid);
         return false;
     }
-    log_debug("sending SIGKILL to process group %d", pgid);
-    if (killpg(pgid, SIGKILL) == -1) {
-        if (errno != ESRCH && errno != EPERM) {
-            log_errno("killpg(pgid=%d)", pgid);
-            return false;
+    pid_t negative_pgid = -1 * pgid;
+    for (;;) {
+        log_debug("sending SIGKILL to process group %d", pgid);
+        if (killpg(pgid, SIGKILL) == -1) {
+            if (errno != ESRCH && errno != EPERM) {
+                log_errno("killpg(pgid=%d)", pgid);
+                return false;
+            }
+        }
+        int rv = waitpid(negative_pgid, nullptr, 0);
+        if (rv < 0) {
+            if (errno == ECHILD) {
+                log_debug(
+                    "all child processes in process group %d have been reaped",
+                    pgid);
+            } else {
+                log_errno("waitpid(2)");
+                return false;
+            }
+        }
+        if (rv <= 0) {
+            break;
         }
     }
     return true;
@@ -638,6 +655,9 @@ void Job::forceUnloadJob() noexcept {
     if (pid) {
         log_debug("%s: sending SIGKILL to pid %d", getLabel(), pid);
         kill(pid, SIGKILL);
+        if (waitpid(pid, nullptr, 0) < 0) {
+            log_errno("waitpid(2)");
+        }
         killProcessGroup();
         eventmgr.deleteProcess(pid);
         pid = 0;
