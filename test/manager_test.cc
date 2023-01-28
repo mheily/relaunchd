@@ -64,6 +64,7 @@ struct ManagerTest {
 
     static void testKillJobBySignal();
     static void testUnload();
+    static void testUnloadAllJobs();
     static void testUnloadWithOverrideDisabled();
     static void testAbandonProcessGroup();
     static void testEnvironmentVar();
@@ -191,6 +192,18 @@ void ManagerTest::testUnload() {
 // TODO: test load/unload with overridedisabled and forceunload
 }
 
+void ManagerTest::testUnloadAllJobs() {
+    TestContext ctx;
+    ctx.loadTemporaryManifest({
+                                      {"Label", "test.job1"},
+                                      {"ProgramArguments",
+                                       json::array({"/bin/sh", "-c", "sleep 12"})},
+                                      {"RunAtLoad", true},
+    });
+    ctx.mgr.startAllJobs();
+    assert(ctx.mgr.unloadAllJobs());
+}
+
 void ManagerTest::testUnloadWithOverrideDisabled() {
     auto mgr = getManager();
     Label label{"testUnloadWithOverrideDisabled"};
@@ -279,5 +292,6 @@ void addManagerTests(TestRunner &runner) {
     X(testThrottleInterval);
     X(testKillJobBySignal);
     X(testEnvironmentVar);
+    X(testUnloadAllJobs);
 #undef X
 }
