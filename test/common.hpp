@@ -18,10 +18,12 @@
 
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <iostream>
 
 #include <nlohmann/json.hpp>
 #include "manager.h"
+#include "rpc_client.h"
 
 using json = nlohmann::json;
 
@@ -43,6 +45,34 @@ namespace testutil {
         mgr->clearStateFile();
         return mgr;
     }
+};
+
+struct TestContext {
+    TestContext() : mgr_impl(testutil::getTemporaryManager()), mgr(*mgr_impl) {
+    }
+
+    void loadTemporaryManifest(const json &obj) {
+        auto path = testutil::createManifest(obj.at("Label"), obj);
+        mgr.loadManifest(obj, path);
+    }
+
+    int runLaunchctl(const std::string &method, std::vector<std::string> args) {
+        auto cb = [this, &method, &args]() -> int {
+            RpcClient client;
+            try {
+                client.invokeMethod(method, args, mgr.getDomain());
+                return 0;
+            } catch (...) {
+                return -1;
+            }
+        };
+        std::future<int> fp = async(std::launch::async, cb);
+        mgr.handleEvent();
+        return fp.get();
+    }
+
+    std::unique_ptr<Manager> mgr_impl;
+    Manager &mgr;
 };
 
 class TestRunner {

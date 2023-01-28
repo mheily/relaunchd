@@ -23,21 +23,16 @@
 extern int launchctl_main(int argc, char *argv[]);
 
 void testList() {
-    auto mgrp = testutil::getTemporaryManager();
-    auto &mgr = *mgrp;
-    json manifest = json::parse(R"(
-        {
-          "Label": "testList",
-          "Program": "/bin/sh",
-          "RunAtLoad": true
-        }
-    )");
-    std::string path = "/dev/null";
-    mgr.loadManifest(manifest, path);
-    mgr.startAllJobs();
+    TestContext ctx;
+    ctx.loadTemporaryManifest({
+                                      {"Label", "testList"},
+                                      {"Program", "/bin/sh"},
+                                      {"RunAtLoad", true}
+                              });
+    ctx.mgr.startAllJobs();
     std::array<const char *, 2> argv = {"launchctl", "list"};
     std::thread thr{[&argv]() { launchctl_main(argv.size(), (char **)&argv); }};
-    mgr.handleEvent();
+    ctx.mgr.handleEvent();
     thr.join();
 }
 
