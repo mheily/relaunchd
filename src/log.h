@@ -25,6 +25,9 @@
 /* Logging */
 extern FILE *logfile;
 
+// NOLINTBEGIN(cppcoreguidelines-pro-type-vararg,
+// cppcoreguidelines-pro-bounds-array-to-pointer-decay, cert-err33-c)
+
 #define _log_all(level, format, ...)                                           \
     do {                                                                       \
         if (logfile != NULL) {                                                 \
@@ -46,6 +49,8 @@ extern FILE *logfile;
 #define log_errno(format, ...)                                                 \
     _log_all(LOG_ERR, format ": errno=%d (%s)", ##__VA_ARGS__, errno,          \
              strerror(errno))
+
+// NOLINTEND(cppcoreguidelines-pro-type-vararg,cppcoreguidelines-pro-bounds-array-to-pointer-decay,cert-err33-c)
 
 void log_freopen(FILE *new_logfile);
 
