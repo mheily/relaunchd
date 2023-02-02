@@ -58,20 +58,13 @@ StateFile Manager::createOrOpenStatefile(const Domain &domain) {
 }
 
 void Manager::setupSignalHandlers() {
-    // FIXME testing eventmgr.addSignal(SIGCHLD, [](int){});
-
     eventmgr.addSignal(SIGPIPE,
                        [](int) { log_debug("caught SIGPIPE and ignored it"); });
 
-    eventmgr.addSignal(SIGINT, [this](int) {
-        SHUTTING_DOWN = true;
-        log_notice("caught SIGINT, exiting");
-    });
+    eventmgr.addSignal(SIGINT, [this](int) { handleShutdownSignal("SIGINT"); });
 
-    eventmgr.addSignal(SIGTERM, [this](int) {
-        SHUTTING_DOWN = true;
-        log_notice("caught SIGTERM, exiting");
-    });
+    eventmgr.addSignal(SIGTERM,
+                       [this](int) { handleShutdownSignal("SIGTERM"); });
 }
 
 bool Manager::loadManifest(const std::filesystem::path &path,
@@ -82,6 +75,11 @@ bool Manager::loadManifest(const std::filesystem::path &path,
 
 bool Manager::loadManifest(const json &jsondata, const std::string &path,
                            bool overrideDisabled, bool forceLoad) {
+    if (fsm.state() == States::GracefulShutdown) {
+        log_error(
+            "refusing to load a new job while the manager is shutting down");
+        return false;
+    }
     Manifest manifest;
     try {
         manifest = jsondata.get<manifest::Manifest>();
@@ -93,7 +91,8 @@ bool Manager::loadManifest(const json &jsondata, const std::string &path,
     const auto &label = static_cast<std::string>(manifest.label);
 
     /* Check for duplicate jobs */
-    if (jobExists(manifest.label)) {
+    if (jobExists(manifest.label) ||
+        pending_jobs.count(manifest.label.str()) > 0) {
         log_error("tried to load a duplicate job with label %s", label.c_str());
         return false;
     }
@@ -134,10 +133,9 @@ bool Manager::loadManifest(const json &jsondata, const std::string &path,
     }
 
     log_notice("loaded job %s from %s", label.c_str(), path.c_str());
-    auto result = jobs.emplace(
-        label, Job{path, manifest, eventmgr, state_file, unloaded_job});
-    auto &[it, inserted] = result;
-    it->second.initFSM();
+    auto jobp = std::make_unique<Job>(path, manifest, eventmgr, state_file,
+                                      unloaded_job);
+    pending_jobs.emplace(jobp->manifest.label.str(), std::move(jobp));
 
     return true;
 }
@@ -188,7 +186,8 @@ bool Manager::unloadJob(const std::filesystem::path &path,
 
 json Manager::listJobs() {
     auto result = json::array();
-    for (const auto &[label, job] : jobs) {
+    for (const auto &[label, jobp] : jobs) {
+        auto &job = *jobp;
         std::string pid = (job.pid == 0) ? "-" : std::to_string(job.pid);
         if (job.pid == 0) {
             pid = "-";
@@ -220,14 +219,7 @@ void Manager::overrideJobEnabled(const Label &label_, bool enabled) {
 
 Manager::Manager(Domain domain_)
     : domain(std::move(domain_)), state_file(createOrOpenStatefile(domain)) {
-    setupSignalHandlers();
-    // setup_socket_activation(main_kqfd);
-
-    // Set up the RPC server
-    auto sockfilename = domain.statedir / "rpc.sock";
-    chan.bindAndListen(sockfilename, 1024);
-    eventmgr.addSocketRead(chan.getSockFD(),
-                           [this](int) { rpc_dispatch(chan, *this); });
+    initFSM();
 }
 
 Manager::~Manager() {
@@ -242,24 +234,22 @@ bool Manager::handleEvent(std::optional<std::chrono::milliseconds> timeout) {
         jobs.erase(*unloaded_job);
         unloaded_job = std::nullopt;
     }
-    return !SHUTTING_DOWN;
+    return fsm.state() != States::Finished;
 }
 
 bool Manager::jobExists(const Label &label) const {
     return jobs.count(static_cast<std::string>(label));
 }
 
-Job &Manager::getJob(const Label &label) {
-    return jobs.at(static_cast<std::string>(label));
+Job &Manager::getJob(const Label &label) const {
+    return *jobs.at(static_cast<std::string>(label));
 }
 
 bool Manager::unloadAllJobs() noexcept {
-    // Prevent users from submitting new jobs
-    chan.unbindAndStopListening();
-
     bool success = true;
     log_debug("unloading all jobs");
-    for (auto &[label, job] : jobs) {
+    for (auto &[label, jobp] : jobs) {
+        auto &job = *jobp;
         if (job.fsm.state() != Job::States::Unloaded && !job.unload_requested) {
             bool result;
             try {
@@ -277,11 +267,13 @@ bool Manager::unloadAllJobs() noexcept {
         }
     }
     // FIXME: limit the total wait time to 90 seconds
+    // FIXME: do this asynchronously as a timer job that handleEvent() can
+    // periodically poll
     bool done = false;
     while (!done) {
         auto it = jobs.begin();
         while (it != jobs.end()) {
-            auto &job = it->second;
+            auto &job = *(it->second);
             if (job.fsm.state() == Job::States::Unloaded) {
                 it = jobs.erase(it);
             } else {
@@ -295,6 +287,7 @@ bool Manager::unloadAllJobs() noexcept {
             handleEvent(std::chrono::milliseconds{50});
         }
     }
+    fsm.execute(Triggers::AllJobsExited);
     return success;
 }
 
@@ -331,13 +324,23 @@ void Manager::startJob(Job &job) {
 }
 
 void Manager::startAllJobs() {
-    for (auto &[_, job] : jobs) {
-        // FIXME: should try() because some jobs will not start. what to catch?
-        job.fsm.execute(Job::Triggers::Bootstrap);
+    for (auto &[label, jobp] : pending_jobs) {
+        if (jobs.count(label) == 0) {
+            jobs.emplace(label, std::move(jobp));
+            jobs.at(label)->fsm.execute(Job::Triggers::Bootstrap);
+        } else {
+            // This should not happen because loadManifest() and startAllJobs()
+            // should be called together.
+            assert(false);
+            log_error("job %s is already loaded; will not load a new version",
+                      label.c_str());
+        }
     }
+    pending_jobs.clear();
 }
 
 void Manager::loadDefaultManifests() {
+    assert(fsm.state() == States::Unconfigured);
     log_info("loading default manifests for domain %s",
              domain.to_string().c_str());
     auto paths = domain.getLoadPaths();
@@ -348,6 +351,11 @@ void Manager::loadDefaultManifests() {
 
 bool Manager::loadAllManifests(const std::string &path, bool overrideDisabled,
                                bool forceLoad) {
+    if (fsm.state() == States::GracefulShutdown) {
+        log_error(
+            "refusing to load new jobs while the manager is shutting down");
+        return false;
+    }
     log_debug("loading all in %s", path.c_str());
 
     // FIXME: do this elsewhere
@@ -412,7 +420,7 @@ bool Manager::killJob(const Label &label,
     return success;
 }
 
-void Manager::dumpJob(const Label &label) const { jobs.at(label.str()).dump(); }
+void Manager::dumpJob(const Label &label) const { getJob(label).dump(); }
 
 void Manager::clearStateFile() {
 #ifndef RELAUNCHD_UNIT_TESTS
@@ -425,8 +433,141 @@ void Manager::clearStateFile() {
 const Domain &Manager::getDomain() const { return domain; }
 
 void Manager::forceUnloadAllJobs() noexcept {
-    for (auto &[_, job] : jobs) {
-        job.forceUnloadJob();
+    for (auto &[_, jobp] : jobs) {
+        jobp->forceUnloadJob();
     }
     jobs.clear();
 }
+
+void Manager::initFSM() {
+    fsm.add_transitions({
+        {
+            States::Unconfigured,
+            States::Finished,
+            Triggers::StopRequested,
+            [] { return true; },
+            [] { return true; },
+        },
+        {
+            States::Unconfigured,
+            States::Running,
+            Triggers::StartRequested,
+            [] { return true; },
+            [this] {
+                setupSignalHandlers();
+                startRpcServer();
+                loadDefaultManifests();
+                startAllJobs();
+            },
+        },
+        {
+            States::Running,
+            States::Running,
+            Triggers::StartRequested,
+            [this] { return !pending_jobs.empty(); },
+            [this] { startAllJobs(); },
+        },
+        {
+            States::Running,
+            States::GracefulShutdown,
+            Triggers::StopRequested,
+            [] { return true; },
+            [this] {
+                // Prevent users from submitting new jobs
+                chan.unbindAndStopListening();
+                unloadAllJobs();
+            },
+        },
+        {
+            States::GracefulShutdown,
+            States::Finished,
+            Triggers::StopRequested,
+            [] { return true; },
+            [] {},
+        },
+    });
+
+    fsm.add_debug_fn([](States from_state, States to_state, Triggers trigger) {
+        log_debug("trigger %s caused the state to change from %s to %s",
+                  triggerToString(trigger), stateToString(from_state),
+                  stateToString(to_state));
+    });
+}
+
+void Manager::startRpcServer() {
+    auto sockfilename = domain.statedir / "rpc.sock";
+    chan.bindAndListen(sockfilename, 1024);
+    eventmgr.addSocketRead(chan.getSockFD(),
+                           [this](int) { rpc_dispatch(chan, *this); });
+}
+
+void Manager::handleShutdownSignal(const std::string &signame) {
+    std::string msg{"caught signal " + signame};
+    switch (fsm.state()) {
+    case States::Unconfigured:
+        log_notice("%s before the manager started", msg.c_str());
+        fsm.execute(Triggers::StopRequested);
+        break;
+    case States::GracefulShutdown:
+        log_notice("%s; immediately unloading all running jobs", msg.c_str());
+        forceUnloadAllJobs();
+        fsm.execute(Triggers::AllJobsExited);
+        break;
+    case States::Running:
+        log_notice("%s; shutting down gracefully", msg.c_str());
+        fsm.execute(Triggers::StopRequested);
+        break;
+    case States::Finished:
+        // LCOV_EXCL_START
+        log_notice("%s after the manager was shutdown", msg.c_str());
+        break;
+        // LCOV_EXCL_STOP
+    }
+}
+
+void Manager::runMainLoop() {
+    if (fsm.state() != States::Running) {
+        throw std::logic_error("must call startRunning() first");
+    }
+    while (handleEvent()) {
+    }
+}
+
+bool Manager::runOnce(std::optional<std::chrono::milliseconds> timeout) {
+    if (fsm.state() != States::Running) {
+        throw std::logic_error("must call startRunning() first");
+    }
+    return handleEvent(timeout);
+}
+
+const char *Manager::stateToString(const States &state) {
+    switch (state) {
+    case States::Unconfigured:
+        return "unconfigured";
+    case States::Running:
+        return "running";
+    case States::GracefulShutdown:
+        return "shutting-down";
+    case States::Finished:
+        return "finished";
+    default:
+        __builtin_unreachable();
+    }
+}
+
+const char *Manager::triggerToString(const Triggers &trigger) {
+    switch (trigger) {
+    case Triggers::StartRequested:
+        return "StartRequested";
+    case Triggers::StopRequested:
+        return "StopRequested";
+    case Triggers::AllJobsExited:
+        return "AllJobsExited";
+    default:
+        __builtin_unreachable();
+    }
+}
+
+void Manager::startRunning() { fsm.execute(Triggers::StartRequested); }
+
+void Manager::stopRunning() { fsm.execute(Triggers::StopRequested); }

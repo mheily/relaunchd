@@ -171,12 +171,8 @@ int launchd_main(int argc, char *argv[]) {
     (void)become_a_subreaper();
 
     Manager mgr;
-    mgr.loadDefaultManifests();
-    mgr.startAllJobs();
-
-    while (mgr.handleEvent()) {
-    }
-
+    mgr.startRunning();
+    mgr.runMainLoop();
     mgr.unloadAllJobs();
 
     if (boot_manager && !run_boot_script("/lib/relaunchd/bootout")) {

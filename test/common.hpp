@@ -48,7 +48,10 @@ namespace testutil {
 };
 
 struct TestContext {
-    TestContext() : mgr_impl(testutil::getTemporaryManager()), mgr(*mgr_impl) {
+    TestContext() : mgr_impl(testutil::getTemporaryManager()), mgr(*mgr_impl) {}
+
+    ~TestContext() {
+        mgr.stopRunning();
     }
 
     void loadTemporaryManifest(const json &obj) {

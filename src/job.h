@@ -50,11 +50,11 @@ struct Job {
     friend class Manager;
     friend struct ManagerTest;
 
-  protected:
     Job(std::optional<std::filesystem::path> manifest_path_, Manifest manifest_,
         kq::EventManager &eventmgr, StateFile &state_file_,
         std::optional<std::string> &unloaded_job);
 
+  protected:
     //! The time that the job started
     std::optional<time_t> started_at;
 

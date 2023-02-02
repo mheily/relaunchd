@@ -357,7 +357,9 @@ Job::Job(std::optional<std::filesystem::path> manifest_path_,
     : manifest_path(std::move(manifest_path_)), manifest(std::move(manifest_)),
       pid(0), pgid(-1), last_exit_status(0), term_signal(0),
       schedule(_set_schedule()), eventmgr(eventmgr_), state_file(state_file_),
-      unloaded_job(unloaded_job_) {}
+      unloaded_job(unloaded_job_) {
+    initFSM();
+}
 
 void Job::initFSM() {
     fsm.add_transitions(

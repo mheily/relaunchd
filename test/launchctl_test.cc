@@ -24,16 +24,13 @@ extern int launchctl_main(int argc, char *argv[]);
 
 void testList() {
     TestContext ctx;
+    ctx.mgr.startRunning();
     ctx.loadTemporaryManifest({
                                       {"Label", "testList"},
                                       {"Program", "/bin/sh"},
                                       {"RunAtLoad", true}
                               });
-    ctx.mgr.startAllJobs();
-    std::array<const char *, 2> argv = {"launchctl", "list"};
-    std::thread thr{[&argv]() { launchctl_main(argv.size(), (char **)&argv); }};
-    ctx.mgr.handleEvent();
-    thr.join();
+    ctx.runLaunchctl("list", {});
 }
 
 void testKill() {
@@ -48,7 +45,7 @@ void testKill() {
     )");
     std::string path = "/dev/null";
     mgr.loadManifest(manifest, path);
-    mgr.startAllJobs();
+    mgr.startRunning();
     auto cb = [&mgr]() -> int {
         RpcClient client;
         std::vector<std::string> args = {"15", "testKill"};
@@ -75,7 +72,7 @@ void testUsage() {
 void testVersion() {
     auto mgrp = testutil::getTemporaryManager();
     auto &mgr = *mgrp;
-    mgr.startAllJobs();
+    mgr.startRunning();
     auto cb = [&mgr]() -> int {
         RpcClient client;
         std::vector<std::string> args;
@@ -97,6 +94,8 @@ void testSubcommandNotFound() {
 }
 
 void testLoadAndUnload() {
+    TestContext ctx;
+    ctx.mgr.startRunning();
     std::string label = "testLoadAndUnload";
     auto path = testutil::createManifest(label, json::parse(R"(
         {
@@ -105,36 +104,33 @@ void testLoadAndUnload() {
           "RunAtLoad": true
         }
     )"));
-    auto mgrp = testutil::getTemporaryManager();
-    auto &mgr = *mgrp;
-    mgr.startAllJobs();
-    auto cb = [&mgr, &path]() -> int {
+    auto cb = [&ctx, &path]() -> int {
         RpcClient client;
         std::vector<std::string> args = {path};
-        client.invokeMethod("load", args, mgr.getDomain());
+        client.invokeMethod("load", args, ctx.mgr.getDomain());
         return 0;
     };
     std::future<int> fp = async(std::launch::async, cb);
-    mgr.handleEvent();
-    assert(mgr.jobExists(label));
+    ctx.mgr.handleEvent();
+    assert(ctx.mgr.jobExists(label));
     assert(fp.get() == 0);
 
     // Now unload this job.
-    auto cb2 = [&mgr, &path]() -> int {
+    auto cb2 = [&ctx, &path]() -> int {
         RpcClient client;
         std::vector<std::string> args = {path};
-        client.invokeMethod("unload", args, mgr.getDomain());
+        client.invokeMethod("unload", args, ctx.mgr.getDomain());
         return 0;
     };
     std::future<int> fp2 = async(std::launch::async, cb2);
-    mgr.handleEvent();
-    mgr.handleEvent();
+    ctx.mgr.handleEvent();
+    ctx.mgr.handleEvent();
     assert(fp2.get() == 0);
-    if (mgr.jobExists(label)) {
+    if (ctx.mgr.jobExists(label)) {
         log_error("unexpected state");
-        mgr.dumpJob(label);
+        ctx.mgr.dumpJob(label);
     }
-    assert(!mgr.jobExists(label));
+    assert(!ctx.mgr.jobExists(label));
 }
 
 void forceTestLoad(const std::string &path, Manager &mgr) {
@@ -150,28 +146,30 @@ void forceTestLoad(const std::string &path, Manager &mgr) {
 }
 
 void testDisable() {
+    TestContext ctx;
+    ctx.mgr.startRunning();
     std::string label = "testDisable";
     json manifest = {
             {"Label", label},
             {"Program", "/bin/sh"},
     };
     auto path = testutil::createManifest(label, manifest);
-    auto mgr = testutil::getTemporaryManager();
     std::future<int> fp = async(std::launch::async,
-                           [&label, &mgr]() -> int {
+                           [&label, &ctx]() -> int {
             RpcClient client;
             std::vector<std::string> args = {label};
-            client.invokeMethod("disable", args, mgr->getDomain());
+            client.invokeMethod("disable", args, ctx.mgr.getDomain());
             return 0;
         });
-    mgr->handleEvent();
+    ctx.mgr.handleEvent();
     assert(fp.get() == 0);
-    mgr->loadManifest(path);
-    assert(!mgr->jobExists(label));
+    ctx.mgr.loadManifest(path);
+    assert(!ctx.mgr.jobExists(label));
 
     // Try to force load a disabled job
-    forceTestLoad(path, *mgr);
-    assert(mgr->jobExists(label));
+    forceTestLoad(path, ctx.mgr);
+    ctx.mgr.startRunning();
+    assert(ctx.mgr.jobExists(label));
 }
 
 void testEnable() {
@@ -186,7 +184,7 @@ void testEnable() {
     auto mgrp = testutil::getTemporaryManager();
     auto &mgr = *mgrp;
     mgr.loadManifest(path, false, true);
-    mgr.startAllJobs();
+    mgr.startRunning();
     auto cb = [&mgr, &label]() -> int {
         RpcClient client;
         std::vector<std::string> args = {label};
@@ -202,10 +200,10 @@ void testEnable() {
 }
 
 void testSubmit() {
+    TestContext ctx;
+    ctx.mgr.startRunning();
     std::string label = "testSubmit";
-    auto mgrp = testutil::getTemporaryManager();
-    auto &mgr = *mgrp;
-    mgr.clearStateFile();
+    auto &mgr = ctx.mgr;
     auto cb = [&mgr, &label]() -> int {
         RpcClient client;
         std::vector<std::string> args = {"submit", "-l", label, "--", "/bin/sh"};

@@ -61,7 +61,7 @@ static json _rpc_op_load(const json &args, Manager &mgr) {
             error = true;
         }
     }
-    mgr.startAllJobs();
+    mgr.startRunning();
     return {{"error", error}};
 }
 
@@ -134,6 +134,7 @@ static json _rpc_op_remove(const json &args, Manager &mgr) {
 static json _rpc_op_submit(const json &args, Manager &mgr) {
     std::string path = "/dev/null";
     bool ok = mgr.loadManifest(args[1], path);
+    mgr.startRunning();
     return {{"error", ok}};
 }
 

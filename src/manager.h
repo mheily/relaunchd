@@ -68,8 +68,6 @@ class Manager {
 
     bool killJob(const Label &, const std::string &signame_or_number);
 
-    void startAllJobs();
-
     //! Return true if the job exists
     bool jobExists(const Label &label) const;
 
@@ -81,25 +79,54 @@ class Manager {
 
     const Domain &getDomain() const;
 
+    void startRunning();
+
+    void stopRunning();
+
+    //! Run the event processing loop until shutdown is complete
+    void runMainLoop();
+
+    //! Run a single iteration of the event processing loop, with an optional
+    //! timeout
+    bool
+    runOnce(std::optional<std::chrono::milliseconds> timeout = std::nullopt);
+
   private:
+    void initFSM();
+
+    void startRpcServer();
+
+    void startAllJobs();
+
     static StateFile createOrOpenStatefile(const Domain &);
 
     void forceUnloadAllJobs() noexcept;
 
-    Job &getJob(const Label &label);
+    Job &getJob(const Label &label) const;
 
     void startJob(Job &job);
 
     void setupSignalHandlers();
 
-    std::unordered_map<std::string, Job> jobs;
+    void handleShutdownSignal(const std::string &signame);
+
+    //! Jobs that have been queued for loading but are waiting for a
+    //! StartAllJobs() signal
+    std::unordered_map<std::string, std::unique_ptr<Job>> pending_jobs;
+
+    std::unordered_map<std::string, std::unique_ptr<Job>> jobs;
     const Domain domain;
     kq::EventManager eventmgr;
     Channel chan;
-    bool SHUTTING_DOWN = false;
     std::optional<std::string> unloaded_job;
     StateFile state_file;
-    void rescheduleStandardJob(Job &job);
+
+    // FSM implementation
+    enum class States { Unconfigured, Running, GracefulShutdown, Finished };
+    enum class Triggers { StartRequested, StopRequested, AllJobsExited };
+    FSM::Fsm<States, States::Unconfigured, Triggers> fsm;
+    static const char *stateToString(const States &state);
+    static const char *triggerToString(const Triggers &trigger);
 };
 
 /** Given a pending connection on a socket descriptor, activate the associated
