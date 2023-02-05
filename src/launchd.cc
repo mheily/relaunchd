@@ -173,7 +173,6 @@ int launchd_main(int argc, char *argv[]) {
     Manager mgr;
     mgr.startRunning();
     mgr.runMainLoop();
-    mgr.unloadAllJobs();
 
     if (boot_manager && !run_boot_script("/lib/relaunchd/bootout")) {
         err(1, "bootout failed");

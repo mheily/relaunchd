@@ -127,6 +127,12 @@ class Manager {
     FSM::Fsm<States, States::Unconfigured, Triggers> fsm;
     static const char *stateToString(const States &state);
     static const char *triggerToString(const Triggers &trigger);
+
+    // FIXME: actually implement this
+    //! Once the GracefulShutdown process starts, this is the deadline for it to
+    //! finish.
+    // If the deadline is exceeded, all jobs will be forcefully killed.
+    std::optional<time_t> shutdownDeadline;
 };
 
 /** Given a pending connection on a socket descriptor, activate the associated

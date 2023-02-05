@@ -228,11 +228,33 @@ Manager::~Manager() {
 }
 
 bool Manager::handleEvent(std::optional<std::chrono::milliseconds> timeout) {
-    log_debug("waiting for an event");
-    eventmgr.waitForEvent(timeout);
+    // TODO: replace this cleanup task with an event-based callback like:
+    // event_mgr.addIpcCall("job_eraser", [this](std::string label) {
+    // jobs.erase(getJob(label)); })
     if (unloaded_job) {
         jobs.erase(*unloaded_job);
         unloaded_job = std::nullopt;
+    }
+    switch (fsm.state()) {
+    case States::Unconfigured:
+        throw std::logic_error("unsupported state");
+    case States::Running:
+        log_debug("waiting for an event: timeout=%lld",
+                  timeout ? timeout.value().count() : 0);
+        eventmgr.waitForEvent(timeout);
+        break;
+    case States::GracefulShutdown:
+        if (jobs.empty()) {
+            fsm.execute(Triggers::AllJobsExited);
+        } else {
+            log_debug("shutting down: %zu jobs remaining: waiting for an "
+                      "event: timeout=0.5s",
+                      jobs.size());
+            eventmgr.waitForEvent(std::chrono::milliseconds{500});
+        }
+        break;
+    case States::Finished:
+        break;
     }
     return fsm.state() != States::Finished;
 }
@@ -266,28 +288,6 @@ bool Manager::unloadAllJobs() noexcept {
             }
         }
     }
-    // FIXME: limit the total wait time to 90 seconds
-    // FIXME: do this asynchronously as a timer job that handleEvent() can
-    // periodically poll
-    bool done = false;
-    while (!done) {
-        auto it = jobs.begin();
-        while (it != jobs.end()) {
-            auto &job = *(it->second);
-            if (job.fsm.state() == Job::States::Unloaded) {
-                it = jobs.erase(it);
-            } else {
-                job.dump();
-                ++it;
-            }
-        }
-        if (jobs.empty()) {
-            done = true;
-        } else {
-            handleEvent(std::chrono::milliseconds{50});
-        }
-    }
-    fsm.execute(Triggers::AllJobsExited);
     return success;
 }
 
@@ -484,6 +484,13 @@ void Manager::initFSM() {
             Triggers::StopRequested,
             [] { return true; },
             [] {},
+        },
+        {
+            States::GracefulShutdown,
+            States::Finished,
+            Triggers::AllJobsExited,
+            [] { return true; },
+            [] { log_notice("all jobs have exited"); },
         },
     });
 
