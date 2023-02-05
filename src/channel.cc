@@ -175,7 +175,7 @@ int Channel::getSockFD() {
 }
 
 void Channel::unbindAndStopListening() {
-    if (sockfd) {
+    if (sockfd >= 0) {
         if (close(sockfd) != 0) {
             log_errno("close(2)");
         }
