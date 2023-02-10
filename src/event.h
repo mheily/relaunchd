@@ -40,6 +40,7 @@
 #include <chrono>
 #include <functional>
 #include <iostream>
+#include <queue>
 #include <stdexcept>
 #include <unordered_set>
 #include <variant>
@@ -80,59 +81,26 @@ struct timer_event {
     int timer_id;
 };
 
+struct ipc_event {
+    std::string method, arg;
+};
+
 // N.B. event_type must be kept in sync with the std::variant below.
-typedef std::variant<proc_event, signal_event, socket_event, timer_event> Event;
+typedef std::variant<proc_event, signal_event, socket_event, timer_event,
+                     ipc_event>
+    Event;
 enum event_type {
     EVTYPE_PROC,
     EVTYPE_SIGNAL,
     EVTYPE_SOCKET_READ,
     EVTYPE_TIMER,
+    EVTYPE_IPC,
     EVTYPE_NONE = 32,
 };
 
 namespace kq::error {
 class ProcessNotFound : public std::exception {};
 }; // namespace kq::error
-
-namespace kq {
-//! Data and methods shared by all implementations
-class CommonImplementation {
-  protected:
-    Event dequeueProcessEvent() {
-        const auto &it = child_status.begin();
-        auto event = Event(proc_event{it->first, it->second});
-        child_status.erase(it);
-        return event;
-    }
-
-    int waitForProcess(pid_t pid) {
-        int wstatus, rv;
-        rv = waitpid(pid, &wstatus, WNOHANG);
-        if (rv == 0 || rv == -1) {
-            std::string msg = std::string{"waitpid failed: retval="} +
-                              std::to_string(rv) + std::string{" errno="} +
-                              std::to_string(errno);
-            kqtrace::print(msg);
-            return -1;
-        }
-        return wstatus;
-    }
-
-    // TODO: make this process-wide, since all threads share the same signal
-    // handlers Think about whether we want to allow multiple
-    // KernelEventInterface objects at all, as only one of them could
-    // realistically handle SIGCHLD and other signals. Maybe allow one object to
-    // manage signals, and any other objects will not be able to manage signals:
-    //    static std::mutex signal_mtx;
-    //    bool supports_signals = signal_mtx.try_lock();
-
-    //! waitpid(2) status information for reaped processes.
-    std::unordered_map<pid_t, int> child_status;
-
-    //! signal handlers to restore when cleaning up
-    std::unordered_set<int> blocked_signals;
-};
-}; // namespace kq
 
 class KernelEventInterface {
   public:
@@ -161,15 +129,59 @@ class KernelEventInterface {
 
     virtual void ignoreTimer(int timer_id) = 0;
 
+    void addPendingEvent(Event evt) { pending_events.emplace(std::move(evt)); }
+
+    std::optional<Event> getPendingEvent() {
+        std::optional<Event> result;
+        if (!child_status.empty()) {
+            const auto &it = child_status.begin();
+            result = proc_event{it->first, it->second};
+            child_status.erase(it);
+        } else if (!pending_events.empty()) {
+            result = std::move(pending_events.front());
+            pending_events.pop();
+        }
+        return result;
+    }
+
+    int waitForProcess(pid_t pid) {
+        int wstatus, rv;
+        rv = waitpid(pid, &wstatus, WNOHANG);
+        if (rv == 0 || rv == -1) {
+            std::string msg = std::string{"waitpid failed: retval="} +
+                              std::to_string(rv) + std::string{" errno="} +
+                              std::to_string(errno);
+            kqtrace::print(msg);
+            return -1;
+        }
+        return wstatus;
+    }
+
     //! Run cleanup actions between fork() and exec(), such as resetting signal
     //! handlers
     virtual void handleFork() = 0;
+
+    //! waitpid(2) status information for reaped processes.
+    std::unordered_map<pid_t, int> child_status;
+
+    //! signal handlers to restore when cleaning up
+    std::unordered_set<int> blocked_signals;
+
+    //! events that have occurred but not yet returned by waitForEvent()
+    std::queue<Event> pending_events;
+
+    // TODO: make this process-wide, since all threads share the same signal
+    // handlers. Think about whether we want to allow multiple
+    // KernelEventInterface objects at all, as only one of them could
+    // realistically handle SIGCHLD and other signals. Maybe allow one object to
+    // manage signals, and any other objects will not be able to manage signals:
+    //    static std::mutex signal_mtx;
+    //    bool supports_signals = signal_mtx.try_lock();
 };
 
 #if USE_EPOLL
 
-class EpollImplementation : public KernelEventInterface,
-                            public kq::CommonImplementation {
+class EpollImplementation : public KernelEventInterface {
   public:
     EpollImplementation() {
         epfd = epollCreate();
@@ -205,13 +217,9 @@ class EpollImplementation : public KernelEventInterface,
 
     std::optional<Event>
     waitForEvent(std::optional<std::chrono::milliseconds> timeout) override {
-        if (!child_status.empty()) {
-            return dequeueProcessEvent();
-        }
-        if (!pending_events.empty()) {
-            auto event = pending_events.front();
-            pending_events.pop();
-            return event;
+        std::optional<Event> result = getPendingEvent();
+        if (result.has_value()) {
+            return result;
         }
         for (;;) {
             int evtype;
@@ -507,13 +515,11 @@ class EpollImplementation : public KernelEventInterface,
     std::unordered_map<int, int> timerfd_map;
     std::unordered_set<int>
         cleanup_fds; // file descriptors to close via the destructor
-    std::queue<Event> pending_events;
 };
 
 #elif USE_KQUEUE
 
-class KqueueImplementation : public KernelEventInterface,
-                             kq::CommonImplementation {
+class KqueueImplementation : public KernelEventInterface {
   public:
     KqueueImplementation() {
         kqfd = kqueue();
@@ -530,8 +536,9 @@ class KqueueImplementation : public KernelEventInterface,
 
     std::optional<Event>
     waitForEvent(std::optional<std::chrono::milliseconds> timeout) override {
-        if (!child_status.empty()) {
-            return dequeueProcessEvent();
+        std::optional<Event> result = getPendingEvent();
+        if (result.has_value()) {
+            return result;
         }
         struct kevent kev;
         for (;;) {
@@ -725,6 +732,15 @@ class EventManager {
         return timer_id;
     }
 
+    void addIpcMethod(std::string name,
+                      std::function<void(std::string)> callback) {
+        ipc_callbacks.insert({std::move(name), std::move(callback)});
+    }
+
+    void submitIpcCallback(std::string method, std::string arg) {
+        impl->addPendingEvent(ipc_event{std::move(method), std::move(arg)});
+    }
+
     void waitForEvent(std::optional<std::chrono::milliseconds> timeout) {
         std::optional<Event> maybe_event = impl->waitForEvent(timeout);
         if (!maybe_event) {
@@ -733,6 +749,14 @@ class EventManager {
         const Event &event = maybe_event.value();
         kqtrace::print("got an event of type " + std::to_string(event.index()));
         switch (event.index()) {
+        case EVTYPE_IPC: {
+            const auto &ipc_ev = std::get<ipc_event>(event);
+            const auto &callback = ipc_callbacks.at(ipc_ev.method);
+            callback(ipc_ev.arg);
+            // Not needed because IPC methods persist until manually deleted.
+            // impl->ignoreCallback(ipc_ev.method);
+            break;
+        }
         case EVTYPE_SIGNAL: {
             const auto &signum = std::get<signal_event>(event).signum;
             const auto &callback = signal_callbacks.at(signum);
@@ -782,6 +806,8 @@ class EventManager {
         process_callbacks;
     std::unordered_map<int, std::function<void(int)>> socket_read_callbacks;
     std::unordered_map<int, std::function<void()>> timer_callbacks;
+    std::unordered_map<std::string, std::function<void(std::string)>>
+        ipc_callbacks;
     int timer_id_max = 0;
     std::unique_ptr<KernelEventInterface> impl;
 };

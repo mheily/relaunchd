@@ -133,8 +133,7 @@ bool Manager::loadManifest(const json &jsondata, const std::string &path,
     }
 
     log_notice("loaded job %s from %s", label.c_str(), path.c_str());
-    auto jobp = std::make_unique<Job>(path, manifest, eventmgr, state_file,
-                                      unloaded_job);
+    auto jobp = std::make_unique<Job>(path, manifest, eventmgr, state_file);
     pending_jobs.emplace(jobp->manifest.label.str(), std::move(jobp));
 
     return true;
@@ -220,6 +219,12 @@ void Manager::overrideJobEnabled(const Label &label_, bool enabled) {
 Manager::Manager(Domain domain_)
     : domain(std::move(domain_)), state_file(createOrOpenStatefile(domain)) {
     initFSM();
+    eventmgr.addIpcMethod("delete_job", [this](const std::string &arg) {
+        auto it = jobs.find(arg);
+        if (it != jobs.end()) {
+            jobs.erase(it);
+        }
+    });
 }
 
 Manager::~Manager() {
@@ -228,19 +233,12 @@ Manager::~Manager() {
 }
 
 bool Manager::handleEvent(std::optional<std::chrono::milliseconds> timeout) {
-    // TODO: replace this cleanup task with an event-based callback like:
-    // event_mgr.addIpcCall("job_eraser", [this](std::string label) {
-    // jobs.erase(getJob(label)); })
-    if (unloaded_job) {
-        jobs.erase(*unloaded_job);
-        unloaded_job = std::nullopt;
-    }
     switch (fsm.state()) {
     case States::Unconfigured:
         throw std::logic_error("unsupported state");
     case States::Running:
         log_debug("waiting for an event: timeout=%lld",
-                  timeout ? timeout.value().count() : 0);
+                  timeout ? timeout.value().count() : 0LL);
         eventmgr.waitForEvent(timeout);
         break;
     case States::GracefulShutdown:

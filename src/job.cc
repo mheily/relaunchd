@@ -353,11 +353,10 @@ job_schedule_t Job::_set_schedule() const {
 
 Job::Job(std::optional<std::filesystem::path> manifest_path_,
          Manifest manifest_, kq::EventManager &eventmgr_,
-         StateFile &state_file_, std::optional<std::string> &unloaded_job_)
+         StateFile &state_file_)
     : manifest_path(std::move(manifest_path_)), manifest(std::move(manifest_)),
       pid(0), pgid(-1), last_exit_status(0), term_signal(0),
-      schedule(_set_schedule()), eventmgr(eventmgr_), state_file(state_file_),
-      unloaded_job(unloaded_job_) {
+      schedule(_set_schedule()), eventmgr(eventmgr_), state_file(state_file_) {
     initFSM();
 }
 
@@ -397,7 +396,9 @@ void Job::initFSM() {
              States::Unloaded,
              Triggers::UnloadRequested,
              [] { return true; },
-             [this] { unloaded_job = manifest.label.str(); },
+             [this] {
+                 eventmgr.submitIpcCallback("delete_job", manifest.label.str());
+             },
          },
          // From: Waiting
          // To: Any state
@@ -422,7 +423,7 @@ void Job::initFSM() {
                  if (timer_id) {
                      cancelTimer();
                  }
-                 unloaded_job = manifest.label.str();
+                 eventmgr.submitIpcCallback("delete_job", manifest.label.str());
              },
          },
          // From: Running
@@ -470,7 +471,9 @@ void Job::initFSM() {
              States::Unloaded,
              Triggers::ProcessExited,
              [this] { return unload_requested; },
-             [this] { unloaded_job = manifest.label.str(); },
+             [this] {
+                 eventmgr.submitIpcCallback("delete_job", manifest.label.str());
+             },
          },
          // From: Exited
          // To: Any state
@@ -479,7 +482,9 @@ void Job::initFSM() {
              States::Unloaded,
              Triggers::UnloadRequested,
              [] { return true; },
-             [this] { unloaded_job = manifest.label.str(); },
+             [this] {
+                 eventmgr.submitIpcCallback("delete_job", manifest.label.str());
+             },
          }});
     fsm.add_debug_fn([this](Job::States from_state, Job::States to_state,
                             Job::Triggers trigger) {

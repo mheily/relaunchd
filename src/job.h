@@ -51,8 +51,7 @@ struct Job {
     friend struct ManagerTest;
 
     Job(std::optional<std::filesystem::path> manifest_path_, Manifest manifest_,
-        kq::EventManager &eventmgr, StateFile &state_file_,
-        std::optional<std::string> &unloaded_job);
+        kq::EventManager &eventmgr, StateFile &state_file_);
 
   protected:
     //! The time that the job started
@@ -114,7 +113,6 @@ struct Job {
     // Shared with the ::Manager of this job
     kq::EventManager &eventmgr;
     const StateFile &state_file;
-    std::optional<std::string> &unloaded_job;
 
     void initFSM();
     void startJob();

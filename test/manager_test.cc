@@ -189,7 +189,8 @@ void ManagerTest::testUnload() {
     mgr.startRunning();
     assert(mgr.unloadJob(label));
     assert(!mgr.unloadJob(label));
-    mgr.handleEvent(std::chrono::milliseconds{100});
+    mgr.handleEvent(std::chrono::milliseconds{100}); // transition the job to unloaded
+    mgr.handleEvent(std::chrono::milliseconds{100}); // run the job_unload IPC callback
     assert(!mgr.jobExists(label));
 // TODO: test load/unload with overridedisabled and forceunload
 }
@@ -225,7 +226,8 @@ void ManagerTest::testUnloadWithOverrideDisabled() {
     mgr.startRunning();
     assert(mgr.jobExists(label));
     mgr.unloadJob(label, true, true);
-    assert(mgr.handleEvent(std::chrono::milliseconds{100}));
+    assert(mgr.handleEvent(std::chrono::milliseconds{100})); // unload the job
+    assert(mgr.handleEvent(std::chrono::milliseconds{100})); // remove the job from Manager::jobs
     assert(!mgr.jobExists(label));
 }
 

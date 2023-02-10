@@ -125,6 +125,7 @@ void testLoadAndUnload() {
     std::future<int> fp2 = async(std::launch::async, cb2);
     ctx.mgr.handleEvent();
     ctx.mgr.handleEvent();
+    ctx.mgr.handleEvent();
     assert(fp2.get() == 0);
     if (ctx.mgr.jobExists(label)) {
         log_error("unexpected state");

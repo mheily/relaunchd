@@ -118,7 +118,6 @@ class Manager {
     const Domain domain;
     kq::EventManager eventmgr;
     Channel chan;
-    std::optional<std::string> unloaded_job;
     StateFile state_file;
 
     // FSM implementation
