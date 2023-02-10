@@ -149,6 +149,8 @@ if [ "$use_lto" = "yes" ] ; then
   echo "# Enable LTO"
   echo "TARGET_CXXFLAGS += -flto"
 fi
+echo "# Enable GNU libstdc++ debug mode, which adds some sanity checking to STL containers"
+echo "TARGET_CXXFLAGS += -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC"
 ) >> "$makefilepath"
 cat Makefile.in >> $makefilepath
 
