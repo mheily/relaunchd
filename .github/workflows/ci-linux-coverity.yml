@@ -68,14 +68,14 @@ jobs:
           sudo update-alternatives --install /usr/bin/llvm-symbolizer llvm-symbolizer /usr/bin/llvm-symbolizer-10 60 && sudo update-alternatives --set llvm-symbolizer /usr/bin/llvm-symbolizer-10
 
       - name: Configure build system
-        run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Debug
+        run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Debug -DENABLE_GLIBCXX_DEBUG=OFF
 
       - name: Build relaunchd
         run: |
           export PATH=`pwd`/coverity_tool/bin:$PATH
           export CC=clang
           cov-configure --template --compiler clang --comptype clangcc
-          cov-build --dir cov-int cmake --build ${{github.workspace}}/build -DENABLE_GLIBCXX_DEBUG=OFF
+          cov-build --dir cov-int cmake --build ${{github.workspace}}/build
 
       - name: Display build result
         run: |
