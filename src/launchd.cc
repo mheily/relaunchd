@@ -119,6 +119,7 @@ int launchd_main(int argc, char *argv[]) {
     pid_t pid = getpid();
     bool daemonize = false;
     bool boot_manager = false;
+    FILE *logfile = nullptr;
 
     //    /* Sanitize environment variables */
     //    if ((getuid() != 0) && (access(getenv("HOME"), R_OK | W_OK | X_OK) <
@@ -165,7 +166,15 @@ int launchd_main(int argc, char *argv[]) {
         }
         redirect_stdio(pid);
     } else {
-        log_freopen(stdout);
+        if (getuid() == 0) {
+            logfile = fopen("/var/log/relaunchd.log", "a");
+            if (!logfile) {
+                logfile = stdout;
+            }
+        } else {
+            logfile = stdout;
+        }
+        log_freopen(logfile);
     }
 
     (void)become_a_subreaper();
@@ -177,6 +186,8 @@ int launchd_main(int argc, char *argv[]) {
     if (boot_manager && !run_boot_script("/lib/relaunchd/bootout")) {
         err(1, "bootout failed");
     }
+
+    (void)fclose(logfile);
 
     return EXIT_SUCCESS;
 }
