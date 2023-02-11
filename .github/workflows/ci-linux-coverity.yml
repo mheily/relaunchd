@@ -75,7 +75,7 @@ jobs:
           export PATH=`pwd`/coverity_tool/bin:$PATH
           export CC=clang
           cov-configure --template --compiler clang --comptype clangcc
-          cov-build --dir cov-int cmake --build ${{github.workspace}}/build
+          cov-build --dir cov-int cmake --build ${{github.workspace}}/build -DENABLE_GLIBCXX_DEBUG=OFF
 
       - name: Display build result
         run: |

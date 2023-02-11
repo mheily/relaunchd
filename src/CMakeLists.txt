@@ -90,4 +90,9 @@ else()
     message(STATUS "LTO not supported: <${ipo_error}>")
 endif()
 
+if(ENABLE_GLIBCXX_DEBUG)
+    message(STATUS "Enabling GNU libstdc++ debug mode")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC")
+endif()
+
 include(EnableSanitizers)

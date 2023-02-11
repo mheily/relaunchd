@@ -24,6 +24,8 @@ option(USE_PRIVATE_DEPENDENCIES
     "Should we fetch, build and link to a private copy of libkqueue?"
     ON)
 
+option(ENABLE_GLIBCXX_DEBUG "Should we enable libstdc++ debug mode?" ON)
+
 set(VENDOR_AGENT_LOAD_PATH
         "/lib/relaunchd/LaunchAgents"
         CACHE
