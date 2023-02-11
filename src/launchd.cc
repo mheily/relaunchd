@@ -117,7 +117,7 @@ void usage() { printf("todo: usage\n"); }
 int launchd_main(int argc, char *argv[]) {
     int c;
     pid_t pid = getpid();
-    bool daemonize = (pid != 1);
+    bool daemonize = false;
     bool boot_manager = false;
 
     //    /* Sanitize environment variables */
@@ -128,13 +128,13 @@ int launchd_main(int argc, char *argv[]) {
     //        stderr); exit(1);
     //    }
 
-    while ((c = getopt(argc, argv, "bfv")) != -1) {
+    while ((c = getopt(argc, argv, "bdv")) != -1) {
         switch (c) {
         case 'b':
             boot_manager = true;
             break;
-        case 'f':
-            daemonize = false;
+        case 'd':
+            daemonize = true;
             break;
         case 'v':
             //            logmask = LOG_DEBUG;
