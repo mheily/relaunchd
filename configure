@@ -70,6 +70,8 @@ printf 'setting build type to %s\n' $build_type
 case $build_type in
 debug)
   build_type_flags="-g3 -O0 -Wall -Wextra -fno-omit-frame-pointer"
+  # Enable GNU libstdc++ debug mode, which adds some sanity checking to STL containers"
+  build_type_flags="${build_type_flags} -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC"
   ;;
 release)
   build_type_flags="-Os -Wall -Wextra -Werror"
@@ -149,8 +151,6 @@ if [ "$use_lto" = "yes" ] ; then
   echo "# Enable LTO"
   echo "TARGET_CXXFLAGS += -flto"
 fi
-echo "# Enable GNU libstdc++ debug mode, which adds some sanity checking to STL containers"
-echo "TARGET_CXXFLAGS += -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC"
 ) >> "$makefilepath"
 cat Makefile.in >> $makefilepath
 
