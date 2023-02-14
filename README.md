@@ -61,7 +61,13 @@ When building on FreeBSD, run the following command to install dependencies:
 ```
 
 Required library dependencies:
-* nlohmann::json (`apt install nlohmann-json3-dev` on Debian/Ubuntu, or `brew install nlohmann-json` on MacOS)
+nlohmann::json is required to build the project.  
+on linux, this dependency can be installed via distro's package manager:  
+- debian and derivatives: `apt install nlohmann-json3-dev`
+- arch and derivatives: `pacman -S nlohmann-json (in community repo)`
+- gentoo: `emerge [-a] dev-cpp/nlohmann_json`  
+
+on Macos it can be aquired either via `brew install nlohmann-json` or `port install nlohmann-json`
 
 If you are not able to install `nlohmann::json` in a systemwide location,
 you can tell CMake to download and use a private copy. Add the following flag to your CMake
@@ -82,7 +88,7 @@ The basic commands to build and install the software are:
 ```
 	mkdir cmake-build-debug
 	cd cmake-build-debug
-	cmake ..
+	cmake .. [-Dcmake-args..]
 	make
 ```
 
