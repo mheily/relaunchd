@@ -61,10 +61,25 @@ void Manager::setupSignalHandlers() {
     eventmgr.addSignal(SIGPIPE,
                        [](int) { log_debug("caught SIGPIPE and ignored it"); });
 
-    eventmgr.addSignal(SIGINT, [this](int) { handleShutdownSignal("SIGINT"); });
+    eventmgr.addSignal(SIGINT, [this](int) {
+        pending_result = ManagerResult::Reboot;
+        handleShutdownSignal("SIGINT");
+    });
 
-    eventmgr.addSignal(SIGTERM,
-                       [this](int) { handleShutdownSignal("SIGTERM"); });
+    eventmgr.addSignal(SIGUSR1, [this](int) {
+        pending_result = ManagerResult::Halt;
+        handleShutdownSignal("SIGUSR1");
+    });
+
+    eventmgr.addSignal(SIGUSR2, [this](int) {
+        pending_result = ManagerResult::HaltAndPowerDown;
+        handleShutdownSignal("SIGUSR2");
+    });
+
+    eventmgr.addSignal(SIGTERM, [this](int) {
+        pending_result = ManagerResult::SingleUserMode;
+        handleShutdownSignal("SIGTERM");
+    });
 }
 
 bool Manager::loadManifest(const std::filesystem::path &path,
@@ -530,12 +545,13 @@ void Manager::handleShutdownSignal(const std::string &signame) {
     }
 }
 
-void Manager::runMainLoop() {
+ManagerResult Manager::runMainLoop() {
     if (fsm.state() != States::Running) {
         throw std::logic_error("must call startRunning() first");
     }
     while (handleEvent()) {
     }
+    return pending_result;
 }
 
 bool Manager::runOnce(std::optional<std::chrono::milliseconds> timeout) {

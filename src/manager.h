@@ -26,6 +26,28 @@
 #include "job.h"
 #include "state_file.hpp"
 
+//! When the manager finishes, it returns a result that is used to
+//! reboot/poweroff/etc.
+enum class ManagerResult {
+    //! The default action is to call exit() after the manager returns. This
+    //! only works when running as non-PID 1.
+    Exit,
+
+    //! Sending SIGINT will reboot the system.
+    Reboot,
+
+    //! Sending SIGUSR1 will halt the system.
+    Halt,
+
+    //! Sending SIGUSR2 will halt and power down the system.
+    HaltAndPowerDown,
+
+    //! Sending SIGTERM will transition to single-user mode
+    SingleUserMode,
+
+    // TODO: handle other signals related to gettys
+};
+
 class Manager {
     friend struct ManagerTest;
 
@@ -84,7 +106,7 @@ class Manager {
     void stopRunning();
 
     //! Run the event processing loop until shutdown is complete
-    void runMainLoop();
+    ManagerResult runMainLoop();
 
     //! Run a single iteration of the event processing loop, with an optional
     //! timeout
@@ -126,6 +148,9 @@ class Manager {
     FSM::Fsm<States, States::Unconfigured, Triggers> fsm;
     static const char *stateToString(const States &state);
     static const char *triggerToString(const Triggers &trigger);
+
+    //! Temporary holding area for the return value of runMainLoop().
+    ManagerResult pending_result = ManagerResult::Exit;
 
     // FIXME: actually implement this
     //! Once the GracefulShutdown process starts, this is the deadline for it to
